@@ -242,6 +242,14 @@ export const getAllEmployees = internalQuery({
   },
 });
 
+export const getEmployeeByEmail = internalQuery({
+  args: { email: v.string() },
+  handler: async (ctx, { email }) => {
+    const all = await ctx.db.query("employees").collect();
+    return all.find(e => e.email?.toLowerCase() === email.toLowerCase()) ?? null;
+  },
+});
+
 export const insertEmployee = internalMutation({
   args: {
     name: v.string(),

@@ -6,6 +6,8 @@ import {
 } from '../api.js';
 import { initGeneratePage } from './generate.js';
 import { initEmployeesPage } from './employees.js';
+import { productDropdownHTML, tableSkeletonHTML } from './shared.js';
+
 
 let token = sessionStorage.getItem('ws_admin_token') || null;
 let currentRole = sessionStorage.getItem('ws_admin_role') || 'admin';
@@ -300,6 +302,10 @@ function attachDashboardEvents(app) {
 
 // ─── Data Loading ──────────────────────────────────────────────────────────────
 async function loadData() {
+  const tbody = document.getElementById('cert-tbody');
+  if (tbody) {
+    tbody.innerHTML = tableSkeletonHTML(8, 5);
+  }
   try {
     const [certs, stats] = await Promise.all([
       adminGetAll(token),
@@ -309,9 +315,20 @@ async function loadData() {
     statsData = stats;
     renderStats(stats);
     renderTable();
-  } catch {
-    showToast('❌ Session expired. Please log in again.', 'error');
-    setTimeout(() => { token = null; sessionStorage.removeItem('ws_admin_token'); }, 2000);
+  } catch (err) {
+    if (tbody) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="8">
+            <div class="error-fallback-box">
+              <h3>⚠️ Unable to Load Certificates</h3>
+              <p>The system was unable to reach the verification server. Please check your connection and try again.</p>
+              <button class="btn-primary" onclick="window.location.reload()" style="padding: 8px 16px; font-size: 0.85rem; width: auto; max-width: 150px; margin: 0 auto;">Retry Connection</button>
+            </div>
+          </td>
+        </tr>`;
+    }
+    showToast('❌ Connection error. Failed to retrieve certificates.', 'error');
   }
 }
 
@@ -365,10 +382,13 @@ function renderTable() {
   const statusF   = document.getElementById('filter-status')?.value || '';
 
   const filtered = allCerts.filter(c => {
+    const isExpired = c.status === 'active' && c.endDate && new Date(c.endDate) < new Date();
+    const displayStatus = isExpired ? 'expired' : c.status;
+
     const matchQ = !query || [c.holderName, c.certificateId, c.role, c.referenceNumber]
       .join(' ').toLowerCase().includes(query);
     const matchT = !typeF   || c.certificateType === typeF;
-    const matchS = !statusF || c.status === statusF;
+    const matchS = !statusF || displayStatus === statusF;
     return matchQ && matchT && matchS;
   });
 
@@ -378,7 +398,10 @@ function renderTable() {
     return;
   }
 
-  tbody.innerHTML = filtered.map(c => `
+  tbody.innerHTML = filtered.map(c => {
+    const isExpired = c.status === 'active' && c.endDate && new Date(c.endDate) < new Date();
+    const displayStatus = isExpired ? 'expired' : c.status;
+    return `
 <tr>
   <td><div class="td-cert-id">${esc(c.certificateId)}</div><div style="font-size:0.68rem;color:#94a3b8;margin-top:2px;">${esc(c.referenceNumber)}</div></td>
   <td>
@@ -388,7 +411,7 @@ function renderTable() {
   <td><div class="td-role">${esc(c.role)}</div></td>
   <td><span class="type-pill ${c.certificateType}">${esc(getNiceTypeLabel(c.certificateType))}</span></td>
   <td style="white-space:nowrap;font-size:0.8rem;">${formatDateShort(c.issuedDate)}</td>
-  <td><span class="status-pill ${c.status}"><span class="dot"></span>${c.status}</span></td>
+  <td><span class="status-pill ${displayStatus}"><span class="dot"></span>${displayStatus}</span></td>
   <td style="text-align:center;font-weight:700;color:var(--navy);">${c.verificationCount}</td>
   <td>
     <div class="actions-cell">
@@ -401,7 +424,8 @@ function renderTable() {
       <button class="btn-action delete" onclick="window.wsDeleteModal('${c._id}','${esc(c.holderName)}')">🗑 Delete</button>
     </div>
   </td>
-</tr>`).join('');
+</tr>`;
+  }).join('');
 }
 
 // Expose handlers on window for inline onclick (no framework)
@@ -518,38 +542,7 @@ async function openAddModal() {
       </div>
       <div class="form-group">
         <label class="form-label">Product / Project</label>
-        <select id="f-product" class="form-select" onchange="document.getElementById('f-product-custom').style.display=this.value==='__custom__'?'block':'none'">
-          <optgroup label="🌊 WaveSeed Flagship">
-            <option value="WaveBase AI">WaveBase AI — AI-Powered Platform</option>
-            <option value="WaveSeed Verify">WaveSeed Verify — Certificate System</option>
-            <option value="WaveSeed Platform">WaveSeed Platform — Core Ecosystem</option>
-          </optgroup>
-          <optgroup label="🤖 AI Products">
-            <option value="AI Agent Suite">AI Agent Suite</option>
-            <option value="AI Automation Engine">AI Automation Engine</option>
-            <option value="AI Analytics Dashboard">AI Analytics Dashboard</option>
-            <option value="AI Content Studio">AI Content Studio</option>
-            <option value="AI Workflow Builder">AI Workflow Builder</option>
-          </optgroup>
-          <optgroup label="📱 Apps">
-            <option value="WaveSeed Mobile App">WaveSeed Mobile App</option>
-            <option value="WaveSeed Admin App">WaveSeed Admin App</option>
-            <option value="Client Portal App">Client Portal App</option>
-          </optgroup>
-          <optgroup label="⚙️ Custom Software">
-            <option value="Custom SaaS Product">Custom SaaS Product</option>
-            <option value="Custom CRM System">Custom CRM System</option>
-            <option value="Custom ERP System">Custom ERP System</option>
-            <option value="Business Automation Tool">Business Automation Tool</option>
-          </optgroup>
-          <optgroup label="🔧 Services & R&D">
-            <option value="Internal R&D Project">Internal R&D Project</option>
-            <option value="Client Project">Client Project</option>
-            <option value="Consulting Engagement">Consulting Engagement</option>
-          </optgroup>
-          <option value="__custom__">✏️ Other / Custom…</option>
-        </select>
-        <input id="f-product-custom" class="form-input" placeholder="Enter custom product/project name" style="margin-top:8px;display:none;" />
+        ${productDropdownHTML('f-product')}
       </div>
       <div class="form-group">
         <label class="form-label">Reporting To</label>
@@ -756,38 +749,7 @@ function openEditModal(id) {
       </div>
       <div class="form-group">
         <label class="form-label">Product / Project</label>
-        <select id="e-product" class="form-select" onchange="document.getElementById('e-product-custom').style.display=this.value==='__custom__'?'block':'none'">
-          <optgroup label="🌊 WaveSeed Flagship">
-            <option value="WaveBase AI" ${cert.product==='WaveBase AI'?'selected':''}>WaveBase AI — AI-Powered Platform</option>
-            <option value="WaveSeed Verify" ${cert.product==='WaveSeed Verify'?'selected':''}>WaveSeed Verify — Certificate System</option>
-            <option value="WaveSeed Platform" ${cert.product==='WaveSeed Platform'?'selected':''}>WaveSeed Platform — Core Ecosystem</option>
-          </optgroup>
-          <optgroup label="🤖 AI Products">
-            <option value="AI Agent Suite" ${cert.product==='AI Agent Suite'?'selected':''}>AI Agent Suite</option>
-            <option value="AI Automation Engine" ${cert.product==='AI Automation Engine'?'selected':''}>AI Automation Engine</option>
-            <option value="AI Analytics Dashboard" ${cert.product==='AI Analytics Dashboard'?'selected':''}>AI Analytics Dashboard</option>
-            <option value="AI Content Studio" ${cert.product==='AI Content Studio'?'selected':''}>AI Content Studio</option>
-            <option value="AI Workflow Builder" ${cert.product==='AI Workflow Builder'?'selected':''}>AI Workflow Builder</option>
-          </optgroup>
-          <optgroup label="📱 Apps">
-            <option value="WaveSeed Mobile App" ${cert.product==='WaveSeed Mobile App'?'selected':''}>WaveSeed Mobile App</option>
-            <option value="WaveSeed Admin App" ${cert.product==='WaveSeed Admin App'?'selected':''}>WaveSeed Admin App</option>
-            <option value="Client Portal App" ${cert.product==='Client Portal App'?'selected':''}>Client Portal App</option>
-          </optgroup>
-          <optgroup label="⚙️ Custom Software">
-            <option value="Custom SaaS Product" ${cert.product==='Custom SaaS Product'?'selected':''}>Custom SaaS Product</option>
-            <option value="Custom CRM System" ${cert.product==='Custom CRM System'?'selected':''}>Custom CRM System</option>
-            <option value="Custom ERP System" ${cert.product==='Custom ERP System'?'selected':''}>Custom ERP System</option>
-            <option value="Business Automation Tool" ${cert.product==='Business Automation Tool'?'selected':''}>Business Automation Tool</option>
-          </optgroup>
-          <optgroup label="🔧 Services & R&D">
-            <option value="Internal R&D Project" ${cert.product==='Internal R&D Project'?'selected':''}>Internal R&D Project</option>
-            <option value="Client Project" ${cert.product==='Client Project'?'selected':''}>Client Project</option>
-            <option value="Consulting Engagement" ${cert.product==='Consulting Engagement'?'selected':''}>Consulting Engagement</option>
-          </optgroup>
-          <option value="__custom__" ${!isKnownProduct?'selected':''}>✏️ Other / Custom…</option>
-        </select>
-        <input id="e-product-custom" class="form-input" value="${esc(!isKnownProduct ? (cert.product||'') : '')}" placeholder="Enter custom product/project name" style="margin-top:8px;display:${!isKnownProduct?'block':'none'};" />
+        ${productDropdownHTML('e-product', cert.product)}
       </div>
       <div class="form-group">
         <label class="form-label">Reporting To</label>

@@ -1600,3 +1600,39 @@ a { text-decoration: none; color: inherit; }
     font-size: 1.5rem;
   }
 }
+
+/* Skeleton Loader */
+.skeleton-line {
+  height: 14px;
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+  border-radius: 4px;
+  margin: 4px 0;
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Error Fallback Box styling */
+.error-fallback-box {
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px dashed rgba(239, 68, 68, 0.3);
+  border-radius: 12px;
+  padding: 30px;
+  text-align: center;
+  margin: 20px auto;
+  max-width: 500px;
+}
+.error-fallback-box h3 {
+  color: #dc2626;
+  margin-bottom: 10px;
+}
+.error-fallback-box p {
+  color: var(--gray-600);
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+}
+

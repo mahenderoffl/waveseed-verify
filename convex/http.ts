@@ -38,10 +38,27 @@ function resolveRole(token: string): string | null {
   return null;
 }
 
-function checkAuth(request: Request): boolean {
+/** Returns the caller's role or null if unauthenticated */
+function getRole(request: Request): string | null {
   const auth = request.headers.get("Authorization") ?? "";
   const token = auth.replace("Bearer ", "").trim();
-  return resolveRole(token) !== null;
+  return resolveRole(token);
+}
+
+/** Gate: only passes if caller has one of the allowed roles */
+function checkRole(request: Request, ...allowed: string[]): boolean {
+  const role = getRole(request);
+  return role !== null && allowed.includes(role);
+}
+
+/** Shorthand: any authenticated role */
+function checkAuth(request: Request): boolean {
+  return getRole(request) !== null;
+}
+
+/** 403 Forbidden helper */
+function forbidden(msg = "Forbidden — insufficient permissions for your role") {
+  return json({ error: msg }, 403);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -144,23 +161,25 @@ http.route({
   handler: httpAction(async () => preflight()),
 });
 
-// GET all certificates
+// GET all certificates — admin, hr, finance
 http.route({
   path: "/admin/certificates",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
     if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
+    if (!checkRole(request, "admin", "hr", "finance")) return forbidden();
     const certs = await ctx.runQuery(internal.certificates.getAllCertificates, {});
     return json(certs);
   }),
 });
 
-// POST create certificate
+// POST create certificate — admin, hr only
 http.route({
   path: "/admin/certificates",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
+    if (!checkRole(request, "admin", "hr")) return forbidden();
     const body = await request.json().catch(() => null);
     if (!body) return json({ error: "Invalid JSON" }, 400);
 
@@ -199,11 +218,13 @@ http.route({
   handler: httpAction(async () => preflight()),
 });
 
+// POST update certificate — admin, hr only
 http.route({
   path: "/admin/update",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
+    if (!checkRole(request, "admin", "hr")) return forbidden();
     const body = await request.json().catch(() => null);
     if (!body) return json({ error: "Invalid JSON" }, 400);
 
@@ -224,11 +245,13 @@ http.route({
   handler: httpAction(async () => preflight()),
 });
 
+// POST revoke — admin, hr only
 http.route({
   path: "/admin/revoke",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
+    if (!checkRole(request, "admin", "hr")) return forbidden();
     const body = await request.json().catch(() => null);
     if (!body) return json({ error: "Invalid JSON" }, 400);
 
@@ -249,11 +272,13 @@ http.route({
   handler: httpAction(async () => preflight()),
 });
 
+// POST restore — admin, hr only
 http.route({
   path: "/admin/restore",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
+    if (!checkRole(request, "admin", "hr")) return forbidden();
     const body = await request.json().catch(() => null);
     if (!body) return json({ error: "Invalid JSON" }, 400);
 
@@ -274,11 +299,13 @@ http.route({
   handler: httpAction(async () => preflight()),
 });
 
+// POST delete — ADMIN ONLY
 http.route({
   path: "/admin/delete",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
+    if (!checkRole(request, "admin")) return forbidden("Only the Admin can permanently delete certificates.");
     const body = await request.json().catch(() => null);
     if (!body?.id) return json({ error: "Missing id" }, 400);
 
@@ -333,21 +360,25 @@ http.route({
   handler: httpAction(async () => preflight()),
 });
 
+// GET employees — admin, hr, operations
 http.route({
   path: "/admin/employees",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
     if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
+    if (!checkRole(request, "admin", "hr", "operations")) return forbidden();
     const list = await ctx.runQuery(internal.certificates.getAllEmployees, {});
     return json(list);
   }),
 });
 
+// POST add employee — admin, hr, operations
 http.route({
   path: "/admin/employees",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
+    if (!checkRole(request, "admin", "hr", "operations")) return forbidden();
     const body = await request.json().catch(() => null);
     if (!body) return json({ error: "Invalid JSON" }, 400);
 
@@ -366,11 +397,12 @@ http.route({
   handler: httpAction(async () => preflight()),
 });
 
+// POST delete employee — admin, hr only
 http.route({
   path: "/admin/employees/delete",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
+    if (!checkRole(request, "admin", "hr")) return forbidden();
     const body = await request.json().catch(() => null);
     if (!body) return json({ error: "Invalid JSON" }, 400);
 
@@ -389,11 +421,12 @@ http.route({
   handler: httpAction(async () => preflight()),
 });
 
+// POST update employee — admin, hr only
 http.route({
   path: "/admin/employees/update",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
+    if (!checkRole(request, "admin", "hr")) return forbidden();
     const body = await request.json().catch(() => null);
     if (!body) return json({ error: "Invalid JSON" }, 400);
 
@@ -418,6 +451,17 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const body = await request.json().catch(() => null);
     if (!body) return json({ error: "Invalid JSON" }, 400);
+
+    // Duplicate email check
+    const email = (body as { email?: string }).email?.trim().toLowerCase();
+    if (email) {
+      const existing = await ctx.runQuery(internal.certificates.getEmployeeByEmail, { email });
+      if (existing) {
+        return json({
+          error: "A profile with this email already exists in the WaveSeed registry. Please contact HR at careers@waveseed.app if you believe this is a mistake."
+        }, 409);
+      }
+    }
 
     try {
       const id = await ctx.runMutation(internal.certificates.insertEmployee, body as Parameters<typeof internal.certificates.insertEmployee>[0]);

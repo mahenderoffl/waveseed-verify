@@ -2,6 +2,8 @@
 import {
   adminGetEmployees, adminAddEmployee, adminDeleteEmployee
 } from '../api.js';
+import { productDropdownHTML, tableSkeletonHTML } from './shared.js';
+
 
 let employeesList = [];
 
@@ -76,11 +78,27 @@ function attachEmployeesEvents(mainEl, token) {
 
 // ─── Load Data ─────────────────────────────────────────────────────────────────
 async function loadEmployees(token) {
+  const tbody = document.getElementById('emp-tbody');
+  if (tbody) {
+    tbody.innerHTML = tableSkeletonHTML(8, 5);
+  }
   try {
     employeesList = await adminGetEmployees(token);
     renderEmployeesTable(token);
-  } catch {
-    showToast('❌ Failed to load employee records.', 'error');
+  } catch (err) {
+    if (tbody) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="8">
+            <div class="error-fallback-box">
+              <h3>⚠️ Unable to Load Profiles</h3>
+              <p>Could not connect to the employee directory database. Please check your connection and try again.</p>
+              <button class="btn-primary" onclick="window.location.reload()" style="padding: 8px 16px; font-size: 0.85rem; width: auto; max-width: 150px; margin: 0 auto;">Retry Connection</button>
+            </div>
+          </td>
+        </tr>`;
+    }
+    showToast('❌ Connection error. Failed to retrieve employee records.', 'error');
   }
 }
 
@@ -161,7 +179,7 @@ function openAddEmployeeModal(token) {
       </div>
       <div class="form-group">
         <label class="form-label">Project / Product Name</label>
-        <input id="emp-f-product" class="form-input" placeholder="e.g. WaveBase AI" />
+        ${productDropdownHTML('emp-f-product')}
       </div>
       <div class="form-group">
         <label class="form-label">Work Mode</label>
@@ -208,7 +226,10 @@ function openAddEmployeeModal(token) {
     const email = document.getElementById('emp-f-email').value.trim();
     const type = document.getElementById('emp-f-type').value;
     const role = document.getElementById('emp-f-role').value.trim();
-    const product = document.getElementById('emp-f-product').value.trim();
+    const productSel = document.getElementById('emp-f-product').value;
+    const product = productSel === '__custom__'
+      ? document.getElementById('emp-f-product-custom').value.trim()
+      : productSel;
     const workMode = document.getElementById('emp-f-workmode').value;
     const institution = document.getElementById('emp-f-institution').value.trim();
     const dept = document.getElementById('emp-f-dept').value.trim();

@@ -23,10 +23,25 @@ function preflight() {
 }
 
 // ─── Auth Helper ─────────────────────────────────────────────────────────────
+const ROLES: Record<string, string> = {
+  admin:      "ADMIN_PASSWORD",
+  hr:         "HR_PASSWORD",
+  finance:    "FINANCE_PASSWORD",
+  operations: "OPERATIONS_PASSWORD",
+};
+
+function resolveRole(token: string): string | null {
+  for (const [role, envKey] of Object.entries(ROLES)) {
+    const pw = process.env[envKey];
+    if (pw && pw.length > 0 && token === pw) return role;
+  }
+  return null;
+}
+
 function checkAuth(request: Request): boolean {
   const auth = request.headers.get("Authorization") ?? "";
   const token = auth.replace("Bearer ", "").trim();
-  return token === process.env.ADMIN_PASSWORD && token.length > 0;
+  return resolveRole(token) !== null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -113,9 +128,9 @@ http.route({
   handler: httpAction(async (_ctx, request) => {
     const body = await request.json().catch(() => ({}));
     const password = (body as { password?: string }).password ?? "";
-    const valid = password === process.env.ADMIN_PASSWORD && password.length > 0;
-    if (!valid) return json({ valid: false }, 401);
-    return json({ valid: true });
+    const role = resolveRole(password);
+    if (!role) return json({ valid: false }, 401);
+    return json({ valid: true, role });
   }),
 });
 

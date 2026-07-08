@@ -8,6 +8,7 @@ import { initGeneratePage } from './generate.js';
 import { initEmployeesPage } from './employees.js';
 
 let token = sessionStorage.getItem('ws_admin_token') || null;
+let currentRole = sessionStorage.getItem('ws_admin_role') || 'admin';
 let allCerts = [];
 let statsData = {};
 
@@ -28,16 +29,22 @@ function renderLogin(app) {
   <div class="login-overlay">
     <div class="login-card">
       <div class="login-logo">WaveSeed Co.</div>
-      <div class="login-sub">Admin Portal</div>
-      <p class="login-title">Enter admin password to continue</p>
+      <div class="login-sub">Staff Portal</div>
+      <p class="login-title">Select your department and enter your password</p>
+      <select id="login-role" class="login-input" style="margin-bottom:12px;cursor:pointer;">
+        <option value="admin">🔐 Admin — Full Access</option>
+        <option value="hr">👥 HR Department</option>
+        <option value="finance">💰 Finance Department</option>
+        <option value="operations">⚙️ Operations Department</option>
+      </select>
       <input
         id="login-pw"
         class="login-input"
         type="password"
-        placeholder="••••••••"
+        placeholder="Enter department password"
         autocomplete="current-password"
       />
-      <button class="btn-login" id="btn-login">Access Dashboard</button>
+      <button class="btn-login" id="btn-login">Access Portal</button>
       <p class="login-error" id="login-error"></p>
       <a href="/" class="login-back" id="back-home">← Back to Verification</a>
     </div>
@@ -58,7 +65,9 @@ function renderLogin(app) {
       const res = await adminLogin(password);
       if (res.valid) {
         token = password;
+        currentRole = res.role || 'admin';
         sessionStorage.setItem('ws_admin_token', token);
+        sessionStorage.setItem('ws_admin_role', currentRole);
         renderDashboard(app);
       } else {
         err.textContent = 'Incorrect password. Please try again.';
@@ -68,7 +77,7 @@ function renderLogin(app) {
     } catch {
       err.textContent = 'Connection error. Check your network.';
     } finally {
-      btn.textContent = 'Access Dashboard';
+      btn.textContent = 'Access Portal';
       btn.disabled = false;
     }
   };
@@ -100,28 +109,32 @@ function buildDashboardHTML() {
       <div class="admin-logo-badge">WS</div>
       <div class="admin-logo-text">
         <div class="t1">WaveSeed Co.</div>
-        <div class="t2">Admin Panel</div>
+        <div class="t2">${currentRole === 'admin' ? 'Admin Panel' : currentRole.toUpperCase() + ' Dept'}</div>
       </div>
     </div>
     <nav class="admin-nav">
+      ${(currentRole === 'admin' || currentRole === 'hr' || currentRole === 'finance') ? `
       <button class="admin-nav-item active" data-section="certificates" id="nav-certs">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
         Certificates
-      </button>
-      <button class="admin-nav-item" data-section="employees" id="nav-employees">
+      </button>` : ''}
+      ${(currentRole === 'admin' || currentRole === 'hr' || currentRole === 'operations') ? `
+      <button class="admin-nav-item ${currentRole === 'operations' ? 'active' : ''}" data-section="employees" id="nav-employees">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         Directory
-      </button>
+      </button>` : ''}
+      ${(currentRole === 'admin' || currentRole === 'hr' || currentRole === 'operations') ? `
       <button class="admin-nav-item" data-section="generate" id="nav-generate">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
         Generate Docs
-      </button>
+      </button>` : ''}
       <button class="admin-nav-item" data-section="verify-link" id="nav-verify">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
         Public Verify
       </button>
     </nav>
     <div class="admin-sidebar-footer">
+      <div style="font-size:0.72rem;color:rgba(255,255,255,0.5);margin-bottom:8px;text-align:center;">Logged in as <strong style="color:rgba(255,255,255,0.8);text-transform:capitalize;">${currentRole}</strong></div>
       <button class="btn-logout" id="btn-logout">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         Logout
@@ -218,7 +231,9 @@ function attachDashboardEvents(app) {
   // Logout
   document.getElementById('btn-logout').addEventListener('click', () => {
     token = null;
+    currentRole = 'admin';
     sessionStorage.removeItem('ws_admin_token');
+    sessionStorage.removeItem('ws_admin_role');
     renderLogin(app);
   });
 

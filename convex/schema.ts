@@ -62,6 +62,7 @@ export default defineSchema({
     reportingTo: v.optional(v.string()),
     employeeType: v.string(), // "intern" | "employee"
     status: v.string(),       // "active" | "former"
+    meta: v.optional(v.string()), // JSON string with extended profile data
     createdAt: v.number(),
     updatedAt: v.number(),
   })

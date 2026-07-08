@@ -255,6 +255,7 @@ export const insertEmployee = internalMutation({
     endDate: v.optional(v.string()),
     reportingTo: v.optional(v.string()),
     employeeType: v.string(),
+    meta: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("employees", {

@@ -27,7 +27,7 @@ function buildVerifyHTML() {
   <!-- Header -->
   <header class="site-header">
     <div class="logo">
-      <div class="logo-icon">${logoSVG()}</div>
+      <img src="${LOGO_BASE64}" alt="WaveSeed Logo" style="height:52px;width:52px;object-fit:contain;border-radius:10px;" />
       <div class="logo-text">
         <div class="logo-name">WaveSeed Co.</div>
         <div class="logo-tagline">Building Tomorrow's Wave, Today</div>

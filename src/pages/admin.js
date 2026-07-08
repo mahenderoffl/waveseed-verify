@@ -393,9 +393,10 @@ function renderTable() {
   <td>
     <div class="actions-cell">
       <button class="btn-action view" onclick="window.wsViewCert('${esc(c.certificateId)}')">🔍 View</button>
+      <button class="btn-action edit" onclick="window.wsEditModal('${c._id}')">✏️ Edit</button>
       ${c.status === 'active'
         ? `<button class="btn-action revoke" onclick="window.wsRevokeModal('${c._id}','${esc(c.holderName)}')">🚫 Revoke</button>`
-        : `<button class="btn-action restore" onclick="window.wsRestore('${c._id}')">↩ Restore</button>`
+        : `<button class="btn-action restore" onclick="window.wsRestore('${c._id}')"↩ Restore</button>`
       }
       <button class="btn-action delete" onclick="window.wsDeleteModal('${c._id}','${esc(c.holderName)}')">🗑 Delete</button>
     </div>
@@ -409,6 +410,7 @@ window.wsViewCert = (certId) => {
 };
 
 window.wsRevokeModal = (id, name) => openRevokeModal(id, name);
+window.wsEditModal   = (id)       => openEditModal(id);
 
 window.wsRestore = async (id) => {
   if (!confirm('Restore this certificate to active status?')) return;
@@ -516,7 +518,38 @@ async function openAddModal() {
       </div>
       <div class="form-group">
         <label class="form-label">Product / Project</label>
-        <input id="f-product" class="form-input" placeholder="e.g. WaveBase AI" />
+        <select id="f-product" class="form-select" onchange="document.getElementById('f-product-custom').style.display=this.value==='__custom__'?'block':'none'">
+          <optgroup label="🌊 WaveSeed Flagship">
+            <option value="WaveBase AI">WaveBase AI — AI-Powered Platform</option>
+            <option value="WaveSeed Verify">WaveSeed Verify — Certificate System</option>
+            <option value="WaveSeed Platform">WaveSeed Platform — Core Ecosystem</option>
+          </optgroup>
+          <optgroup label="🤖 AI Products">
+            <option value="AI Agent Suite">AI Agent Suite</option>
+            <option value="AI Automation Engine">AI Automation Engine</option>
+            <option value="AI Analytics Dashboard">AI Analytics Dashboard</option>
+            <option value="AI Content Studio">AI Content Studio</option>
+            <option value="AI Workflow Builder">AI Workflow Builder</option>
+          </optgroup>
+          <optgroup label="📱 Apps">
+            <option value="WaveSeed Mobile App">WaveSeed Mobile App</option>
+            <option value="WaveSeed Admin App">WaveSeed Admin App</option>
+            <option value="Client Portal App">Client Portal App</option>
+          </optgroup>
+          <optgroup label="⚙️ Custom Software">
+            <option value="Custom SaaS Product">Custom SaaS Product</option>
+            <option value="Custom CRM System">Custom CRM System</option>
+            <option value="Custom ERP System">Custom ERP System</option>
+            <option value="Business Automation Tool">Business Automation Tool</option>
+          </optgroup>
+          <optgroup label="🔧 Services & R&D">
+            <option value="Internal R&D Project">Internal R&D Project</option>
+            <option value="Client Project">Client Project</option>
+            <option value="Consulting Engagement">Consulting Engagement</option>
+          </optgroup>
+          <option value="__custom__">✏️ Other / Custom…</option>
+        </select>
+        <input id="f-product-custom" class="form-input" placeholder="Enter custom product/project name" style="margin-top:8px;display:none;" />
       </div>
       <div class="form-group">
         <label class="form-label">Reporting To</label>
@@ -617,6 +650,10 @@ async function submitAdd() {
   const role   = get('f-role');
   const issued = get('f-issued');
 
+  // Resolve product
+  const productSel = get('f-product');
+  const product = productSel === '__custom__' ? get('f-product-custom') : productSel;
+
   if (!certId || !refNum || !name || !role || !issued) {
     err.textContent = 'Please fill all required fields (marked with *).';
     return;
@@ -631,7 +668,7 @@ async function submitAdd() {
     holderDepartment:  get('f-dept') || undefined,
     certificateType:   get('f-type'),
     role,
-    product:           get('f-product') || undefined,
+    product:           product || undefined,
     reportingTo:       get('f-reporting') || undefined,
     workMode:          get('f-workmode') || undefined,
     issuedDate:        issued,
@@ -655,6 +692,195 @@ async function submitAdd() {
   } finally {
     btn.disabled = false;
     btn.textContent = 'Issue Certificate';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EDIT CERTIFICATE MODAL
+// ═══════════════════════════════════════════════════════════════════════════════
+function openEditModal(id) {
+  const cert = allCerts.find(c => c._id === id);
+  if (!cert) return showToast('❌ Certificate not found', 'error');
+
+  const PRODUCT_OPTIONS = [
+    'WaveBase AI','WaveSeed Verify','WaveSeed Platform',
+    'AI Agent Suite','AI Automation Engine','AI Analytics Dashboard','AI Content Studio','AI Workflow Builder',
+    'WaveSeed Mobile App','WaveSeed Admin App','Client Portal App',
+    'Custom SaaS Product','Custom CRM System','Custom ERP System','Business Automation Tool',
+    'Internal R&D Project','Client Project','Consulting Engagement'
+  ];
+  const isKnownProduct = PRODUCT_OPTIONS.includes(cert.product);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'edit-modal';
+  overlay.innerHTML = `
+<div class="modal-box">
+  <div class="modal-header">
+    <h2 class="modal-title">✏️ Edit Certificate</h2>
+    <button class="modal-close" id="close-edit-modal">✕</button>
+  </div>
+  <div class="modal-body">
+    <p style="font-size:0.78rem;color:#94a3b8;margin-bottom:16px;">Editing: <strong>${esc(cert.certificateId)}</strong> — ${esc(cert.holderName)}</p>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Holder Full Name <span class="req">*</span></label>
+        <input id="e-name" class="form-input" value="${esc(cert.holderName)}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Holder Email</label>
+        <input id="e-email" class="form-input" type="email" value="${esc(cert.holderEmail || '')}" />
+      </div>
+      <div class="form-group form-full">
+        <label class="form-label">Institution / Organization</label>
+        <input id="e-institution" class="form-input" value="${esc(cert.holderInstitution || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Department / Branch</label>
+        <input id="e-dept" class="form-input" value="${esc(cert.holderDepartment || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Certificate Type</label>
+        <select id="e-type" class="form-select">
+          <option value="internship" ${cert.certificateType==='internship'?'selected':''}>Internship Completion</option>
+          <option value="employment" ${cert.certificateType==='employment'?'selected':''}>Employment Confirmation</option>
+          <option value="course" ${cert.certificateType==='course'?'selected':''}>Course Completion</option>
+          <option value="partnership" ${cert.certificateType==='partnership'?'selected':''}>Partnership</option>
+          <option value="appreciation" ${cert.certificateType==='appreciation'?'selected':''}>Appreciation</option>
+          <option value="other" ${cert.certificateType==='other'?'selected':''}>Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Role / Designation <span class="req">*</span></label>
+        <input id="e-role" class="form-input" value="${esc(cert.role)}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Product / Project</label>
+        <select id="e-product" class="form-select" onchange="document.getElementById('e-product-custom').style.display=this.value==='__custom__'?'block':'none'">
+          <optgroup label="🌊 WaveSeed Flagship">
+            <option value="WaveBase AI" ${cert.product==='WaveBase AI'?'selected':''}>WaveBase AI — AI-Powered Platform</option>
+            <option value="WaveSeed Verify" ${cert.product==='WaveSeed Verify'?'selected':''}>WaveSeed Verify — Certificate System</option>
+            <option value="WaveSeed Platform" ${cert.product==='WaveSeed Platform'?'selected':''}>WaveSeed Platform — Core Ecosystem</option>
+          </optgroup>
+          <optgroup label="🤖 AI Products">
+            <option value="AI Agent Suite" ${cert.product==='AI Agent Suite'?'selected':''}>AI Agent Suite</option>
+            <option value="AI Automation Engine" ${cert.product==='AI Automation Engine'?'selected':''}>AI Automation Engine</option>
+            <option value="AI Analytics Dashboard" ${cert.product==='AI Analytics Dashboard'?'selected':''}>AI Analytics Dashboard</option>
+            <option value="AI Content Studio" ${cert.product==='AI Content Studio'?'selected':''}>AI Content Studio</option>
+            <option value="AI Workflow Builder" ${cert.product==='AI Workflow Builder'?'selected':''}>AI Workflow Builder</option>
+          </optgroup>
+          <optgroup label="📱 Apps">
+            <option value="WaveSeed Mobile App" ${cert.product==='WaveSeed Mobile App'?'selected':''}>WaveSeed Mobile App</option>
+            <option value="WaveSeed Admin App" ${cert.product==='WaveSeed Admin App'?'selected':''}>WaveSeed Admin App</option>
+            <option value="Client Portal App" ${cert.product==='Client Portal App'?'selected':''}>Client Portal App</option>
+          </optgroup>
+          <optgroup label="⚙️ Custom Software">
+            <option value="Custom SaaS Product" ${cert.product==='Custom SaaS Product'?'selected':''}>Custom SaaS Product</option>
+            <option value="Custom CRM System" ${cert.product==='Custom CRM System'?'selected':''}>Custom CRM System</option>
+            <option value="Custom ERP System" ${cert.product==='Custom ERP System'?'selected':''}>Custom ERP System</option>
+            <option value="Business Automation Tool" ${cert.product==='Business Automation Tool'?'selected':''}>Business Automation Tool</option>
+          </optgroup>
+          <optgroup label="🔧 Services & R&D">
+            <option value="Internal R&D Project" ${cert.product==='Internal R&D Project'?'selected':''}>Internal R&D Project</option>
+            <option value="Client Project" ${cert.product==='Client Project'?'selected':''}>Client Project</option>
+            <option value="Consulting Engagement" ${cert.product==='Consulting Engagement'?'selected':''}>Consulting Engagement</option>
+          </optgroup>
+          <option value="__custom__" ${!isKnownProduct?'selected':''}>✏️ Other / Custom…</option>
+        </select>
+        <input id="e-product-custom" class="form-input" value="${esc(!isKnownProduct ? (cert.product||'') : '')}" placeholder="Enter custom product/project name" style="margin-top:8px;display:${!isKnownProduct?'block':'none'};" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Reporting To</label>
+        <input id="e-reporting" class="form-input" value="${esc(cert.reportingTo || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Work Mode</label>
+        <select id="e-workmode" class="form-select">
+          <option value="">— Select —</option>
+          <option value="Remote" ${cert.workMode==='Remote'?'selected':''}>Remote</option>
+          <option value="On-site" ${cert.workMode==='On-site'?'selected':''}>On-site</option>
+          <option value="Hybrid" ${cert.workMode==='Hybrid'?'selected':''}>Hybrid</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Start Date</label>
+        <input id="e-start" class="form-input" type="date" value="${esc(cert.startDate||'')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">End Date</label>
+        <input id="e-end" class="form-input" type="date" value="${esc(cert.endDate||'')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Issuer Name</label>
+        <input id="e-issuer-name" class="form-input" value="${esc(cert.issuerName||'')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Issuer Title</label>
+        <input id="e-issuer-title" class="form-input" value="${esc(cert.issuerTitle||'')}" />
+      </div>
+      <div class="form-group form-full">
+        <label class="form-label">Notes (Internal)</label>
+        <textarea id="e-notes" class="form-textarea">${esc(cert.notes||'')}</textarea>
+      </div>
+    </div>
+    <p id="edit-error" style="color:var(--red);font-size:0.8rem;margin-top:10px;min-height:18px;"></p>
+  </div>
+  <div class="modal-footer">
+    <button class="btn-secondary" id="cancel-edit">Cancel</button>
+    <button class="btn-primary" id="submit-edit">Save Changes</button>
+  </div>
+</div>`;
+
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal('edit-modal'); });
+  document.getElementById('close-edit-modal').addEventListener('click', () => closeModal('edit-modal'));
+  document.getElementById('cancel-edit').addEventListener('click', () => closeModal('edit-modal'));
+  document.getElementById('submit-edit').addEventListener('click', () => submitEdit(id));
+}
+
+async function submitEdit(id) {
+  const get = (elId) => document.getElementById(elId)?.value?.trim() || '';
+  const err = document.getElementById('edit-error');
+  err.textContent = '';
+
+  const name = get('e-name');
+  const role = get('e-role');
+  if (!name || !role) { err.textContent = 'Name and Role are required.'; return; }
+
+  // Resolve product — if custom selected, use the text input
+  const productSel = get('e-product');
+  const product = productSel === '__custom__' ? get('e-product-custom') : productSel;
+
+  const data = {
+    id,
+    holderName:        name,
+    holderEmail:       get('e-email') || undefined,
+    holderInstitution: get('e-institution') || undefined,
+    holderDepartment:  get('e-dept') || undefined,
+    certificateType:   get('e-type') || undefined,
+    role,
+    product:           product || undefined,
+    reportingTo:       get('e-reporting') || undefined,
+    workMode:          get('e-workmode') || undefined,
+    startDate:         get('e-start') || undefined,
+    endDate:           get('e-end') || undefined,
+    issuerName:        get('e-issuer-name') || undefined,
+    issuerTitle:       get('e-issuer-title') || undefined,
+    notes:             get('e-notes') || undefined,
+  };
+
+  const btn = document.getElementById('submit-edit');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    await adminUpdateCertificate(token, id, data);
+    closeModal('edit-modal');
+    showToast('✅ Certificate updated successfully!', 'success');
+    await loadData();
+  } catch (e) {
+    err.textContent = e.message;
+    btn.disabled = false;
+    btn.textContent = 'Save Changes';
   }
 }
 

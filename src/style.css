@@ -1102,6 +1102,15 @@ a { text-decoration: none; color: inherit; }
 .btn-action.revoke { background: rgba(239,68,68,0.08); color: var(--red); border-color: rgba(239,68,68,0.2); }
 .btn-action.restore{ background: rgba(16,185,129,0.08); color: var(--green-dark); border-color: rgba(16,185,129,0.2); }
 .btn-action.delete { background: rgba(185,28,28,0.1); color: #b91c1c; border-color: rgba(185,28,28,0.3); font-weight: 600; }
+.btn-action.edit {
+  background: rgba(59, 130, 246, 0.08);
+  color: #2563eb;
+  border-color: rgba(59, 130, 246, 0.25);
+}
+.btn-action.edit:hover {
+  background: rgba(59, 130, 246, 0.18);
+  border-color: rgba(59, 130, 246, 0.5);
+}
 .btn-action:hover { transform: translateY(-1px); filter: brightness(1.1); }
 
 .empty-table {

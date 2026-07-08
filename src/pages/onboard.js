@@ -138,7 +138,38 @@ function buildOnboardHTML() {
       </div>
       <div class="form-group">
         <label class="form-label">Project / Product Name <span class="req">*</span></label>
-        <input id="onb-product" class="form-input" placeholder="e.g. WaveBase AI" value="WaveBase AI" required />
+        <select id="onb-product" class="form-select" onchange="document.getElementById('onb-product-custom').style.display=this.value==='__custom__'?'block':'none'" required>
+          <optgroup label="🌊 WaveSeed Flagship">
+            <option value="WaveBase AI">WaveBase AI — AI-Powered Platform</option>
+            <option value="WaveSeed Verify">WaveSeed Verify — Certificate System</option>
+            <option value="WaveSeed Platform">WaveSeed Platform — Core Ecosystem</option>
+          </optgroup>
+          <optgroup label="🤖 AI Products">
+            <option value="AI Agent Suite">AI Agent Suite</option>
+            <option value="AI Automation Engine">AI Automation Engine</option>
+            <option value="AI Analytics Dashboard">AI Analytics Dashboard</option>
+            <option value="AI Content Studio">AI Content Studio</option>
+            <option value="AI Workflow Builder">AI Workflow Builder</option>
+          </optgroup>
+          <optgroup label="📱 Apps">
+            <option value="WaveSeed Mobile App">WaveSeed Mobile App</option>
+            <option value="WaveSeed Admin App">WaveSeed Admin App</option>
+            <option value="Client Portal App">Client Portal App</option>
+          </optgroup>
+          <optgroup label="⚙️ Custom Software">
+            <option value="Custom SaaS Product">Custom SaaS Product</option>
+            <option value="Custom CRM System">Custom CRM System</option>
+            <option value="Custom ERP System">Custom ERP System</option>
+            <option value="Business Automation Tool">Business Automation Tool</option>
+          </optgroup>
+          <optgroup label="🔧 Services & R&D">
+            <option value="Internal R&D Project">Internal R&D Project</option>
+            <option value="Client Project">Client Project</option>
+            <option value="Consulting Engagement">Consulting Engagement</option>
+          </optgroup>
+          <option value="__custom__">✏️ Other / Custom…</option>
+        </select>
+        <input id="onb-product-custom" class="form-input" placeholder="Enter custom project/product name" style="margin-top:8px;display:none;" />
       </div>
       <div class="form-group">
         <label class="form-label">Work Mode <span class="req">*</span></label>
@@ -194,7 +225,10 @@ function attachOnboardEvents() {
     const hasPrev      = document.getElementById('onb-prev-yes').checked;
     const type         = document.getElementById('onb-type').value;
     const role         = document.getElementById('onb-role').value.trim();
-    const product      = document.getElementById('onb-product').value.trim();
+    const productSel  = document.getElementById('onb-product').value;
+    const product      = productSel === '__custom__'
+      ? document.getElementById('onb-product-custom').value.trim()
+      : productSel;
     const workMode     = document.getElementById('onb-workmode').value;
     const start        = document.getElementById('onb-start').value;
     const end          = document.getElementById('onb-end').value;

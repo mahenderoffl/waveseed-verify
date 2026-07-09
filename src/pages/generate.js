@@ -475,7 +475,7 @@ window.wsGenerate = async function(typeId) {
   btn.innerHTML = `<div class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;margin-right:8px;vertical-align:middle;"></div> Registering...`;
 
   try {
-    // Save to database
+    // Save to database — include full templateData so the document can be re-rendered later
     await adminAddCertificate(adminToken, {
       certificateId:     data.certId || '',
       referenceNumber:   data.refNum || '',
@@ -493,7 +493,8 @@ window.wsGenerate = async function(typeId) {
       endDate:           data.endDate || '',
       issuerName:        data.issuerName || 'Mahender',
       issuerTitle:       data.issuerTitle || 'Founder, WaveSeed Co.',
-      notes:             `Generated via DocGen Dashboard: ${docType.name}`
+      notes:             `Generated via DocGen Dashboard: ${docType.name}`,
+      templateData:      JSON.stringify(data),  // store ALL fields for future re-rendering
     });
 
     // Refresh existing certs list

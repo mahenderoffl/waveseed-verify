@@ -84,6 +84,7 @@ export const insertCertificate = internalMutation({
     issuerName: v.string(),
     issuerTitle: v.string(),
     notes: v.optional(v.string()),
+    templateData: v.optional(v.string()),  // JSON string of all original form fields
   },
   handler: async (ctx, args) => {
     // Prevent duplicate certificate IDs

@@ -7,6 +7,7 @@ import {
 import { initGeneratePage } from './generate.js';
 import { initEmployeesPage } from './employees.js';
 import { productDropdownHTML, tableSkeletonHTML } from './shared.js';
+import { generateDocument } from '../templates/templates.js';
 
 
 let token = sessionStorage.getItem('ws_admin_token') || null;
@@ -415,11 +416,11 @@ function renderTable() {
   <td style="text-align:center;font-weight:700;color:var(--navy);">${c.verificationCount}</td>
   <td>
     <div class="actions-cell">
-      <button class="btn-action view" onclick="window.wsViewCert('${esc(c.certificateId)}')">🔍 View</button>
+      <button class="btn-action view" onclick="window.wsViewCert('${esc(c.certificateId)}')" title="Open the full rendered certificate/letter document">📄 View Doc</button>
       <button class="btn-action edit" onclick="window.wsEditModal('${c._id}')">✏️ Edit</button>
       ${c.status === 'active'
         ? `<button class="btn-action revoke" onclick="window.wsRevokeModal('${c._id}','${esc(c.holderName)}')">🚫 Revoke</button>`
-        : `<button class="btn-action restore" onclick="window.wsRestore('${c._id}')"↩ Restore</button>`
+        : `<button class="btn-action restore" onclick="window.wsRestore('${c._id}')">↩ Restore</button>`
       }
       <button class="btn-action delete" onclick="window.wsDeleteModal('${c._id}','${esc(c.holderName)}')">🗑 Delete</button>
     </div>
@@ -429,8 +430,68 @@ function renderTable() {
 }
 
 // Expose handlers on window for inline onclick (no framework)
+// ─── View actual document (admin-only) ─────────────────────────────────────────────────────────────
 window.wsViewCert = (certId) => {
-  window.open(`/?id=${certId}`, '_blank');
+  // Find the certificate in memory
+  const cert = allCerts.find(c => c.certificateId === certId);
+  if (!cert) {
+    // Fallback: open public verify page if cert not found in memory
+    window.open(`/?id=${certId}`, '_blank');
+    return;
+  }
+
+  // Attempt to reconstruct full template data
+  let data = {};
+
+  // 1. Try to restore from stored templateData (JSON string saved at generation time)
+  if (cert.templateData) {
+    try {
+      data = JSON.parse(cert.templateData);
+    } catch { data = {}; }
+  }
+
+  // 2. Overlay/fill any missing top-level fields from the cert record itself
+  //    This ensures edits made via the Edit modal are always reflected
+  data.certId            = cert.certificateId;
+  data.refNum            = cert.referenceNumber;
+  data.holderName        = cert.holderName;
+  data.recipientName     = cert.holderName;
+  data.recipientEmail    = cert.holderEmail  || data.recipientEmail  || '';
+  data.recipientCollege  = cert.holderInstitution || data.recipientCollege || '';
+  data.recipientDept     = cert.holderDepartment  || data.recipientDept  || '';
+  data.holderInstitution = cert.holderInstitution || data.holderInstitution || '';
+  data.holderDepartment  = cert.holderDepartment  || data.holderDepartment || '';
+  data.role              = cert.role;
+  data.product           = cert.product      || data.product  || '';
+  data.reportingTo       = cert.reportingTo  || data.reportingTo || '';
+  data.workMode          = cert.workMode     || data.workMode  || '';
+  data.issuedDate        = cert.issuedDate   || data.issuedDate || '';
+  data.date              = cert.issuedDate   || data.date || '';
+  data.startDate         = cert.startDate    || data.startDate || '';
+  data.endDate           = cert.endDate      || data.endDate || '';
+  data.issuerName        = cert.issuerName   || data.issuerName || 'Mahender';
+  data.issuerTitle       = cert.issuerTitle  || data.issuerTitle || 'Founder, WaveSeed Co.';
+  data.verificationId    = cert.certificateId;
+  data.certType          = cert.certificateType.replace('-cert', '');
+
+  // 3. Generate the HTML
+  let html;
+  try {
+    html = generateDocument(cert.certificateType, data);
+  } catch (err) {
+    showToast('❌ Could not render document: ' + err.message, 'error');
+    return;
+  }
+
+  // 4. Open in a new window
+  const win = window.open('', '_blank', 'width=1100,height=860');
+  if (!win) {
+    showToast('❌ Popup blocked. Please allow popups for this site.', 'error');
+    return;
+  }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
 };
 
 window.wsRevokeModal = (id, name) => openRevokeModal(id, name);

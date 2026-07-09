@@ -37,8 +37,9 @@ export default defineSchema({
     revokedDate: v.optional(v.string()),
     revokedReason: v.optional(v.string()),
 
-    // ── Meta ─────────────────────────────────────────────────
+    // ── Meta ─────────────────────────────────────────────────────────────
     notes: v.optional(v.string()),
+    templateData: v.optional(v.string()), // JSON string — full set of fields used to generate the document
     verificationCount: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),

@@ -100,7 +100,15 @@ function renderLogin(app) {
 async function renderDashboard(app) {
   app.innerHTML = buildDashboardHTML();
   attachDashboardEvents(app);
-  await loadData();
+  if (currentRole === 'operations') {
+    const mainEl = document.querySelector('.admin-main');
+    if (mainEl) {
+      mainEl.innerHTML = '';
+      initEmployeesPage(mainEl, token);
+    }
+  } else {
+    await loadData();
+  }
 }
 
 function buildDashboardHTML() {
@@ -232,7 +240,7 @@ function buildDashboardHTML() {
 
 function attachDashboardEvents(app) {
   // Logout
-  document.getElementById('btn-logout').addEventListener('click', () => {
+  document.getElementById('btn-logout')?.addEventListener('click', () => {
     token = null;
     currentRole = 'admin';
     sessionStorage.removeItem('ws_admin_token');
@@ -241,11 +249,12 @@ function attachDashboardEvents(app) {
   });
 
   // Add certificate
-  document.getElementById('btn-add').addEventListener('click', () => openAddModal());
+  document.getElementById('btn-add')?.addEventListener('click', () => openAddModal());
 
   // Seed
-  document.getElementById('btn-seed').addEventListener('click', async () => {
+  document.getElementById('btn-seed')?.addEventListener('click', async () => {
     const btn = document.getElementById('btn-seed');
+    if (!btn) return;
     btn.disabled = true;
     btn.textContent = '🌱 Seeding…';
     try {
@@ -265,40 +274,44 @@ function attachDashboardEvents(app) {
   });
 
   // Public verify link
-  document.getElementById('nav-verify').addEventListener('click', () => {
+  document.getElementById('nav-verify')?.addEventListener('click', () => {
     window.location.hash = '';
     window.dispatchEvent(new Event('hashchange'));
   });
 
   // Generate Docs
-  document.getElementById('nav-generate').addEventListener('click', () => {
+  document.getElementById('nav-generate')?.addEventListener('click', () => {
     document.querySelectorAll('.admin-nav-item').forEach(b => b.classList.remove('active'));
-    document.getElementById('nav-generate').classList.add('active');
+    document.getElementById('nav-generate')?.classList.add('active');
     const mainEl = document.querySelector('.admin-main');
-    mainEl.innerHTML = '';
-    initGeneratePage(mainEl, token);
+    if (mainEl) {
+      mainEl.innerHTML = '';
+      initGeneratePage(mainEl, token);
+    }
   });
 
   // Directory
-  document.getElementById('nav-employees').addEventListener('click', () => {
+  document.getElementById('nav-employees')?.addEventListener('click', () => {
     document.querySelectorAll('.admin-nav-item').forEach(b => b.classList.remove('active'));
-    document.getElementById('nav-employees').classList.add('active');
+    document.getElementById('nav-employees')?.classList.add('active');
     const mainEl = document.querySelector('.admin-main');
-    mainEl.innerHTML = '';
-    initEmployeesPage(mainEl, token);
+    if (mainEl) {
+      mainEl.innerHTML = '';
+      initEmployeesPage(mainEl, token);
+    }
   });
 
   // Back to Certificates from Generate / Directory
-  document.getElementById('nav-certs').addEventListener('click', () => {
+  document.getElementById('nav-certs')?.addEventListener('click', () => {
     document.querySelectorAll('.admin-nav-item').forEach(b => b.classList.remove('active'));
-    document.getElementById('nav-certs').classList.add('active');
+    document.getElementById('nav-certs')?.classList.add('active');
     renderDashboard(app);
   });
 
   // Filters
-  document.getElementById('admin-search').addEventListener('input', renderTable);
-  document.getElementById('filter-type').addEventListener('change', renderTable);
-  document.getElementById('filter-status').addEventListener('change', renderTable);
+  document.getElementById('admin-search')?.addEventListener('input', renderTable);
+  document.getElementById('filter-type')?.addEventListener('change', renderTable);
+  document.getElementById('filter-status')?.addEventListener('change', renderTable);
 }
 
 // ─── Data Loading ──────────────────────────────────────────────────────────────

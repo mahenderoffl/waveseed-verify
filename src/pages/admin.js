@@ -417,7 +417,7 @@ function renderTable() {
   <td>
     <div class="actions-cell">
       <button class="btn-action view" onclick="window.wsViewCert('${esc(c.certificateId)}')" title="Open the full rendered certificate/letter document">📄 View Doc</button>
-      ${c.holderDob ? `<button class="btn-action copy-link" onclick="window.wsCopyLink('${esc(c.referenceNumber)}')" title="Copy download link to share with recipient">🔗 Link</button>` : ''}
+      ${(c.holderDob || c.holderEmail) ? `<button class="btn-action copy-link" onclick="window.wsCopyLink('${esc(c.referenceNumber)}')" title="Copy download link to share with recipient">🔗 Link</button>` : ''}
       <button class="btn-action edit" onclick="window.wsEditModal('${c._id}')">✏️ Edit</button>
       ${c.status === 'active'
         ? `<button class="btn-action revoke" onclick="window.wsRevokeModal('${c._id}','${esc(c.holderName)}')">🚫 Revoke</button>`

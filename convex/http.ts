@@ -183,13 +183,26 @@ http.route({
       return json({ error: "Certificate not found. Please check your reference number." }, 404);
     }
 
-    // DOB check — must match stored holderDob
-    if (!cert.holderDob) {
+    // Resolve DOB: either directly on certificate, or from employee directory matching email
+    let resolvedDob = cert.holderDob || null;
+    if (!resolvedDob && cert.holderEmail) {
+      const emp = await ctx.runQuery(internal.certificates.getEmployeeByEmail, { email: cert.holderEmail });
+      if (emp && emp.meta) {
+        try {
+          const meta = JSON.parse(emp.meta);
+          if (meta.dob) {
+            resolvedDob = meta.dob;
+          }
+        } catch {}
+      }
+    }
+
+    if (!resolvedDob) {
       return json({ error: "Secure download is not enabled for this certificate. Please contact WaveSeed." }, 403);
     }
 
     const normalise = (d: string) => d.replace(/\s/g, "").toLowerCase();
-    if (normalise(cert.holderDob) !== normalise(dob)) {
+    if (normalise(resolvedDob) !== normalise(dob)) {
       attempt.fails += 1;
       if (attempt.fails >= MAX_FAILS) attempt.lockedUntil = Date.now() + LOCKOUT_MS;
       _downloadAttempts.set(rateLimitKey, attempt);

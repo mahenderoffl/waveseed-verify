@@ -1,7 +1,7 @@
 // ─── admin.js — Admin Dashboard ────────────────────────────────────────────────
 import {
   adminLogin, adminGetStats, adminGetAll,
-  adminAddCertificate, adminRevoke, adminRestore, adminSeed, adminDeleteCertificate,
+  adminAddCertificate, adminUpdateCertificate, adminRevoke, adminRestore, adminSeed, adminDeleteCertificate,
   adminGetEmployees, adminGetNextIds
 } from '../api.js';
 import { initGeneratePage } from './generate.js';

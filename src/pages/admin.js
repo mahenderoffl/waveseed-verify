@@ -418,6 +418,7 @@ function renderTable() {
     <div class="actions-cell">
       <button class="btn-action view" onclick="window.wsViewCert('${esc(c.certificateId)}')" title="Open the full rendered certificate/letter document">📄 View Doc</button>
       ${(c.holderDob || c.holderEmail) ? `<button class="btn-action copy-link" onclick="window.wsCopyLink('${esc(c.referenceNumber)}')" title="Copy download link to share with recipient">🔗 Link</button>` : ''}
+      <button class="btn-action email" onclick="window.wsEmailModal('${esc(c.certificateId)}')" title="Generate email template for this document">📧 Email</button>
       <button class="btn-action edit" onclick="window.wsEditModal('${c._id}')">✏️ Edit</button>
       ${c.status === 'active'
         ? `<button class="btn-action revoke" onclick="window.wsRevokeModal('${c._id}','${esc(c.holderName)}')">🚫 Revoke</button>`
@@ -497,6 +498,7 @@ window.wsViewCert = (certId) => {
 
 window.wsRevokeModal = (id, name) => openRevokeModal(id, name);
 window.wsEditModal   = (id)       => openEditModal(id);
+window.wsEmailModal  = (certId)   => openEmailModal(certId);
 
 // Copy the recipient's download link to clipboard
 window.wsCopyLink = (ref) => {
@@ -1058,3 +1060,329 @@ function esc(str) {
   return String(str)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EMAIL GENERATOR MODAL
+// ═══════════════════════════════════════════════════════════════════════════════
+async function openEmailModal(certId) {
+  const cert = allCerts.find(c => c.certificateId === certId);
+  if (!cert) return showToast('❌ Certificate not found', 'error');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'email-modal';
+  overlay.innerHTML = `
+<div class="modal-box" style="max-width:400px;text-align:center;padding:40px;">
+  <div class="spinner" style="margin:0 auto 16px;"></div>
+  <p style="color:var(--navy);font-weight:600;">Fetching employee records details…</p>
+</div>`;
+  document.body.appendChild(overlay);
+
+  let employees = [];
+  try {
+    employees = await adminGetEmployees(token);
+  } catch {}
+
+  let resolvedDob = cert.holderDob || '';
+  let resolvedEmail = cert.holderEmail || '';
+
+  if (cert.holderEmail) {
+    const emp = employees.find(e => e.email?.toLowerCase() === cert.holderEmail.toLowerCase());
+    if (emp) {
+      if (!resolvedDob && emp.meta) {
+        try {
+          const meta = JSON.parse(emp.meta);
+          if (meta.dob) resolvedDob = meta.dob;
+        } catch {}
+      }
+      if (!resolvedEmail && emp.email) {
+        resolvedEmail = emp.email;
+      }
+    }
+  }
+
+  // Pre-fill links
+  const downloadLink = `${window.location.origin}/#download?ref=${encodeURIComponent(cert.referenceNumber)}`;
+  const { subject, bodyText, bodyHtml } = generateEmailTemplate(cert, resolvedEmail, downloadLink);
+
+  overlay.innerHTML = `
+<div class="modal-box" style="max-width:720px; width:95%;">
+  <div class="modal-header">
+    <h2 class="modal-title">📧 Recipient Email Composer</h2>
+    <button class="modal-close" onclick="document.getElementById('email-modal').remove()">✕</button>
+  </div>
+  <div class="modal-body" style="padding-bottom:12px;">
+    
+    <div style="background:rgba(13,27,62,0.02); border:1px solid var(--gray-200); border-radius:8px; padding:14px; margin-bottom:16px; display:flex; flex-direction:column; gap:10px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.88rem;">
+        <div><strong>To:</strong> <span id="m-to-text" style="color:var(--navy); font-weight:600;">${esc(resolvedEmail || '(no email saved — edit to add)')}</span></div>
+        ${resolvedEmail ? `<button class="btn-primary" onclick="window.wsCopyText('m-to-text', 'To Address')" style="padding:4px 8px; font-size:0.75rem;">📋 Copy</button>` : ''}
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.88rem; border-top: 1px dashed var(--gray-200); padding-top:8px;">
+        <div><strong>CC:</strong> <span id="m-cc-text" style="color:var(--navy); font-weight:600;">careers@waveseed.app</span></div>
+        <button class="btn-primary" onclick="window.wsCopyText('m-cc-text', 'CC Address')" style="padding:4px 8px; font-size:0.75rem;">📋 Copy</button>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.88rem; border-top: 1px dashed var(--gray-200); padding-top:8px;">
+        <div style="flex:1; margin-right:10px;"><strong>Subject:</strong> <span id="m-sub-text" style="color:var(--navy); font-weight:600;">${esc(subject)}</span></div>
+        <button class="btn-primary" onclick="window.wsCopyText('m-sub-text', 'Subject')" style="padding:4px 8px; font-size:0.75rem; white-space:nowrap;">📋 Copy</button>
+      </div>
+    </div>
+
+    <!-- Mode Selector Tabs -->
+    <div class="gen-filter-tabs" style="margin-bottom:12px; display:flex; gap:6px;">
+      <button class="gen-tab active" id="btn-tab-rich" style="padding:6px 14px; font-size:0.8rem;">Rich HTML Preview</button>
+      <button class="gen-tab" id="btn-tab-plain" style="padding:6px 14px; font-size:0.8rem;">Plain Text Editor</button>
+    </div>
+
+    <!-- Rich HTML Display -->
+    <div id="m-body-html" style="background:#fff; border:2px solid var(--gray-200); border-radius:10px; padding:20px; max-height:300px; overflow-y:auto; line-height:1.6; font-size:0.92rem; color:#334155; font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+      ${bodyHtml}
+    </div>
+
+    <!-- Plain Text Textarea -->
+    <textarea id="m-body-text" class="form-textarea" style="display:none; font-family:monospace; font-size:0.85rem; height:300px; line-height:1.5; padding:12px; border:2px solid var(--gray-200); border-radius:10px;">${esc(bodyText)}</textarea>
+
+  </div>
+  <div class="modal-footer" style="display:flex; justify-content:space-between; gap:10px;">
+    <div>
+      <button class="btn-secondary" onclick="document.getElementById('email-modal').remove()">Close</button>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn-primary" id="btn-copy-rich" style="background:linear-gradient(135deg, var(--gold-dark), var(--gold)); border-color:var(--gold-dark);">
+        📋 Copy Rich Body (for Gmail/Zoho)
+      </button>
+      <button class="btn-primary" id="btn-open-mail" style="background:var(--navy);">
+        📧 Send Email
+      </button>
+    </div>
+  </div>
+</div>`;
+
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+  const tabRich = document.getElementById('btn-tab-rich');
+  const tabPlain = document.getElementById('btn-tab-plain');
+  const bodyHtmlEl = document.getElementById('m-body-html');
+  const bodyTextEl = document.getElementById('m-body-text');
+
+  tabRich.addEventListener('click', () => {
+    tabRich.classList.add('active');
+    tabPlain.classList.remove('active');
+    bodyHtmlEl.style.display = 'block';
+    bodyTextEl.style.display = 'none';
+  });
+
+  tabPlain.addEventListener('click', () => {
+    tabPlain.classList.add('active');
+    tabRich.classList.remove('active');
+    bodyHtmlEl.style.display = 'none';
+    bodyTextEl.style.display = 'block';
+  });
+
+  // Copy rich text
+  document.getElementById('btn-copy-rich').addEventListener('click', () => {
+    const textVal = bodyTextEl.value;
+    const htmlVal = bodyHtmlEl.innerHTML;
+    window.wsCopyRichEmailContent(htmlVal, textVal);
+  });
+
+  // Open mailto link
+  document.getElementById('btn-open-mail').addEventListener('click', () => {
+    const textVal = bodyTextEl.value;
+    const mailto = `mailto:${encodeURIComponent(resolvedEmail)}?cc=careers@waveseed.app&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(textVal)}`;
+    window.open(mailto, '_blank');
+  });
+}
+
+function generateEmailTemplate(cert, email, downloadLink) {
+  const firstName = (cert.holderName || '').split(' ')[0];
+  const role = cert.role || 'Intern';
+  const product = cert.product || 'WaveBase AI';
+  const startDate = cert.startDate ? formatDateShort(cert.startDate) : 'soon';
+  const ref = cert.referenceNumber;
+  
+  let subject = '';
+  let bodyText = '';
+  let bodyHtml = '';
+
+  const onboardLink = `mailto:careers@waveseed.app?subject=${encodeURIComponent('Offer Acceptance - ' + ref)}`;
+
+  if (cert.certificateType === 'internship-offer') {
+    subject = `You're In! Internship Offer — ${role} | WaveSeed Co.`;
+    bodyText = `Dear ${firstName},\n\n` +
+      `Congratulations! 🎉\n\n` +
+      `On behalf of the entire team at WaveSeed Co., it gives me great pleasure to inform you that following your interview, you have been successfully selected for the position of ${role} at WaveSeed Co.\n\n` +
+      `Your performance during the interview was truly impressive — you stood out for your passion, clarity of thought, and the depth of your understanding in AI & ML. We genuinely believe you are going to be an incredible addition to the WaveSeed family as we build ${product} together.\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `📄 NEXT STEPS\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `1️⃣  Download Your Offer Letter\n` +
+      `    👉 Internship Offer Letter to Download: ${downloadLink}\n\n` +
+      `    Please read through the offer letter and the terms carefully.\n\n` +
+      `2️⃣  Accept & Submit the Signed Offer\n` +
+      `    Print, sign, and scan the offer letter, then submit it via the link below:\n` +
+      `    👉 Submit Accepted Offer Letter: ${onboardLink}\n\n` +
+      `    Kindly complete this at the earliest to confirm your seat.\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `We are excited to have you on board starting ${startDate}. Expect an onboarding note from our team shortly after your acceptance is confirmed.\n\n` +
+      `Once again — congratulations, ${firstName}! This is just the beginning of something great. We can't wait to build with you. 🚀\n\n` +
+      `Warm regards & Best Wishes,\n\n` +
+      `Mahender Banoth\n` +
+      `Founder, CEO & Builder | WaveSeed Co.\n` +
+      `Indian Institute of Technology Patna.                                                                   Copy to: WaveSeed Careers.\n` +
+      `📧 mahender@waveseed.app                                                                                                careers@waveseed.app\n` +
+      `🌐 www.waveseed.app\n\n` +
+      `─────────────────────────────────────────\n` +
+      `This email and any attachments are strictly private and confidential.\n` +
+      `Intended solely for the named recipient. If received in error, please notify us immediately.`;
+
+    bodyHtml = `<p>Dear <strong>${esc(firstName)}</strong>,</p>
+      <p>Congratulations! 🎉</p>
+      <p>On behalf of the entire team at <strong>WaveSeed Co.</strong>, it gives me great pleasure to inform you that following your interview, you have been successfully selected for the position of <strong>${esc(role)}</strong> at WaveSeed Co.</p>
+      <p>Your performance during the interview was truly impressive — you stood out for your passion, clarity of thought, and the depth of your understanding in AI & ML. We genuinely believe you are going to be an incredible addition to the WaveSeed family as we build <strong>${esc(product)}</strong> together.</p>
+      <div style="margin: 20px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 15px 0; background: #f8fafc; font-family: inherit;">
+        <h4 style="margin: 0 0 10px; color: #0d1b3e; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 1.5px; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px;">📄 Next Steps</h4>
+        <p style="margin: 5px 0 14px; font-size: 0.92rem;">
+          <strong>1️⃣ Download Your Offer Letter</strong><br>
+          👉 <a href="${downloadLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;" target="_blank">Internship Offer Letter to Download</a><br>
+          <span style="font-size: 0.8rem; color: #64748b;">Please read through the offer letter and the terms carefully.</span>
+        </p>
+        <p style="margin: 5px 0 0; font-size: 0.92rem;">
+          <strong>2️⃣ Accept & Submit the Signed Offer</strong><br>
+          Print, sign, and scan the offer letter, then submit it via the link below:<br>
+          👉 <a href="${onboardLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;">Submit Accepted Offer Letter</a><br>
+          <span style="font-size: 0.8rem; color: #64748b;">Kindly complete this at the earliest to confirm your seat.</span>
+        </p>
+      </div>
+      <p>We are excited to have you on board starting <strong>${esc(startDate)}</strong>. Expect an onboarding note from our team shortly after your acceptance is confirmed.</p>
+      <p>Once again — congratulations, ${esc(firstName)}! This is just the beginning of something great. We can't wait to build with you. 🚀</p>
+      <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
+        Warm regards & Best Wishes,<br><br>
+        <strong>Mahender Banoth</strong><br>
+        Founder, CEO & Builder | WaveSeed Co.<br>
+        Indian Institute of Technology Patna.<br>
+        <span style="color:#94a3b8; font-size:0.75rem; float:right;">Copy to: WaveSeed Careers.</span>
+        📧 <a href="mailto:mahender@waveseed.app" style="color: #0d1b3e;">mahender@waveseed.app</a> | <a href="mailto:careers@waveseed.app" style="color: #0d1b3e;">careers@waveseed.app</a><br>
+        🌐 <a href="https://www.waveseed.app" style="color: #c9a227;">www.waveseed.app</a>
+      </p>
+      <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0 10px;">
+      <p style="font-size: 0.72rem; color: #94a3b8; line-height: 1.4;">
+        This email and any attachments are strictly private and confidential. Intended solely for the named recipient. If received in error, please notify us immediately.
+      </p>`;
+  } else if (cert.certificateType === 'employment-offer') {
+    subject = `Welcome to the Team! Employment Offer — ${role} | WaveSeed Co.`;
+    bodyText = `Dear ${firstName},\n\n` +
+      `Congratulations! 🎉\n\n` +
+      `On behalf of WaveSeed Co., we are thrilled to offer you the position of ${role}. We were incredibly impressed by your interviews and cannot wait to build together.\n\n` +
+      `📄 NEXT STEPS\n` +
+      `1️⃣ Download Your Offer Letter\n` +
+      `   👉 ${downloadLink}\n\n` +
+      `2️⃣ Accept & Submit the Signed Offer\n` +
+      `   👉 ${onboardLink}\n\n` +
+      `We look forward to welcoming you on starting ${startDate}.\n\n` +
+      `Best regards,\nMahender Banoth\nFounder, CEO & Builder | WaveSeed Co.`;
+
+    bodyHtml = `<p>Dear <strong>${esc(firstName)}</strong>,</p>
+      <p>Congratulations! 🎉</p>
+      <p>On behalf of <strong>WaveSeed Co.</strong>, we are thrilled to offer you the position of <strong>${esc(role)}</strong>.</p>
+      <div style="margin: 20px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 15px 0; background: #f8fafc;">
+        <h4 style="margin: 0 0 10px; color: #0d1b3e; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 1px;">📄 Next Steps</h4>
+        <p style="margin: 5px 0 12px; font-size: 0.9rem;">
+          <strong>1️⃣ Download Your Offer Letter</strong><br>
+          👉 <a href="${downloadLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;" target="_blank">Click here to download your Offer Letter</a>
+        </p>
+        <p style="margin: 5px 0 0; font-size: 0.9rem;">
+          <strong>2️⃣ Accept & Submit the Signed Offer</strong><br>
+          👉 <a href="${onboardLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;">Submit Accepted Offer Letter</a>
+        </p>
+      </div>
+      <p>We are excited to welcome you on board starting <strong>${esc(startDate)}</strong>.</p>
+      <p style="margin-top: 24px; line-height: 1.5;">
+        Best regards,<br><br>
+        <strong>Mahender Banoth</strong><br>
+        Founder, CEO & Builder | WaveSeed Co.
+      </p>`;
+  } else if (cert.certificateType.includes('cert')) {
+    subject = `Congratulations! Your WaveSeed Certificate is Ready 🎓`;
+    bodyText = `Dear ${firstName},\n\n` +
+      `Congratulations! 🎉\n\n` +
+      `We are pleased to issue your official Certificate for successfully completing your role as ${role} at WaveSeed Co. as part of our ${product} team.\n\n` +
+      `You can view and download your verified, print-ready certificate via the secure link below:\n` +
+      `👉 ${downloadLink}\n\n` +
+      `Thank you for your hard work, dedication, and contributions. We wish you all the very best in your future career!\n\n` +
+      `Best regards,\nMahender Banoth\nFounder, CEO & Builder | WaveSeed Co.`;
+
+    bodyHtml = `<p>Dear <strong>${esc(firstName)}</strong>,</p>
+      <p>Congratulations! 🎉</p>
+      <p>We are pleased to issue your official Certificate for successfully completing your role as <strong>${esc(role)}</strong> at WaveSeed Co. as part of our <strong>${esc(product)}</strong> team.</p>
+      <div style="margin: 20px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 15px 0; background: #f8fafc; text-align: center;">
+        <p style="margin: 5px 0; font-size: 1rem;">
+          👉 <a href="${downloadLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;" target="_blank">Download Your Official Certificate</a>
+        </p>
+      </div>
+      <p>Thank you for your hard work, dedication, and contributions. We wish you all the very best in your future career!</p>
+      <p style="margin-top: 24px; line-height: 1.5;">
+        Best regards,<br><br>
+        <strong>Mahender Banoth</strong><br>
+        Founder, CEO & Builder | WaveSeed Co.
+      </p>`;
+  } else {
+    subject = `Official Document Issued — ${getNiceTypeLabel(cert.certificateType)} | WaveSeed Co.`;
+    bodyText = `Dear ${firstName},\n\n` +
+      `An official document has been issued to you by WaveSeed Co.:\n` +
+      `Type: ${getNiceTypeLabel(cert.certificateType)}\n` +
+      `Reference: ${ref}\n\n` +
+      `You can access and download your document securely via this link:\n` +
+      `👉 ${downloadLink}\n\n` +
+      `Best regards,\nMahender Banoth\nFounder, CEO & Builder | WaveSeed Co.`;
+
+    bodyHtml = `<p>Dear <strong>${esc(firstName)}</strong>,</p>
+      <p>An official document has been issued to you by <strong>WaveSeed Co.</strong>:</p>
+      <ul>
+        <li><strong>Document Type:</strong> ${esc(getNiceTypeLabel(cert.certificateType))}</li>
+        <li><strong>Reference Number:</strong> ${esc(ref)}</li>
+      </ul>
+      <div style="margin: 20px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 15px 0; background: #f8fafc; text-align: center;">
+        <p style="margin: 5px 0; font-size: 1rem;">
+          👉 <a href="${downloadLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;" target="_blank">Access Your Official Document</a>
+        </p>
+      </div>
+      <p style="margin-top: 24px; line-height: 1.5;">
+        Best regards,<br><br>
+        <strong>Mahender Banoth</strong><br>
+        Founder, CEO & Builder | WaveSeed Co.
+      </p>`;
+  }
+
+  return { subject, bodyText, bodyHtml };
+}
+
+window.wsCopyText = (id, label) => {
+  const text = document.getElementById(id).innerText || document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    showToast(`✅ ${label} copied to clipboard!`, 'success');
+  });
+};
+
+window.wsCopyRichEmailContent = (html, text) => {
+  try {
+    const blobHtml = new Blob([html], { type: 'text/html' });
+    const blobText = new Blob([text], { type: 'text/plain' });
+    const item = new ClipboardItem({
+      'text/html': blobHtml,
+      'text/plain': blobText
+    });
+    navigator.clipboard.write([item]).then(() => {
+      showToast('📋 Rich email body copied! You can paste it directly into Gmail, Zoho Mail, or Outlook.', 'success');
+    }).catch(() => {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('📋 Plain text body copied (Rich copy blocked by browser).', 'success');
+      });
+    });
+  } catch (e) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('📋 Plain text body copied.', 'success');
+    });
+  }
+};
+

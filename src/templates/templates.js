@@ -618,14 +618,10 @@ export function internshipOfferTemplate(data) {
 
 ${signatureBlockHTML()}
 
-<div style="margin-top:12px;display:flex;gap:60px;">
-  <div>
-    <div style="font-size:9px;color:#555;margin-bottom:2px;">Authorised Signatory</div>
-    <div style="border-top:1px solid #333;padding-top:4px;font-size:9px;color:#333;min-width:160px;">Date: _______________</div>
-  </div>
+<div style="margin-top:12px;display:flex;justify-content:flex-start;">
   <div>
     <div style="font-size:9px;color:#555;margin-bottom:2px;">Accepted by — ${esc(recipientName)}</div>
-    <div style="border-top:1px solid #333;padding-top:4px;font-size:9px;color:#333;min-width:160px;">Date: _______________</div>
+    <div style="border-top:1px solid #333;padding-top:4px;font-size:9px;color:#333;min-width:180px;">Date: _______________</div>
   </div>
 </div>
 
@@ -666,14 +662,10 @@ ${signatureBlockHTML()}
     I, <strong>${esc(recipientName)}</strong>, confirm that I have read, understood, and agree to all the terms and conditions contained in this Internship Offer Letter and Annexure A. I accept this offer and commit to fulfilling my responsibilities with dedication, professionalism, and integrity.
   </p>
 
-  <div style="margin-top: 24px; display: flex; gap: 60px;">
+  <div style="margin-top: 24px; display: flex; justify-content: flex-start;">
     <div>
       <div style="font-size: 8px; color: #555; margin-bottom: 2px;">Signature of Intern</div>
-      <div style="border-top: 1px solid #333; padding-top: 4px; font-size: 8.5px; color: #333; min-width: 170px;">Date: _______________</div>
-    </div>
-    <div>
-      <div style="font-size: 8px; color: #555; margin-bottom: 2px;">For WaveSeed Co. (Authorized Signatory)</div>
-      <div style="border-top: 1px solid #333; padding-top: 4px; font-size: 8.5px; color: #333; min-width: 170px;">Date: _______________</div>
+      <div style="border-top: 1px solid #333; padding-top: 4px; font-size: 8.5px; color: #333; min-width: 180px;">Date: _______________</div>
     </div>
   </div>
 </div>`;
@@ -724,14 +716,10 @@ export function employmentOfferTemplate(data) {
 
 ${signatureBlockHTML()}
 
-<div style="margin-top:12px;display:flex;gap:60px;">
-  <div>
-    <div style="font-size:9px;color:#555;margin-bottom:2px;">Authorised Signatory</div>
-    <div style="border-top:1px solid #333;padding-top:4px;font-size:9px;min-width:160px;">Date: _______________</div>
-  </div>
+<div style="margin-top:12px;display:flex;justify-content:flex-start;">
   <div>
     <div style="font-size:9px;color:#555;margin-bottom:2px;">Accepted by — ${esc(recipientName)}</div>
-    <div style="border-top:1px solid #333;padding-top:4px;font-size:9px;min-width:160px;">Date: _______________</div>
+    <div style="border-top:1px solid #333;padding-top:4px;font-size:9px;color:#333;min-width:180px;">Date: _______________</div>
   </div>
 </div>
 
@@ -772,14 +760,10 @@ ${signatureBlockHTML()}
     I, <strong>${esc(recipientName)}</strong>, confirm that I have read, understood, and agree to all the terms and conditions contained in this Employment Offer Letter and Annexure A. I accept this offer and commit to fulfilling my responsibilities with dedication, professionalism, and integrity.
   </p>
 
-  <div style="margin-top: 24px; display: flex; gap: 60px;">
+  <div style="margin-top: 24px; display: flex; justify-content: flex-start;">
     <div>
       <div style="font-size: 8px; color: #555; margin-bottom: 2px;">Signature of Employee</div>
-      <div style="border-top: 1px solid #333; padding-top: 4px; font-size: 8.5px; color: #333; min-width: 170px;">Date: _______________</div>
-    </div>
-    <div>
-      <div style="font-size: 8px; color: #555; margin-bottom: 2px;">For WaveSeed Co. (Authorized Signatory)</div>
-      <div style="border-top: 1px solid #333; padding-top: 4px; font-size: 8.5px; color: #333; min-width: 170px;">Date: _______________</div>
+      <div style="border-top: 1px solid #333; padding-top: 4px; font-size: 8.5px; color: #333; min-width: 180px;">Date: _______________</div>
     </div>
   </div>
 </div>`;

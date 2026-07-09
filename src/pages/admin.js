@@ -1243,7 +1243,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       `Once again — congratulations, ${fullName}! This is just the beginning of something great. We can't wait to build with you. 🚀\n\n` +
       `Warm regards & Best Wishes,\n\n` +
       `Mahender Banoth\n` +
-      `Founder, CEO & Builder | WaveSeed Co.\n` +
+      `Founder, CEO & Building WaveSeed Co.\n` +
       `Indian Institute of Technology Patna.                                                                   Copy to: WaveSeed Careers.\n` +
       `📧 mahender@waveseed.app                                                                                                careers@waveseed.app\n` +
       `🌐 www.waveseed.app\n\n` +
@@ -1274,7 +1274,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
         Warm regards & Best Wishes,<br><br>
         <strong>Mahender Banoth</strong><br>
-        Founder, CEO & Builder | WaveSeed Co.<br>
+        Founder, CEO & Building WaveSeed Co.<br>
         Indian Institute of Technology Patna.<br>
         <span style="color:#94a3b8; font-size:0.75rem; float:right;">Copy to: WaveSeed Careers.</span>
         📧 <a href="mailto:mahender@waveseed.app" style="color: #0d1b3e;">mahender@waveseed.app</a> | <a href="mailto:careers@waveseed.app" style="color: #0d1b3e;">careers@waveseed.app</a><br>
@@ -1301,7 +1301,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       `Your joining date is scheduled for ${startDate}. We look forward to building great things together.\n\n` +
       `Best regards,\n\n` +
       `Mahender Banoth\n` +
-      `Founder, CEO & Builder | WaveSeed Co.`;
+      `Founder, CEO & Building WaveSeed Co.`;
 
     bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
       <p>Congratulations! 🎉</p>
@@ -1321,7 +1321,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
         Best regards,<br><br>
         <strong>Mahender Banoth</strong><br>
-        Founder, CEO & Builder | WaveSeed Co.
+        Founder, CEO & Building WaveSeed Co.
       </p>`;
   } else if (cert.certificateType === 'internship-cert') {
     subject = `Congratulations! Your WaveSeed Internship Certificate is Ready 🎓`;
@@ -1333,7 +1333,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       `Thank you for your valuable contributions, hard work, and dedication. We wish you the absolute best in your future career goals!\n\n` +
       `Best regards,\n\n` +
       `Mahender Banoth\n` +
-      `Founder, CEO & Builder | WaveSeed Co.`;
+      `Founder, CEO & Building WaveSeed Co.`;
 
     bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
       <p>Congratulations on successfully completing your internship at <strong>WaveSeed Co.</strong>! 🎉</p>
@@ -1347,7 +1347,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
         Best regards,<br><br>
         <strong>Mahender Banoth</strong><br>
-        Founder, CEO & Builder | WaveSeed Co.
+        Founder, CEO & Building WaveSeed Co.
       </p>`;
   } else if (cert.certificateType === 'employment-cert') {
     subject = `Official Employment & Service Certificate — WaveSeed Co.`;
@@ -1358,7 +1358,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       `👉 ${downloadLink}\n\n` +
       `Best regards,\n\n` +
       `Mahender Banoth\n` +
-      `Founder, CEO & Builder | WaveSeed Co.`;
+      `Founder, CEO & Building WaveSeed Co.`;
 
     bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
       <p>Please find your official Employment Confirmation & Service Certificate issued by <strong>WaveSeed Co.</strong></p>
@@ -1371,7 +1371,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
         Best regards,<br><br>
         <strong>Mahender Banoth</strong><br>
-        Founder, CEO & Builder | WaveSeed Co.
+        Founder, CEO & Building WaveSeed Co.
       </p>`;
   } else if (cert.certificateType === 'experience-letter') {
     subject = `Official Experience & Service Letter — WaveSeed Co.`;
@@ -1383,7 +1383,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       `We thank you for your service and wish you all the best in your future career endeavors.\n\n` +
       `Best regards,\n\n` +
       `Mahender Banoth\n` +
-      `Founder, CEO & Builder | WaveSeed Co.`;
+      `Founder, CEO & Building WaveSeed Co.`;
 
     bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
       <p>Please find attached your official Experience & Service Verification Letter from <strong>WaveSeed Co.</strong></p>
@@ -1397,7 +1397,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
         Best regards,<br><br>
         <strong>Mahender Banoth</strong><br>
-        Founder, CEO & Builder | WaveSeed Co.
+        Founder, CEO & Building WaveSeed Co.
       </p>`;
   } else if (cert.certificateType === 'relieving-letter') {
     subject = `Relieving Letter & Service Confirmation — WaveSeed Co.`;
@@ -1409,7 +1409,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       `We wish you success in your future career path.\n\n` +
       `Best regards,\n\n` +
       `Mahender Banoth\n` +
-      `Founder, CEO & Builder | WaveSeed Co.`;
+      `Founder, CEO & Building WaveSeed Co.`;
 
     bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
       <p>We are issuing your formal Relieving Letter confirming that you have been relieved of your duties as <strong>${esc(role)}</strong> at <strong>WaveSeed Co.</strong> effective from your exit date.</p>
@@ -1423,7 +1423,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
         Best regards,<br><br>
         <strong>Mahender Banoth</strong><br>
-        Founder, CEO & Builder | WaveSeed Co.
+        Founder, CEO & Building WaveSeed Co.
       </p>`;
   } else if (cert.certificateType === 'termination-letter') {
     subject = `Confidential: Separation & Termination Letter — WaveSeed Co.`;
@@ -1458,7 +1458,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       `We hope this LOR assists you in your academic or professional endeavors. Best of luck!\n\n` +
       `Best regards,\n\n` +
       `Mahender Banoth\n` +
-      `Founder, CEO & Builder | WaveSeed Co.`;
+      `Founder, CEO & Building WaveSeed Co.`;
 
     bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
       <p>Please find your official Letter of Recommendation (LOR) issued by Mahender Banoth at <strong>WaveSeed Co.</strong></p>
@@ -1472,7 +1472,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
         Best regards,<br><br>
         <strong>Mahender Banoth</strong><br>
-        Founder, CEO & Builder | WaveSeed Co.
+        Founder, CEO & Building WaveSeed Co.
       </p>`;
   } else if (cert.certificateType === 'noc') {
     subject = `No Objection Certificate (NOC) — WaveSeed Co.`;
@@ -1482,7 +1482,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       `👉 ${downloadLink}\n\n` +
       `Best regards,\n\n` +
       `Mahender Banoth\n` +
-      `Founder, CEO & Builder | WaveSeed Co.`;
+      `Founder, CEO & Building WaveSeed Co.`;
 
     bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
       <p>Please find attached your official No Objection Certificate (NOC) issued by <strong>WaveSeed Co.</strong></p>
@@ -1494,7 +1494,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
         Best regards,<br><br>
         <strong>Mahender Banoth</strong><br>
-        Founder, CEO & Builder | WaveSeed Co.
+        Founder, CEO & Building WaveSeed Co.
       </p>`;
   } else if (cert.certificateType === 'promotion-letter') {
     subject = `Congratulations on your Promotion! — WaveSeed Co.`;
@@ -1505,7 +1505,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       `Congratulations on this well-deserved step up!\n\n` +
       `Best regards,\n\n` +
       `Mahender Banoth\n` +
-      `Founder, CEO & Builder | WaveSeed Co.`;
+      `Founder, CEO & Building WaveSeed Co.`;
 
     bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
       <p>We are absolutely delighted to issue your official Promotion Letter confirming your new role as <strong>${esc(role)}</strong> at <strong>WaveSeed Co.</strong></p>
@@ -1519,7 +1519,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
         Best regards,<br><br>
         <strong>Mahender Banoth</strong><br>
-        Founder, CEO & Builder | WaveSeed Co.
+        Founder, CEO & Building WaveSeed Co.
       </p>`;
   } else if (cert.certificateType === 'salary-revision') {
     subject = `Confidential: Salary Revision Letter — WaveSeed Co.`;
@@ -1529,7 +1529,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       `👉 ${downloadLink}\n\n` +
       `Best regards,\n\n` +
       `Mahender Banoth\n` +
-      `Founder, CEO & Builder | WaveSeed Co.`;
+      `Founder, CEO & Building WaveSeed Co.`;
 
     bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
       <p>Please find attached your confidential Salary Revision Letter details confirming the adjustment of your compensation terms at <strong>WaveSeed Co.</strong></p>
@@ -1541,7 +1541,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
         Best regards,<br><br>
         <strong>Mahender Banoth</strong><br>
-        Founder, CEO & Builder | WaveSeed Co.
+        Founder, CEO & Building WaveSeed Co.
       </p>`;
   } else if (cert.certificateType === 'warning-letter') {
     subject = `Confidential: Disciplinary Action / Warning Notice — WaveSeed Co.`;
@@ -1574,7 +1574,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       `Reference: ${ref}\n\n` +
       `You can access and download your document securely via this link:\n` +
       `👉 ${downloadLink}\n\n` +
-      `Best regards,\nMahender Banoth\nFounder, CEO & Builder | WaveSeed Co.`;
+      `Best regards,\nMahender Banoth\nFounder, CEO & Building WaveSeed Co.`;
 
     bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
       <p>An official document has been issued to you by <strong>WaveSeed Co.</strong>:</p>
@@ -1590,7 +1590,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
         Best regards,<br><br>
         <strong>Mahender Banoth</strong><br>
-        Founder, CEO & Builder | WaveSeed Co.
+        Founder, CEO & Building WaveSeed Co.
       </p>`;
   }
 

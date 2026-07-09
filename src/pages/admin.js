@@ -1082,6 +1082,16 @@ function formatDateShort(dateStr) {
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // EMAIL GENERATOR MODAL
 // ═══════════════════════════════════════════════════════════════════════════════

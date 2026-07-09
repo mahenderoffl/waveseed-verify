@@ -12,6 +12,7 @@ export default defineSchema({
     holderEmail: v.optional(v.string()),
     holderInstitution: v.optional(v.string()),  // College / Company
     holderDepartment: v.optional(v.string()),   // Branch / Dept
+    holderDob: v.optional(v.string()),          // YYYY-MM-DD — used for secure download link auth
 
     // ── Certificate Details ───────────────────────────────────
     // Types: internship | employment | course | partnership | appreciation | other

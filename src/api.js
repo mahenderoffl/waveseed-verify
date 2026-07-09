@@ -10,6 +10,18 @@ export async function verifyCertificate({ id, ref }) {
   return res.json();
 }
 
+// ── Public Secure Download (ref/certId + DOB) ──────────────────────────────────
+export async function publicDownload({ ref, certId, dob }) {
+  const res = await fetch(`${HTTP_URL}/public/download`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ref, certId, dob }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw Object.assign(new Error(data.error || 'Authentication failed'), { remaining: data.remaining, revoked: data.revoked });
+  return data;
+}
+
 // ── Admin Auth ─────────────────────────────────────────────────────────────────
 export async function adminLogin(password) {
   const res = await fetch(`${HTTP_URL}/admin/auth`, {

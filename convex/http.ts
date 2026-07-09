@@ -130,6 +130,111 @@ http.route({
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// PUBLIC — Secure Document Download (ref + dob auth)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// In-memory brute-force guard: key = IP+ref, value = { fails, lockedUntil }
+const _downloadAttempts = new Map<string, { fails: number; lockedUntil: number }>();
+const MAX_FAILS = 5;
+const LOCKOUT_MS = 30_000; // 30 seconds
+
+http.route({
+  path: "/public/download",
+  method: "OPTIONS",
+  handler: httpAction(async () => preflight()),
+});
+
+http.route({
+  path: "/public/download",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const body = await request.json().catch(() => null);
+    if (!body) return json({ error: "Invalid request body" }, 400);
+
+    const { ref, certId, dob } = body as { ref?: string; certId?: string; dob?: string };
+
+    if (!dob || (!ref && !certId)) {
+      return json({ error: "Provide (ref or certId) and dob" }, 400);
+    }
+
+    // Rate limiting — basic IP-based guard
+    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
+    const rateLimitKey = `${ip}:${(ref || certId || "").toLowerCase()}`;
+    const attempt = _downloadAttempts.get(rateLimitKey) ?? { fails: 0, lockedUntil: 0 };
+
+    if (attempt.lockedUntil > Date.now()) {
+      const secsLeft = Math.ceil((attempt.lockedUntil - Date.now()) / 1000);
+      return json({ error: `Too many failed attempts. Please wait ${secsLeft} seconds and try again.` }, 429);
+    }
+
+    // Look up certificate
+    let cert = null;
+    if (ref) {
+      cert = await ctx.runQuery(internal.certificates.getByReferenceNumber, { referenceNumber: ref.trim() });
+    } else if (certId) {
+      cert = await ctx.runQuery(internal.certificates.getByCertificateId, { certificateId: certId.trim().toUpperCase() });
+    }
+
+    if (!cert) {
+      // Increment fail counter
+      attempt.fails += 1;
+      if (attempt.fails >= MAX_FAILS) attempt.lockedUntil = Date.now() + LOCKOUT_MS;
+      _downloadAttempts.set(rateLimitKey, attempt);
+      return json({ error: "Certificate not found. Please check your reference number." }, 404);
+    }
+
+    // DOB check — must match stored holderDob
+    if (!cert.holderDob) {
+      return json({ error: "Secure download is not enabled for this certificate. Please contact WaveSeed." }, 403);
+    }
+
+    const normalise = (d: string) => d.replace(/\s/g, "").toLowerCase();
+    if (normalise(cert.holderDob) !== normalise(dob)) {
+      attempt.fails += 1;
+      if (attempt.fails >= MAX_FAILS) attempt.lockedUntil = Date.now() + LOCKOUT_MS;
+      _downloadAttempts.set(rateLimitKey, attempt);
+      const remaining = MAX_FAILS - attempt.fails;
+      return json({
+        error: remaining > 0
+          ? `Incorrect date of birth. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`
+          : "Too many failed attempts. Please wait 30 seconds.",
+        remaining,
+      }, 401);
+    }
+
+    // ✅ Auth passed — reset fail counter
+    _downloadAttempts.delete(rateLimitKey);
+
+    if (cert.status === "revoked") {
+      return json({ error: "This certificate has been revoked and is no longer valid.", revoked: true }, 403);
+    }
+
+    // Return safe payload: templateData for client-side rendering + top-level fields
+    return json({
+      success: true,
+      certificateType: cert.certificateType,
+      templateData:    cert.templateData ?? null,
+      // Core fields as fallback if templateData is missing
+      certificateId:    cert.certificateId,
+      referenceNumber:  cert.referenceNumber,
+      holderName:       cert.holderName,
+      holderEmail:      cert.holderEmail      ?? null,
+      holderInstitution:cert.holderInstitution ?? null,
+      holderDepartment: cert.holderDepartment  ?? null,
+      role:             cert.role,
+      product:          cert.product           ?? null,
+      workMode:         cert.workMode          ?? null,
+      reportingTo:      cert.reportingTo       ?? null,
+      issuedDate:       cert.issuedDate,
+      startDate:        cert.startDate         ?? null,
+      endDate:          cert.endDate           ?? null,
+      issuerName:       cert.issuerName,
+      issuerTitle:      cert.issuerTitle,
+    });
+  }),
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // ADMIN — Auth Check
 // ═══════════════════════════════════════════════════════════════════════════════
 

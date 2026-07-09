@@ -72,6 +72,7 @@ export const insertCertificate = internalMutation({
     holderEmail: v.optional(v.string()),
     holderInstitution: v.optional(v.string()),
     holderDepartment: v.optional(v.string()),
+    holderDob: v.optional(v.string()),         // YYYY-MM-DD
     certificateType: v.string(),
     role: v.string(),
     product: v.optional(v.string()),
@@ -113,6 +114,7 @@ export const patchCertificate = internalMutation({
     holderEmail: v.optional(v.string()),
     holderInstitution: v.optional(v.string()),
     holderDepartment: v.optional(v.string()),
+    holderDob: v.optional(v.string()),
     role: v.optional(v.string()),
     product: v.optional(v.string()),
     workMode: v.optional(v.string()),

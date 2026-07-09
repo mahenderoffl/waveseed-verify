@@ -417,6 +417,7 @@ function renderTable() {
   <td>
     <div class="actions-cell">
       <button class="btn-action view" onclick="window.wsViewCert('${esc(c.certificateId)}')" title="Open the full rendered certificate/letter document">📄 View Doc</button>
+      ${c.holderDob ? `<button class="btn-action copy-link" onclick="window.wsCopyLink('${esc(c.referenceNumber)}')" title="Copy download link to share with recipient">🔗 Link</button>` : ''}
       <button class="btn-action edit" onclick="window.wsEditModal('${c._id}')">✏️ Edit</button>
       ${c.status === 'active'
         ? `<button class="btn-action revoke" onclick="window.wsRevokeModal('${c._id}','${esc(c.holderName)}')">🚫 Revoke</button>`
@@ -496,6 +497,26 @@ window.wsViewCert = (certId) => {
 
 window.wsRevokeModal = (id, name) => openRevokeModal(id, name);
 window.wsEditModal   = (id)       => openEditModal(id);
+
+// Copy the recipient's download link to clipboard
+window.wsCopyLink = (ref) => {
+  const base = window.location.origin;
+  const link = `${base}/#download?ref=${encodeURIComponent(ref)}`;
+  navigator.clipboard.writeText(link).then(() => {
+    showToast('🔗 Download link copied! Paste into your email.', 'success');
+  }).catch(() => {
+    // Fallback for browsers that block clipboard without focus
+    const ta = document.createElement('textarea');
+    ta.value = link;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    showToast('🔗 Link copied!', 'success');
+  });
+};
 
 window.wsRestore = async (id) => {
   if (!confirm('Restore this certificate to active status?')) return;
@@ -785,6 +806,10 @@ function openEditModal(id) {
         <label class="form-label">Holder Email</label>
         <input id="e-email" class="form-input" type="email" value="${esc(cert.holderEmail || '')}" />
       </div>
+      <div class="form-group">
+        <label class="form-label">Date of Birth <span style="font-size:0.7rem;color:#94a3b8;font-weight:400;">(for download link auth)</span></label>
+        <input id="e-dob" class="form-input" type="date" value="${esc(cert.holderDob || '')}" />
+      </div>
       <div class="form-group form-full">
         <label class="form-label">Institution / Organization</label>
         <input id="e-institution" class="form-input" value="${esc(cert.holderInstitution || '')}" />
@@ -878,6 +903,7 @@ async function submitEdit(id) {
     id,
     holderName:        name,
     holderEmail:       get('e-email') || undefined,
+    holderDob:         get('e-dob')   || undefined,
     holderInstitution: get('e-institution') || undefined,
     holderDepartment:  get('e-dept') || undefined,
     certificateType:   get('e-type') || undefined,

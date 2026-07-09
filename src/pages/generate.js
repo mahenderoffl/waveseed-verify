@@ -277,6 +277,22 @@ window.wsOpenGenForm = async function(typeId) {
       ${buildFormFields(docType)}
     </div>
 
+    <!-- Recipient Security & Delivery (shared) -->
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--gray-200);">
+      <div style="font-size:0.72rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--gray-400);margin-bottom:10px;">Recipient Security &amp; Delivery (For Secure Download Link)</div>
+      <div class="form-grid">
+        ${!docType.fields.includes('recipientEmail') ? `
+        <div class="form-group">
+          <label class="form-label">Recipient Email</label>
+          <input id="f-recipientEmail" class="form-input" placeholder="email@example.com" />
+        </div>` : ''}
+        <div class="form-group">
+          <label class="form-label">Recipient Date of Birth</label>
+          <input id="f-holderDob" class="form-input" type="date" />
+        </div>
+      </div>
+    </div>
+
     <!-- Issuer fields (shared) -->
     <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--gray-200);">
       <div style="font-size:0.72rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--gray-400);margin-bottom:10px;">Authorised Signatory</div>
@@ -368,6 +384,14 @@ window.wsOpenGenForm = async function(typeId) {
       const emp = existingEmployees.find(e => e._id === val);
       if (!emp) return;
 
+      let empDob = '';
+      try {
+        if (emp.meta) {
+          const meta = JSON.parse(emp.meta);
+          if (meta.dob) empDob = meta.dob;
+        }
+      } catch {}
+
       const map = {
         'f-holderName':       emp.name,
         'f-recipientName':    emp.name,
@@ -382,6 +406,7 @@ window.wsOpenGenForm = async function(typeId) {
         'f-startDate':        emp.startDate,
         'f-endDate':          emp.endDate,
         'f-reportingTo':      emp.reportingTo,
+        'f-holderDob':        empDob,
       };
 
       for (const [id, value] of Object.entries(map)) {
@@ -483,6 +508,7 @@ window.wsGenerate = async function(typeId) {
       holderEmail:       data.recipientEmail || '',
       holderInstitution: data.holderInstitution || data.recipientCollege || '',
       holderDepartment:  data.holderDepartment || data.recipientDept || '',
+      holderDob:         data.holderDob || undefined,
       certificateType:   typeId,
       role:              data.role || '',
       product:           data.product || '',
@@ -562,6 +588,8 @@ function collectFormData(docType) {
     const el = document.getElementById(`f-${fid}`);
     data[fid] = el?.value?.trim() || '';
   });
+  data.recipientEmail = document.getElementById('f-recipientEmail')?.value?.trim() || '';
+  data.holderDob      = document.getElementById('f-holderDob')?.value?.trim() || '';
   data.issuerName  = document.getElementById('f-issuerName')?.value?.trim() || 'Mahender';
   data.issuerTitle = document.getElementById('f-issuerTitle')?.value?.trim() || 'Founder, WaveSeed Co.';
   data.certType    = docType.id.replace('-cert',''); // for certificate templates

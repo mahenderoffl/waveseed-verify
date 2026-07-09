@@ -1055,12 +1055,6 @@ function formatDateShort(dateStr) {
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function esc(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // EMAIL GENERATOR MODAL
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1113,18 +1107,34 @@ async function openEmailModal(certId) {
   </div>
   <div class="modal-body" style="padding-bottom:12px;">
     
-    <div style="background:rgba(13,27,62,0.02); border:1px solid var(--gray-200); border-radius:8px; padding:14px; margin-bottom:16px; display:flex; flex-direction:column; gap:10px;">
+    <div style="background:rgba(13,27,62,0.02); border:1px solid var(--gray-200); border-radius:8px; padding:14px; margin-bottom:16px; display:flex; flex-direction:column; gap:8px;">
       <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.88rem;">
-        <div><strong>To:</strong> <span id="m-to-text" style="color:var(--navy); font-weight:600;">${esc(resolvedEmail || '(no email saved — edit to add)')}</span></div>
-        ${resolvedEmail ? `<button class="btn-primary" onclick="window.wsCopyText('m-to-text', 'To Address')" style="padding:4px 8px; font-size:0.75rem;">📋 Copy</button>` : ''}
+        <div style="flex:1; display:flex; align-items:center; gap:8px;">
+          <strong style="min-width:60px;">To:</strong>
+          <input id="m-to" class="form-input" style="flex:1; border:none; padding:4px 8px; font-size:0.88rem; background:transparent; font-weight:600; color:var(--navy);" value="${esc(resolvedEmail)}" placeholder="recipient@example.com" />
+        </div>
+        <button class="btn-primary" onclick="window.wsCopyInput('m-to', 'To Address')" style="padding:4px 8px; font-size:0.75rem;">📋 Copy</button>
       </div>
-      <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.88rem; border-top: 1px dashed var(--gray-200); padding-top:8px;">
-        <div><strong>CC:</strong> <span id="m-cc-text" style="color:var(--navy); font-weight:600;">careers@waveseed.app</span></div>
-        <button class="btn-primary" onclick="window.wsCopyText('m-cc-text', 'CC Address')" style="padding:4px 8px; font-size:0.75rem;">📋 Copy</button>
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.88rem; border-top: 1px dashed var(--gray-200); padding-top:6px;">
+        <div style="flex:1; display:flex; align-items:center; gap:8px;">
+          <strong style="min-width:60px;">CC:</strong>
+          <input id="m-cc" class="form-input" style="flex:1; border:none; padding:4px 8px; font-size:0.88rem; background:transparent; font-weight:600; color:var(--navy);" value="careers@waveseed.app" placeholder="e.g. HR copy" />
+        </div>
+        <button class="btn-primary" onclick="window.wsCopyInput('m-cc', 'CC Address')" style="padding:4px 8px; font-size:0.75rem;">📋 Copy</button>
       </div>
-      <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.88rem; border-top: 1px dashed var(--gray-200); padding-top:8px;">
-        <div style="flex:1; margin-right:10px;"><strong>Subject:</strong> <span id="m-sub-text" style="color:var(--navy); font-weight:600;">${esc(subject)}</span></div>
-        <button class="btn-primary" onclick="window.wsCopyText('m-sub-text', 'Subject')" style="padding:4px 8px; font-size:0.75rem; white-space:nowrap;">📋 Copy</button>
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.88rem; border-top: 1px dashed var(--gray-200); padding-top:6px;">
+        <div style="flex:1; display:flex; align-items:center; gap:8px;">
+          <strong style="min-width:60px;">BCC:</strong>
+          <input id="m-bcc" class="form-input" style="flex:1; border:none; padding:4px 8px; font-size:0.88rem; background:transparent; font-weight:600; color:var(--navy);" value="" placeholder="e.g. audit@waveseed.app, backup@waveseed.app" />
+        </div>
+        <button class="btn-primary" onclick="window.wsCopyInput('m-bcc', 'BCC Address')" style="padding:4px 8px; font-size:0.75rem;">📋 Copy</button>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.88rem; border-top: 1px dashed var(--gray-200); padding-top:6px;">
+        <div style="flex:1; display:flex; align-items:center; gap:8px;">
+          <strong style="min-width:60px;">Subject:</strong>
+          <input id="m-sub" class="form-input" style="flex:1; border:none; padding:4px 8px; font-size:0.88rem; background:transparent; font-weight:600; color:var(--navy);" value="${esc(subject)}" />
+        </div>
+        <button class="btn-primary" onclick="window.wsCopyInput('m-sub', 'Subject')" style="padding:4px 8px; font-size:0.75rem; white-space:nowrap;">📋 Copy</button>
       </div>
     </div>
 
@@ -1188,28 +1198,33 @@ async function openEmailModal(certId) {
 
   // Open mailto link
   document.getElementById('btn-open-mail').addEventListener('click', () => {
+    const to = document.getElementById('m-to').value.trim();
+    const cc = document.getElementById('m-cc').value.trim();
+    const bcc = document.getElementById('m-bcc').value.trim();
+    const sub = document.getElementById('m-sub').value.trim();
     const textVal = bodyTextEl.value;
-    const mailto = `mailto:${encodeURIComponent(resolvedEmail)}?cc=careers@waveseed.app&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(textVal)}`;
+    const mailto = `mailto:${encodeURIComponent(to)}?cc=${encodeURIComponent(cc)}&bcc=${encodeURIComponent(bcc)}&subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(textVal)}`;
     window.open(mailto, '_blank');
   });
 }
 
 function generateEmailTemplate(cert, email, downloadLink) {
-  const firstName = (cert.holderName || '').split(' ')[0];
+  const fullName = cert.holderName || '';
   const role = cert.role || 'Intern';
   const product = cert.product || 'WaveBase AI';
   const startDate = cert.startDate ? formatDateShort(cert.startDate) : 'soon';
+  const endDate = cert.endDate ? formatDateShort(cert.endDate) : 'completion';
   const ref = cert.referenceNumber;
   
   let subject = '';
   let bodyText = '';
   let bodyHtml = '';
 
-  const onboardLink = `mailto:careers@waveseed.app?subject=${encodeURIComponent('Offer Acceptance - ' + ref)}`;
+  const onboardLink = `https://docs.google.com/forms/d/e/1FAIpQLSeIbX_sqZlWBtGyckesbLxvAUfxhqYgFBLP3tFtj-xskGS_qg/viewform`;
 
   if (cert.certificateType === 'internship-offer') {
     subject = `You're In! Internship Offer — ${role} | WaveSeed Co.`;
-    bodyText = `Dear ${firstName},\n\n` +
+    bodyText = `Dear ${fullName},\n\n` +
       `Congratulations! 🎉\n\n` +
       `On behalf of the entire team at WaveSeed Co., it gives me great pleasure to inform you that following your interview, you have been successfully selected for the position of ${role} at WaveSeed Co.\n\n` +
       `Your performance during the interview was truly impressive — you stood out for your passion, clarity of thought, and the depth of your understanding in AI & ML. We genuinely believe you are going to be an incredible addition to the WaveSeed family as we build ${product} together.\n\n` +
@@ -1225,7 +1240,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       `    Kindly complete this at the earliest to confirm your seat.\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
       `We are excited to have you on board starting ${startDate}. Expect an onboarding note from our team shortly after your acceptance is confirmed.\n\n` +
-      `Once again — congratulations, ${firstName}! This is just the beginning of something great. We can't wait to build with you. 🚀\n\n` +
+      `Once again — congratulations, ${fullName}! This is just the beginning of something great. We can't wait to build with you. 🚀\n\n` +
       `Warm regards & Best Wishes,\n\n` +
       `Mahender Banoth\n` +
       `Founder, CEO & Builder | WaveSeed Co.\n` +
@@ -1236,7 +1251,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       `This email and any attachments are strictly private and confidential.\n` +
       `Intended solely for the named recipient. If received in error, please notify us immediately.`;
 
-    bodyHtml = `<p>Dear <strong>${esc(firstName)}</strong>,</p>
+    bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
       <p>Congratulations! 🎉</p>
       <p>On behalf of the entire team at <strong>WaveSeed Co.</strong>, it gives me great pleasure to inform you that following your interview, you have been successfully selected for the position of <strong>${esc(role)}</strong> at WaveSeed Co.</p>
       <p>Your performance during the interview was truly impressive — you stood out for your passion, clarity of thought, and the depth of your understanding in AI & ML. We genuinely believe you are going to be an incredible addition to the WaveSeed family as we build <strong>${esc(product)}</strong> together.</p>
@@ -1250,12 +1265,12 @@ function generateEmailTemplate(cert, email, downloadLink) {
         <p style="margin: 5px 0 0; font-size: 0.92rem;">
           <strong>2️⃣ Accept & Submit the Signed Offer</strong><br>
           Print, sign, and scan the offer letter, then submit it via the link below:<br>
-          👉 <a href="${onboardLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;">Submit Accepted Offer Letter</a><br>
+          👉 <a href="${onboardLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;" target="_blank">Submit Accepted Offer Letter</a><br>
           <span style="font-size: 0.8rem; color: #64748b;">Kindly complete this at the earliest to confirm your seat.</span>
         </p>
       </div>
       <p>We are excited to have you on board starting <strong>${esc(startDate)}</strong>. Expect an onboarding note from our team shortly after your acceptance is confirmed.</p>
-      <p>Once again — congratulations, ${esc(firstName)}! This is just the beginning of something great. We can't wait to build with you. 🚀</p>
+      <p>Once again — congratulations, ${esc(fullName)}! This is just the beginning of something great. We can't wait to build with you. 🚀</p>
       <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
         Warm regards & Best Wishes,<br><br>
         <strong>Mahender Banoth</strong><br>
@@ -1271,64 +1286,289 @@ function generateEmailTemplate(cert, email, downloadLink) {
       </p>`;
   } else if (cert.certificateType === 'employment-offer') {
     subject = `Welcome to the Team! Employment Offer — ${role} | WaveSeed Co.`;
-    bodyText = `Dear ${firstName},\n\n` +
+    bodyText = `Dear ${fullName},\n\n` +
       `Congratulations! 🎉\n\n` +
-      `On behalf of WaveSeed Co., we are thrilled to offer you the position of ${role}. We were incredibly impressed by your interviews and cannot wait to build together.\n\n` +
+      `On behalf of the entire team at WaveSeed Co., we are thrilled to offer you full-time employment as ${role}.\n\n` +
+      `Your credentials, interview performance, and background stood out to us, and we are confident that you will make a huge impact as we build out our SaaS platforms.\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━\n` +
       `📄 NEXT STEPS\n` +
-      `1️⃣ Download Your Offer Letter\n` +
-      `   👉 ${downloadLink}\n\n` +
-      `2️⃣ Accept & Submit the Signed Offer\n` +
-      `   👉 ${onboardLink}\n\n` +
-      `We look forward to welcoming you on starting ${startDate}.\n\n` +
-      `Best regards,\nMahender Banoth\nFounder, CEO & Builder | WaveSeed Co.`;
+      `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `1️⃣  Download Your Offer Letter\n` +
+      `    👉 Offer Letter to Download: ${downloadLink}\n\n` +
+      `2️⃣  Accept & Submit the Signed Offer\n` +
+      `    👉 Submit Signed Offer Letter: ${onboardLink}\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `Your joining date is scheduled for ${startDate}. We look forward to building great things together.\n\n` +
+      `Best regards,\n\n` +
+      `Mahender Banoth\n` +
+      `Founder, CEO & Builder | WaveSeed Co.`;
 
-    bodyHtml = `<p>Dear <strong>${esc(firstName)}</strong>,</p>
+    bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
       <p>Congratulations! 🎉</p>
-      <p>On behalf of <strong>WaveSeed Co.</strong>, we are thrilled to offer you the position of <strong>${esc(role)}</strong>.</p>
+      <p>On behalf of the entire team at <strong>WaveSeed Co.</strong>, we are thrilled to offer you full-time employment as <strong>${esc(role)}</strong>.</p>
       <div style="margin: 20px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 15px 0; background: #f8fafc;">
-        <h4 style="margin: 0 0 10px; color: #0d1b3e; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 1px;">📄 Next Steps</h4>
-        <p style="margin: 5px 0 12px; font-size: 0.9rem;">
+        <h4 style="margin: 0 0 10px; color: #0d1b3e; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 1px; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px;">📄 Next Steps</h4>
+        <p style="margin: 5px 0 12px; font-size: 0.92rem;">
           <strong>1️⃣ Download Your Offer Letter</strong><br>
           👉 <a href="${downloadLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;" target="_blank">Click here to download your Offer Letter</a>
         </p>
-        <p style="margin: 5px 0 0; font-size: 0.9rem;">
+        <p style="margin: 5px 0 0; font-size: 0.92rem;">
           <strong>2️⃣ Accept & Submit the Signed Offer</strong><br>
-          👉 <a href="${onboardLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;">Submit Accepted Offer Letter</a>
+          👉 <a href="${onboardLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;" target="_blank">Submit Signed Offer Letter</a>
         </p>
       </div>
-      <p>We are excited to welcome you on board starting <strong>${esc(startDate)}</strong>.</p>
-      <p style="margin-top: 24px; line-height: 1.5;">
+      <p>Your joining date is scheduled for <strong>${esc(startDate)}</strong>. We look forward to building great things together.</p>
+      <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
         Best regards,<br><br>
         <strong>Mahender Banoth</strong><br>
         Founder, CEO & Builder | WaveSeed Co.
       </p>`;
-  } else if (cert.certificateType.includes('cert')) {
-    subject = `Congratulations! Your WaveSeed Certificate is Ready 🎓`;
-    bodyText = `Dear ${firstName},\n\n` +
-      `Congratulations! 🎉\n\n` +
-      `We are pleased to issue your official Certificate for successfully completing your role as ${role} at WaveSeed Co. as part of our ${product} team.\n\n` +
-      `You can view and download your verified, print-ready certificate via the secure link below:\n` +
+  } else if (cert.certificateType === 'internship-cert') {
+    subject = `Congratulations! Your WaveSeed Internship Certificate is Ready 🎓`;
+    bodyText = `Dear ${fullName},\n\n` +
+      `Congratulations on successfully completing your internship at WaveSeed Co.! 🎉\n\n` +
+      `We are pleased to issue your official Internship Completion Certificate for your role as ${role} working on our ${product} initiatives.\n\n` +
+      `You can view and download your verified certificate via the secure link below:\n` +
       `👉 ${downloadLink}\n\n` +
-      `Thank you for your hard work, dedication, and contributions. We wish you all the very best in your future career!\n\n` +
-      `Best regards,\nMahender Banoth\nFounder, CEO & Builder | WaveSeed Co.`;
+      `Thank you for your valuable contributions, hard work, and dedication. We wish you the absolute best in your future career goals!\n\n` +
+      `Best regards,\n\n` +
+      `Mahender Banoth\n` +
+      `Founder, CEO & Builder | WaveSeed Co.`;
 
-    bodyHtml = `<p>Dear <strong>${esc(firstName)}</strong>,</p>
-      <p>Congratulations! 🎉</p>
-      <p>We are pleased to issue your official Certificate for successfully completing your role as <strong>${esc(role)}</strong> at WaveSeed Co. as part of our <strong>${esc(product)}</strong> team.</p>
+    bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
+      <p>Congratulations on successfully completing your internship at <strong>WaveSeed Co.</strong>! 🎉</p>
+      <p>We are pleased to issue your official Internship Completion Certificate for your role as <strong>${esc(role)}</strong> working on our <strong>${esc(product)}</strong> initiatives.</p>
       <div style="margin: 20px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 15px 0; background: #f8fafc; text-align: center;">
         <p style="margin: 5px 0; font-size: 1rem;">
-          👉 <a href="${downloadLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;" target="_blank">Download Your Official Certificate</a>
+          👉 <a href="${downloadLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;" target="_blank">Download Your Internship Certificate</a>
         </p>
       </div>
-      <p>Thank you for your hard work, dedication, and contributions. We wish you all the very best in your future career!</p>
-      <p style="margin-top: 24px; line-height: 1.5;">
+      <p>Thank you for your valuable contributions, hard work, and dedication. We wish you the absolute best in your future career goals!</p>
+      <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
         Best regards,<br><br>
         <strong>Mahender Banoth</strong><br>
         Founder, CEO & Builder | WaveSeed Co.
+      </p>`;
+  } else if (cert.certificateType === 'employment-cert') {
+    subject = `Official Employment & Service Certificate — WaveSeed Co.`;
+    bodyText = `Dear ${fullName},\n\n` +
+      `Please find your official Employment Confirmation & Service Certificate issued by WaveSeed Co.\n\n` +
+      `This document serves as formal proof of your service and designation as ${role}.\n\n` +
+      `You can download your document securely here:\n` +
+      `👉 ${downloadLink}\n\n` +
+      `Best regards,\n\n` +
+      `Mahender Banoth\n` +
+      `Founder, CEO & Builder | WaveSeed Co.`;
+
+    bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
+      <p>Please find your official Employment Confirmation & Service Certificate issued by <strong>WaveSeed Co.</strong></p>
+      <p>This document serves as formal proof of your service and designation as <strong>${esc(role)}</strong>.</p>
+      <div style="margin: 20px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 15px 0; background: #f8fafc; text-align: center;">
+        <p style="margin: 5px 0; font-size: 1rem;">
+          👉 <a href="${downloadLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;" target="_blank">Download Employment Certificate</a>
+        </p>
+      </div>
+      <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
+        Best regards,<br><br>
+        <strong>Mahender Banoth</strong><br>
+        Founder, CEO & Builder | WaveSeed Co.
+      </p>`;
+  } else if (cert.certificateType === 'experience-letter') {
+    subject = `Official Experience & Service Letter — WaveSeed Co.`;
+    bodyText = `Dear ${fullName},\n\n` +
+      `Please find attached your official Experience & Service Verification Letter from WaveSeed Co.\n\n` +
+      `This letter confirms your tenure as ${role} from ${startDate} to ${endDate}.\n\n` +
+      `You can download the letter securely via this link:\n` +
+      `👉 ${downloadLink}\n\n` +
+      `We thank you for your service and wish you all the best in your future career endeavors.\n\n` +
+      `Best regards,\n\n` +
+      `Mahender Banoth\n` +
+      `Founder, CEO & Builder | WaveSeed Co.`;
+
+    bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
+      <p>Please find attached your official Experience & Service Verification Letter from <strong>WaveSeed Co.</strong></p>
+      <p>This letter confirms your tenure as <strong>${esc(role)}</strong> from <strong>${esc(startDate)}</strong> to <strong>${esc(endDate)}</strong>.</p>
+      <div style="margin: 20px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 15px 0; background: #f8fafc; text-align: center;">
+        <p style="margin: 5px 0; font-size: 1rem;">
+          👉 <a href="${downloadLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;" target="_blank">Download Experience Letter</a>
+        </p>
+      </div>
+      <p>We thank you for your service and wish you all the best in your future career endeavors.</p>
+      <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
+        Best regards,<br><br>
+        <strong>Mahender Banoth</strong><br>
+        Founder, CEO & Builder | WaveSeed Co.
+      </p>`;
+  } else if (cert.certificateType === 'relieving-letter') {
+    subject = `Relieving Letter & Service Confirmation — WaveSeed Co.`;
+    bodyText = `Dear ${fullName},\n\n` +
+      `We are issuing your formal Relieving Letter confirming that you have been relieved of your duties as ${role} at WaveSeed Co. effective from the exit date.\n\n` +
+      `All clearances and dues have been processed.\n\n` +
+      `You can access and download your relieving letter here:\n` +
+      `👉 ${downloadLink}\n\n` +
+      `We wish you success in your future career path.\n\n` +
+      `Best regards,\n\n` +
+      `Mahender Banoth\n` +
+      `Founder, CEO & Builder | WaveSeed Co.`;
+
+    bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
+      <p>We are issuing your formal Relieving Letter confirming that you have been relieved of your duties as <strong>${esc(role)}</strong> at <strong>WaveSeed Co.</strong> effective from your exit date.</p>
+      <p>All clearances and dues have been successfully processed.</p>
+      <div style="margin: 20px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 15px 0; background: #f8fafc; text-align: center;">
+        <p style="margin: 5px 0; font-size: 1rem;">
+          👉 <a href="${downloadLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;" target="_blank">Download Relieving Letter</a>
+        </p>
+      </div>
+      <p>We wish you success in your future career path.</p>
+      <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
+        Best regards,<br><br>
+        <strong>Mahender Banoth</strong><br>
+        Founder, CEO & Builder | WaveSeed Co.
+      </p>`;
+  } else if (cert.certificateType === 'termination-letter') {
+    subject = `Confidential: Separation & Termination Letter — WaveSeed Co.`;
+    bodyText = `Dear ${fullName},\n\n` +
+      `This is a confidential notification regarding your separation from WaveSeed Co. Please review the official termination notice containing the terms of separation and final settlement.\n\n` +
+      `You can download the notice here:\n` +
+      `👉 ${downloadLink}\n\n` +
+      `Please contact HR if you have any questions.\n\n` +
+      `Best regards,\n\n` +
+      `HR Department | WaveSeed Co.`;
+
+    bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
+      <p>This is a confidential notification regarding your separation from <strong>WaveSeed Co.</strong> Please review the official termination notice containing the terms of separation and final settlement details.</p>
+      <div style="margin: 20px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 15px 0; background: #fef2f2; text-align: center; border: 1px solid #fecaca; border-radius: 8px;">
+        <p style="margin: 5px 0; font-size: 1rem;">
+          👉 <a href="${downloadLink}" style="color: #dc2626; font-weight: bold; text-decoration: underline;" target="_blank">Download Separation Notice</a>
+        </p>
+      </div>
+      <p>Please contact HR if you have any questions.</p>
+      <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
+        Best regards,<br><br>
+        <strong>HR Department</strong><br>
+        WaveSeed Co.
+      </p>`;
+  } else if (cert.certificateType === 'lor') {
+    subject = `Letter of Recommendation — WaveSeed Co.`;
+    bodyText = `Dear ${fullName},\n\n` +
+      `Please find your official Letter of Recommendation (LOR) issued by Mahender Banoth at WaveSeed Co.\n\n` +
+      `This letter highlights your strengths, achievements, and contributions as ${role}.\n\n` +
+      `You can view and download your LOR securely here:\n` +
+      `👉 ${downloadLink}\n\n` +
+      `We hope this LOR assists you in your academic or professional endeavors. Best of luck!\n\n` +
+      `Best regards,\n\n` +
+      `Mahender Banoth\n` +
+      `Founder, CEO & Builder | WaveSeed Co.`;
+
+    bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
+      <p>Please find your official Letter of Recommendation (LOR) issued by Mahender Banoth at <strong>WaveSeed Co.</strong></p>
+      <p>This letter highlights your strengths, achievements, and contributions during your tenure as <strong>${esc(role)}</strong>.</p>
+      <div style="margin: 20px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 15px 0; background: #f8fafc; text-align: center;">
+        <p style="margin: 5px 0; font-size: 1rem;">
+          👉 <a href="${downloadLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;" target="_blank">Download Letter of Recommendation</a>
+        </p>
+      </div>
+      <p>We hope this LOR assists you in your academic or professional endeavors. Best of luck!</p>
+      <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
+        Best regards,<br><br>
+        <strong>Mahender Banoth</strong><br>
+        Founder, CEO & Builder | WaveSeed Co.
+      </p>`;
+  } else if (cert.certificateType === 'noc') {
+    subject = `No Objection Certificate (NOC) — WaveSeed Co.`;
+    bodyText = `Dear ${fullName},\n\n` +
+      `Please find attached your official No Objection Certificate (NOC) issued by WaveSeed Co.\n\n` +
+      `You can access and download your NOC securely via this link:\n` +
+      `👉 ${downloadLink}\n\n` +
+      `Best regards,\n\n` +
+      `Mahender Banoth\n` +
+      `Founder, CEO & Builder | WaveSeed Co.`;
+
+    bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
+      <p>Please find attached your official No Objection Certificate (NOC) issued by <strong>WaveSeed Co.</strong></p>
+      <div style="margin: 20px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 15px 0; background: #f8fafc; text-align: center;">
+        <p style="margin: 5px 0; font-size: 1rem;">
+          👉 <a href="${downloadLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;" target="_blank">Download No Objection Certificate</a>
+        </p>
+      </div>
+      <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
+        Best regards,<br><br>
+        <strong>Mahender Banoth</strong><br>
+        Founder, CEO & Builder | WaveSeed Co.
+      </p>`;
+  } else if (cert.certificateType === 'promotion-letter') {
+    subject = `Congratulations on your Promotion! — WaveSeed Co.`;
+    bodyText = `Dear ${fullName},\n\n` +
+      `We are absolutely delighted to issue your official Promotion Letter confirming your new role as ${role} at WaveSeed Co.\n\n` +
+      `Thank you for your outstanding contributions and drive. You can download the details of your revised role and compensation terms here:\n` +
+      `👉 ${downloadLink}\n\n` +
+      `Congratulations on this well-deserved step up!\n\n` +
+      `Best regards,\n\n` +
+      `Mahender Banoth\n` +
+      `Founder, CEO & Builder | WaveSeed Co.`;
+
+    bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
+      <p>We are absolutely delighted to issue your official Promotion Letter confirming your new role as <strong>${esc(role)}</strong> at <strong>WaveSeed Co.</strong></p>
+      <p>Thank you for your outstanding contributions and drive. You can download the details of your revised role and compensation terms here:</p>
+      <div style="margin: 20px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 15px 0; background: #f8fafc; text-align: center;">
+        <p style="margin: 5px 0; font-size: 1rem;">
+          👉 <a href="${downloadLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;" target="_blank">Download Promotion Letter</a>
+        </p>
+      </div>
+      <p>Congratulations on this well-deserved step up!</p>
+      <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
+        Best regards,<br><br>
+        <strong>Mahender Banoth</strong><br>
+        Founder, CEO & Builder | WaveSeed Co.
+      </p>`;
+  } else if (cert.certificateType === 'salary-revision') {
+    subject = `Confidential: Salary Revision Letter — WaveSeed Co.`;
+    bodyText = `Dear ${fullName},\n\n` +
+      `Please find attached your confidential Salary Revision Letter details confirming the adjustment of your compensation terms at WaveSeed Co.\n\n` +
+      `You can download the document details securely here:\n` +
+      `👉 ${downloadLink}\n\n` +
+      `Best regards,\n\n` +
+      `Mahender Banoth\n` +
+      `Founder, CEO & Builder | WaveSeed Co.`;
+
+    bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
+      <p>Please find attached your confidential Salary Revision Letter details confirming the adjustment of your compensation terms at <strong>WaveSeed Co.</strong></p>
+      <div style="margin: 20px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 15px 0; background: #f8fafc; text-align: center;">
+        <p style="margin: 5px 0; font-size: 1rem;">
+          👉 <a href="${downloadLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;" target="_blank">Download Salary Revision Letter</a>
+        </p>
+      </div>
+      <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
+        Best regards,<br><br>
+        <strong>Mahender Banoth</strong><br>
+        Founder, CEO & Builder | WaveSeed Co.
+      </p>`;
+  } else if (cert.certificateType === 'warning-letter') {
+    subject = `Confidential: Disciplinary Action / Warning Notice — WaveSeed Co.`;
+    bodyText = `Dear ${fullName},\n\n` +
+      `This is a confidential disciplinary warning notice regarding recent incidents. Please review the official notice containing details and required actions immediately.\n\n` +
+      `You can download the notice securely here:\n` +
+      `👉 ${downloadLink}\n\n` +
+      `Please contact HR immediately to arrange a review meeting.\n\n` +
+      `Best regards,\n\n` +
+      `HR Department | WaveSeed Co.`;
+
+    bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
+      <p>This is a confidential disciplinary warning notice regarding recent incidents. Please review the official notice containing details and required actions immediately.</p>
+      <div style="margin: 20px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 15px 0; background: #fffbeb; border: 1px solid #fde68a; text-align: center; border-radius: 8px;">
+        <p style="margin: 5px 0; font-size: 1rem;">
+          👉 <a href="${downloadLink}" style="color: #b45309; font-weight: bold; text-decoration: underline;" target="_blank">Download Disciplinary Warning</a>
+        </p>
+      </div>
+      <p>Please contact HR immediately to arrange a review meeting.</p>
+      <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
+        Best regards,<br><br>
+        <strong>HR Department</strong><br>
+        WaveSeed Co.
       </p>`;
   } else {
     subject = `Official Document Issued — ${getNiceTypeLabel(cert.certificateType)} | WaveSeed Co.`;
-    bodyText = `Dear ${firstName},\n\n` +
+    bodyText = `Dear ${fullName},\n\n` +
       `An official document has been issued to you by WaveSeed Co.:\n` +
       `Type: ${getNiceTypeLabel(cert.certificateType)}\n` +
       `Reference: ${ref}\n\n` +
@@ -1336,7 +1576,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
       `👉 ${downloadLink}\n\n` +
       `Best regards,\nMahender Banoth\nFounder, CEO & Builder | WaveSeed Co.`;
 
-    bodyHtml = `<p>Dear <strong>${esc(firstName)}</strong>,</p>
+    bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
       <p>An official document has been issued to you by <strong>WaveSeed Co.</strong>:</p>
       <ul>
         <li><strong>Document Type:</strong> ${esc(getNiceTypeLabel(cert.certificateType))}</li>
@@ -1347,7 +1587,7 @@ function generateEmailTemplate(cert, email, downloadLink) {
           👉 <a href="${downloadLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;" target="_blank">Access Your Official Document</a>
         </p>
       </div>
-      <p style="margin-top: 24px; line-height: 1.5;">
+      <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
         Best regards,<br><br>
         <strong>Mahender Banoth</strong><br>
         Founder, CEO & Builder | WaveSeed Co.
@@ -1356,6 +1596,15 @@ function generateEmailTemplate(cert, email, downloadLink) {
 
   return { subject, bodyText, bodyHtml };
 }
+
+window.wsCopyInput = (id, label) => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const val = el.value.trim();
+  navigator.clipboard.writeText(val).then(() => {
+    showToast(`✅ ${label} copied to clipboard!`, 'success');
+  });
+};
 
 window.wsCopyText = (id, label) => {
   const text = document.getElementById(id).innerText || document.getElementById(id).textContent;
@@ -1385,4 +1634,5 @@ window.wsCopyRichEmailContent = (html, text) => {
     });
   }
 };
+
 

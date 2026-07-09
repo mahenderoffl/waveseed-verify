@@ -147,6 +147,14 @@ function buildDashboardHTML() {
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
         Public Verify
       </button>
+      <a class="admin-nav-item" href="#onboard" target="_blank" style="text-decoration:none;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
+        Public Onboard
+      </a>
+      <a class="admin-nav-item" href="#download" target="_blank" style="text-decoration:none;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Public Upload
+      </a>
     </nav>
     <div class="admin-sidebar-footer">
       <div style="font-size:0.72rem;color:rgba(255,255,255,0.5);margin-bottom:8px;text-align:center;">Logged in as <strong style="color:rgba(255,255,255,0.8);text-transform:capitalize;">${currentRole}</strong></div>

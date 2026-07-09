@@ -219,6 +219,12 @@ export function initDownloadPage(app) {
       // Open immediately on first auth
       openDocWindow();
 
+      const isOffer = result.certificateType === 'internship-offer' || result.certificateType === 'employment-offer';
+      const uploadTitle = isOffer ? '📤 Upload Signed Acceptance Copy' : '📤 Upload Signed/Verified Copy';
+      const uploadDesc = isOffer 
+        ? 'If you have printed and signed this document, scan it (as PDF or Image) and upload it here to complete your onboarding acceptance.'
+        : 'If you have a physical signed or scanned copy of this document, you can upload it here for backup and verification.';
+
       // Replace card with success action panel
       dlCard.innerHTML = `
 <div class="dl-success-panel" style="text-align:left;">
@@ -232,50 +238,48 @@ export function initDownloadPage(app) {
     👁️ View &amp; Print Document
   </button>
 
-  ${(result.certificateType === 'internship-offer' || result.certificateType === 'employment-offer') ? `
-    <div class="dl-upload-section" style="border-top:1px solid #e2e8f0; padding-top:20px; margin-top:20px;">
-      <h3 style="font-size:0.92rem; color:var(--navy); font-weight:700; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
-        📤 Upload Signed Acceptance Copy
-      </h3>
-      <p style="font-size:0.75rem; color:#64748b; margin-bottom:14px; line-height:1.4;">
-        If you have printed and signed this document, scan it (as PDF or Image) and upload it here to complete your onboarding acceptance.
-      </p>
+  <div class="dl-upload-section" style="border-top:1px solid #e2e8f0; padding-top:20px; margin-top:20px;">
+    <h3 style="font-size:0.92rem; color:var(--navy); font-weight:700; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+      ${uploadTitle}
+    </h3>
+    <p style="font-size:0.75rem; color:#64748b; margin-bottom:14px; line-height:1.4;">
+      ${uploadDesc}
+    </p>
 
-      <div id="upload-status-box" style="margin-bottom:14px;">
-        ${result.signedUrl ? `
-          <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; font-size:0.8rem; color:#166534;">
-            <div>
-              <strong style="display:flex; align-items:center; gap:4px;">✅ Signed Copy Attached</strong>
-              <span style="font-size:0.7rem; color:#15803d; display:block; margin-top:2px;">Uploaded on ${new Date(result.signedAt).toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'})}</span>
-            </div>
-            <a href="${result.signedUrl}" target="_blank" style="color:#166534; font-weight:700; text-decoration:underline; font-size:0.75rem;">Download Copy</a>
+    <div id="upload-status-box" style="margin-bottom:14px;">
+      ${result.signedUrl ? `
+        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; font-size:0.8rem; color:#166534;">
+          <div>
+            <strong style="display:flex; align-items:center; gap:4px;">✅ Signed Copy Attached</strong>
+            <span style="font-size:0.7rem; color:#15803d; display:block; margin-top:2px;">Uploaded on ${new Date(result.signedAt).toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'})}</span>
           </div>
-        ` : `
-          <div style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:12px; text-align:center; font-size:0.75rem; color:#64748b;">
-            No signed copy uploaded yet.
-          </div>
-        `}
-      </div>
+          <a href="${result.signedUrl}" target="_blank" style="color:#166534; font-weight:700; text-decoration:underline; font-size:0.75rem;">Download Copy</a>
+        </div>
+      ` : `
+        <div style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:12px; text-align:center; font-size:0.75rem; color:#64748b;">
+          No signed copy uploaded yet.
+        </div>
+      `}
+    </div>
 
-      <div style="display:flex; flex-direction:column; gap:8px;">
-        <input type="file" id="signed-file-input" accept="application/pdf,image/*" style="display:none;" />
-        <button class="dl-btn" id="btn-select-file" style="background:#c9a227; font-size:0.82rem; padding:10px 14px;">
-          ✍️ Select Signed File
-        </button>
-        <p id="upload-error-msg" style="color:#dc2626; font-size:0.72rem; display:none; margin-top:2px;"></p>
-        
-        <div id="upload-progress-container" style="display:none; margin-top:8px;">
-          <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#475569; margin-bottom:4px;">
-            <span id="upload-progress-text">Preparing...</span>
-            <span id="upload-progress-pct">0%</span>
-          </div>
-          <div style="width:100%; height:4px; background:#e2e8f0; border-radius:2px; overflow:hidden;">
-            <div id="upload-progress-bar" style="width:0%; height:100%; background:var(--navy); transition:width 0.2s;"></div>
-          </div>
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <input type="file" id="signed-file-input" accept="application/pdf,image/*" style="display:none;" />
+      <button class="dl-btn" id="btn-select-file" style="background:#c9a227; font-size:0.82rem; padding:10px 14px;">
+        ✍️ Select Signed File
+      </button>
+      <p id="upload-error-msg" style="color:#dc2626; font-size:0.72rem; display:none; margin-top:2px;"></p>
+      
+      <div id="upload-progress-container" style="display:none; margin-top:8px;">
+        <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#475569; margin-bottom:4px;">
+          <span id="upload-progress-text">Preparing...</span>
+          <span id="upload-progress-pct">0%</span>
+        </div>
+        <div style="width:100%; height:4px; background:#e2e8f0; border-radius:2px; overflow:hidden;">
+          <div id="upload-progress-bar" style="width:0%; height:100%; background:var(--navy); transition:width 0.2s;"></div>
         </div>
       </div>
     </div>
-  ` : ''}
+  </div>
 
   <button class="dl-btn-secondary" onclick="window.location.reload()" style="margin-top:24px; width:100%; border:1px solid #cbd5e1; background:transparent; color:#475569; padding:10px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:600;">
     ← Back to Access Form

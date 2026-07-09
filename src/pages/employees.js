@@ -50,10 +50,9 @@ function buildEmployeesHTML() {
         <tr>
           <th>Name</th>
           <th>Role / Project</th>
-          <th>Email</th>
+          <th>Contact</th>
           <th>Type</th>
           <th>Institution / Department</th>
-          <th>Reporting To</th>
           <th>Tenure</th>
           <th>Actions</th>
         </tr>
@@ -118,32 +117,50 @@ function renderEmployeesTable(token) {
   if (!tbody) return;
 
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-table"><div class="empty-icon">👥</div><p>No profiles found</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-table"><div class="empty-icon">👥</div><p>No profiles found</p></div></td></tr>`;
     return;
   }
 
-  tbody.innerHTML = filtered.map(emp => `
+  tbody.innerHTML = filtered.map(emp => {
+    // Parse meta JSON for extended fields
+    let meta = {};
+    try { if (emp.meta) meta = JSON.parse(emp.meta); } catch {}
+    const phone = meta.phone || '';
+    const dob   = meta.dob   || '';
+    return `
 <tr>
-  <td><div class="td-name">${esc(emp.name)}</div><div style="font-size:0.7rem;color:var(--gray-400);margin-top:2px;">Work Mode: ${esc(emp.workMode || '—')}</div></td>
-  <td><div class="td-role">${esc(emp.role)}</div><div style="font-size:0.72rem;color:var(--gray-400);">${esc(emp.product || '—')}</div></td>
-  <td><a href="mailto:${esc(emp.email)}" style="color:var(--navy);font-size:0.8rem;text-decoration:none;">${esc(emp.email || '—')}</a></td>
+  <td>
+    <div class="td-name">${esc(emp.name)}</div>
+    <div style="font-size:0.7rem;color:var(--gray-400);margin-top:2px;">Work Mode: ${esc(emp.workMode || '—')}</div>
+  </td>
+  <td>
+    <div class="td-role">${esc(emp.role)}</div>
+    <div style="font-size:0.72rem;color:var(--gray-400);">${esc(emp.product || '—')}</div>
+  </td>
+  <td>
+    <div style="font-size:0.8rem;color:var(--navy);">${phone ? `<a href="tel:${esc(phone)}" style="color:var(--navy);text-decoration:none;">${esc(phone)}</a>` : '—'}</div>
+    <div style="font-size:0.72rem;color:var(--gray-400);margin-top:2px;">${esc(emp.email || '—')}</div>
+    ${dob ? `<div style="font-size:0.7rem;color:var(--gray-400);margin-top:1px;">DOB: ${formatDateShort(dob)}</div>` : ''}
+  </td>
   <td><span class="type-pill ${emp.employeeType === 'intern' ? 'internship' : 'employment'}">${emp.employeeType === 'intern' ? 'Intern' : 'Employee'}</span></td>
   <td>
     <div style="font-size:0.8rem;font-weight:600;color:var(--navy);">${esc(emp.institution || '—')}</div>
     <div style="font-size:0.72rem;color:var(--gray-400);">${esc(emp.department || '—')}</div>
   </td>
-  <td><div style="font-size:0.8rem;color:var(--gray-600);">${esc(emp.reportingTo || '—')}</div></td>
   <td style="font-size:0.78rem;white-space:nowrap;">
-    ${emp.startDate ? formatDateShort(emp.startDate) : '—'} <br>to ${emp.endDate ? formatDateShort(emp.endDate) : '—'}
+    ${emp.startDate ? formatDateShort(emp.startDate) : '—'} <br>to ${emp.endDate ? formatDateShort(emp.endDate) : 'Present'}
   </td>
   <td>
     <div class="actions-cell">
+      <button class="btn-action view" onclick="window.wsViewEmpProfile('${emp._id}')">👁 Profile</button>
       <button class="btn-action view" onclick="window.wsIssueFromEmp('${emp._id}')">🎓 Issue Cert</button>
       <button class="btn-action delete" onclick="window.wsDeleteEmp('${emp._id}','${esc(emp.name)}')">✕ Delete</button>
     </div>
   </td>
-</tr>`).join('');
+</tr>`;
+  }).join('');
 }
+
 
 // ─── Modal ─────────────────────────────────────────────────────────────────────
 function openAddEmployeeModal(token) {
@@ -281,12 +298,81 @@ window.wsDeleteEmp = async (id, name) => {
   try {
     await adminDeleteEmployee(token, id);
     showToast('🗑️ Profile deleted.', 'error');
-    // Reload local list
     employeesList = employeesList.filter(e => e._id !== id);
     document.getElementById('emp-search').dispatchEvent(new Event('input'));
   } catch (err) {
     showToast('❌ ' + err.message, 'error');
   }
+};
+
+// ─── Full Profile Viewer ────────────────────────────────────────────────────────
+window.wsViewEmpProfile = (id) => {
+  const emp = employeesList.find(e => e._id === id);
+  if (!emp) return;
+
+  let meta = {};
+  try { if (emp.meta) meta = JSON.parse(emp.meta); } catch {}
+
+  const row = (label, value) => value
+    ? `<div class="prof-row"><span class="prof-label">${label}</span><span class="prof-value">${esc(String(value))}</span></div>`
+    : '';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'profile-modal';
+  overlay.innerHTML = `
+<div class="modal-box" style="max-width:560px;">
+  <div class="modal-header">
+    <h2 class="modal-title">👤 ${esc(emp.name)}</h2>
+    <button class="modal-close" onclick="document.getElementById('profile-modal').remove()">✕</button>
+  </div>
+  <div class="modal-body" style="padding-bottom:8px;">
+
+    <div class="prof-section-title">🏷️ Work Info</div>
+    ${row('Role', emp.role)}
+    ${row('Project / Product', emp.product)}
+    ${row('Work Mode', emp.workMode)}
+    ${row('Reporting To', emp.reportingTo)}
+    ${row('Type', emp.employeeType === 'intern' ? 'Intern' : 'Employee')}
+    ${row('Start Date', emp.startDate ? formatDateShort(emp.startDate) : null)}
+    ${row('End Date', emp.endDate ? formatDateShort(emp.endDate) : 'Present')}
+
+    <div class="prof-section-title" style="margin-top:16px;">📋 Personal Details</div>
+    ${row('Email', emp.email)}
+    ${row('Phone', meta.phone)}
+    ${row('Date of Birth', meta.dob ? formatDateShort(meta.dob) : null)}
+    ${row('Gender', meta.gender)}
+    ${row('Address', meta.address)}
+
+    <div class="prof-section-title" style="margin-top:16px;">🎓 Academic Background</div>
+    ${row('Institution', emp.institution)}
+    ${row('Department', emp.department)}
+    ${row('Degree', meta.degree)}
+    ${row('Graduation Year', meta.gradYear)}
+    ${row('CGPA / Percentage', meta.gpa)}
+
+    ${meta.previouslyEmployed ? `
+    <div class="prof-section-title" style="margin-top:16px;">💼 Previous Employment</div>
+    ${row('Previous Employer', meta.prevEmployer)}
+    ${row('Designation', meta.prevDesignation)}
+    ${row('Period', [meta.prevFrom, meta.prevTo].filter(Boolean).join(' → '))}
+    ${row('Responsibilities', meta.prevResponsibilities)}
+    ${row('Reason for Leaving', meta.prevReasonLeaving)}
+    ` : ''}
+
+    ${meta.notes ? `
+    <div class="prof-section-title" style="margin-top:16px;">📝 Notes</div>
+    <div style="font-size:0.85rem;color:var(--gray-600);line-height:1.6;background:var(--gray-100);padding:10px 12px;border-radius:8px;">${esc(meta.notes)}</div>
+    ` : ''}
+  </div>
+  <div class="modal-footer">
+    <button class="btn-secondary" onclick="document.getElementById('profile-modal').remove()">Close</button>
+    <button class="btn-primary" onclick="document.getElementById('profile-modal').remove(); window.wsIssueFromEmp('${emp._id}')">🎓 Issue Certificate</button>
+  </div>
+</div>`;
+
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 };
 
 window.wsIssueFromEmp = (id) => {

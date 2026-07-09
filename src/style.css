@@ -1830,3 +1830,39 @@ a { text-decoration: none; color: inherit; }
   background: rgba(201,162,39,0.2);
   border-color: var(--gold);
 }
+
+/* ── Profile Modal styles ─────────────────────────────────────────────────── */
+.prof-section-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--gold-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--gray-200);
+  padding-bottom: 4px;
+  margin-top: 20px;
+  margin-bottom: 8px;
+}
+.prof-section-title:first-of-type {
+  margin-top: 0;
+}
+.prof-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--gray-100);
+  font-size: 0.88rem;
+}
+.prof-row:last-of-type {
+  border-bottom: none;
+}
+.prof-label {
+  color: var(--gray-600);
+  font-weight: 600;
+}
+.prof-value {
+  color: var(--navy);
+  text-align: right;
+  max-width: 60%;
+  word-break: break-word;
+}

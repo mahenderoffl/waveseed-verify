@@ -85,6 +85,13 @@ async function loadEmployees(token) {
     employeesList = await adminGetEmployees(token);
     renderEmployeesTable(token);
   } catch (err) {
+    console.error('loadEmployees error:', err);
+    if (err.message === 'Unauthorized') {
+      sessionStorage.removeItem('ws_admin_token');
+      sessionStorage.removeItem('ws_admin_role');
+      window.location.reload();
+      return;
+    }
     if (tbody) {
       tbody.innerHTML = `
         <tr>

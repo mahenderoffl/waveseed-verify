@@ -14,8 +14,10 @@ let token = sessionStorage.getItem('ws_admin_token') || null;
 let currentRole = sessionStorage.getItem('ws_admin_role') || 'admin';
 let allCerts = [];
 let statsData = {};
+let rootApp = null;
 
 export function initAdminPage(app) {
+  rootApp = app;
   if (token) {
     renderDashboard(app);
   } else {
@@ -27,6 +29,7 @@ export function initAdminPage(app) {
 // LOGIN
 // ═══════════════════════════════════════════════════════════════════════════════
 function renderLogin(app) {
+  rootApp = app;
   app.innerHTML = `
 <div id="admin-page">
   <div class="login-overlay">
@@ -98,6 +101,7 @@ function renderLogin(app) {
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
 async function renderDashboard(app) {
+  rootApp = app;
   app.innerHTML = buildDashboardHTML();
   attachDashboardEvents(app);
   if (currentRole === 'operations') {
@@ -330,6 +334,16 @@ async function loadData() {
     renderStats(stats);
     renderTable();
   } catch (err) {
+    console.error('loadData error:', err);
+    if (err.message === 'Unauthorized') {
+      token = null;
+      currentRole = 'admin';
+      sessionStorage.removeItem('ws_admin_token');
+      sessionStorage.removeItem('ws_admin_role');
+      showToast('🔒 Session expired or invalid. Please log in again.', 'error');
+      if (rootApp) renderLogin(rootApp);
+      return;
+    }
     if (tbody) {
       tbody.innerHTML = `
         <tr>

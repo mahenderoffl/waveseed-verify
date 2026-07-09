@@ -419,36 +419,36 @@ function letterWrapper({ title, refNum='', date='', body='', confidential=true, 
   
   /* Compact overrides for offer letters to ensure they fit on 1 page */
   .internship-offer .letter-body, .employment-offer .letter-body {
-    padding: 20px 48px 24px;
+    padding: 14px 48px 10px;
   }
   .internship-offer .para, .employment-offer .para {
-    font-size: 10.2px;
-    line-height: 1.55;
-    margin-bottom: 6px;
+    font-size: 9.8px;
+    line-height: 1.45;
+    margin-bottom: 5px;
   }
   .internship-offer .highlight-table, .employment-offer .highlight-table {
-    margin: 8px 0;
+    margin: 6px 0;
   }
   .internship-offer .highlight-table td, .employment-offer .highlight-table td {
-    padding: 5px 12px;
+    padding: 4px 10px;
   }
   .internship-offer .section-title, .employment-offer .section-title {
-    margin: 8px 0 4px;
+    margin: 6px 0 3px;
   }
   .internship-offer .bullet-list, .employment-offer .bullet-list {
-    margin-bottom: 6px;
+    margin-bottom: 4px;
   }
   .internship-offer .bullet-list li, .employment-offer .bullet-list li {
-    font-size: 10.2px;
-    line-height: 1.45;
-    margin-bottom: 3px;
+    font-size: 9.5px;
+    line-height: 1.4;
+    margin-bottom: 2px;
   }
   .internship-offer .sig-block, .employment-offer .sig-block {
-    margin-top: 10px;
-    min-height: 75px;
+    margin-top: 6px;
+    min-height: 60px;
   }
   .internship-offer .sig-block .closing, .employment-offer .sig-block .closing {
-    margin-bottom: 20px;
+    margin-bottom: 12px;
   }
   
   /* Body */
@@ -618,7 +618,7 @@ export function internshipOfferTemplate(data) {
 
 ${signatureBlockHTML()}
 
-<div style="margin-top:28px;display:flex;gap:60px;">
+<div style="margin-top:12px;display:flex;gap:60px;">
   <div>
     <div style="font-size:9px;color:#555;margin-bottom:2px;">Authorised Signatory</div>
     <div style="border-top:1px solid #333;padding-top:4px;font-size:9px;color:#333;min-width:160px;">Date: _______________</div>
@@ -724,7 +724,7 @@ export function employmentOfferTemplate(data) {
 
 ${signatureBlockHTML()}
 
-<div style="margin-top:28px;display:flex;gap:60px;">
+<div style="margin-top:12px;display:flex;gap:60px;">
   <div>
     <div style="font-size:9px;color:#555;margin-bottom:2px;">Authorised Signatory</div>
     <div style="border-top:1px solid #333;padding-top:4px;font-size:9px;min-width:160px;">Date: _______________</div>

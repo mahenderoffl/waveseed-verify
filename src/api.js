@@ -170,3 +170,29 @@ export async function publicOnboardEmployee(data) {
   return json;
 }
 
+export async function publicUploadSigned({ ref, id, dob, file }) {
+  const params = new URLSearchParams();
+  if (ref) params.set('ref', ref);
+  if (id) params.set('id', id);
+  if (dob) params.set('dob', dob);
+
+  const res = await fetch(`${HTTP_URL}/public/upload-signed?${params}`, {
+    method: 'POST',
+    body: file,
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || 'Failed to upload signed document');
+  return json;
+}
+
+export async function adminUploadSigned(token, id, file) {
+  const res = await fetch(`${HTTP_URL}/admin/upload-signed?id=${encodeURIComponent(id)}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: file,
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || 'Failed to upload signed document');
+  return json;
+}
+

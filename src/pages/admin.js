@@ -2,7 +2,7 @@
 import {
   adminLogin, adminGetStats, adminGetAll,
   adminAddCertificate, adminUpdateCertificate, adminRevoke, adminRestore, adminSeed, adminDeleteCertificate,
-  adminGetEmployees, adminGetNextIds
+  adminGetEmployees, adminGetNextIds, adminUploadSigned
 } from '../api.js';
 import { initGeneratePage } from './generate.js';
 import { initEmployeesPage } from './employees.js';
@@ -431,7 +431,17 @@ function renderTable() {
     const displayStatus = isExpired ? 'expired' : c.status;
     return `
 <tr>
-  <td><div class="td-cert-id">${esc(c.certificateId)}</div><div style="font-size:0.68rem;color:#94a3b8;margin-top:2px;">${esc(c.referenceNumber)}</div></td>
+  <td>
+    <div class="td-cert-id">${esc(c.certificateId)}</div>
+    <div style="font-size:0.68rem;color:#94a3b8;margin-top:2px;">${esc(c.referenceNumber)}</div>
+    ${c.signedUrl ? `
+      <div style="margin-top:4px;">
+        <a href="${c.signedUrl}" target="_blank" class="status-pill active" style="font-size:0.65rem; padding:2px 6px; display:inline-flex; align-items:center; gap:3px; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; text-decoration:none; font-weight:700; border-radius:4px;">
+          <span>📄</span> Signed Doc
+        </a>
+      </div>
+    ` : ''}
+  </td>
   <td>
     <div class="td-name">${esc(c.holderName)}</div>
     ${c.holderInstitution ? `<div style="font-size:0.72rem;color:#94a3b8;">${esc(c.holderInstitution)}</div>` : ''}
@@ -899,6 +909,16 @@ function openEditModal(id) {
         <label class="form-label">Notes (Internal)</label>
         <textarea id="e-notes" class="form-textarea">${esc(cert.notes||'')}</textarea>
       </div>
+      <div class="form-group form-full" style="border-top: 1px dashed var(--gray-200); padding-top: 12px; margin-top: 8px;">
+        <label class="form-label">Upload Signed Copy <span style="font-size:0.7rem;color:#94a3b8;font-weight:400;">(optional, max 4MB PDF/Image)</span></label>
+        <input type="file" id="e-signed-file" accept="application/pdf,image/*" class="form-input" style="padding:6px; background:#fff;" />
+        ${cert.signedUrl ? `
+          <div style="font-size:0.75rem; color:#166534; margin-top:6px; display:flex; align-items:center; gap:6px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; padding:6px 10px; width:fit-content;">
+            <span>✅ Signed Copy Attached:</span>
+            <a href="${cert.signedUrl}" target="_blank" style="color:#166534; font-weight:700; text-decoration:underline;">Download Copy</a>
+          </div>
+        ` : ''}
+      </div>
     </div>
     <p id="edit-error" style="color:var(--red);font-size:0.8rem;margin-top:10px;min-height:18px;"></p>
   </div>
@@ -951,7 +971,27 @@ async function submitEdit(id) {
   btn.disabled = true;
   btn.textContent = 'Saving…';
   try {
+    // 1. Save core fields first
     await adminUpdateCertificate(token, id, data);
+
+    // 2. If a signed file is chosen, upload it
+    const fileEl = document.getElementById('e-signed-file');
+    const file = fileEl?.files?.[0];
+    if (file) {
+      btn.textContent = 'Uploading Signed Doc…';
+      let fileToUpload = file;
+      if (file.type.startsWith('image/')) {
+        fileToUpload = await compressImage(file);
+      }
+      
+      const sizeMb = fileToUpload.size / (1024 * 1024);
+      if (sizeMb > 4.0) {
+        throw new Error(`File is too large (${sizeMb.toFixed(2)} MB). Max limit is 4MB.`);
+      }
+
+      await adminUploadSigned(token, id, fileToUpload);
+    }
+
     closeModal('edit-modal');
     showToast('✅ Certificate updated successfully!', 'success');
     await loadData();
@@ -1090,6 +1130,52 @@ function esc(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+async function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        const MAX_DIM = 1600;
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          } else {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            reject(new Error('Image compression failed'));
+            return;
+          }
+          const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", {
+            type: 'image/jpeg',
+            lastModified: Date.now()
+          });
+          resolve(compressedFile);
+        }, 'image/jpeg', 0.82);
+      };
+      img.onerror = (e) => reject(e);
+    };
+    reader.onerror = (e) => reject(e);
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

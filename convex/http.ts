@@ -243,6 +243,8 @@ http.route({
       endDate:          cert.endDate           ?? null,
       issuerName:       cert.issuerName,
       issuerTitle:      cert.issuerTitle,
+      signedUrl:        cert.signedUrl         ?? null,
+      signedAt:         cert.signedAt          ?? null,
     });
   }),
 });
@@ -587,6 +589,146 @@ http.route({
     } catch (e: unknown) {
       return json({ error: (e as Error).message }, 400);
     }
+  }),
+});
+
+// ─── Signed Acceptance Document Uploads ──────────────────────────────────────
+
+http.route({
+  path: "/public/upload-signed",
+  method: "OPTIONS",
+  handler: httpAction(async () => preflight()),
+});
+
+http.route({
+  path: "/public/upload-signed",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const url = new URL(request.url);
+    const ref = url.searchParams.get("ref")?.trim();
+    const certId = url.searchParams.get("id")?.trim();
+    const dob = url.searchParams.get("dob")?.trim();
+
+    if (!dob || (!ref && !certId)) {
+      return json({ error: "Provide (ref or id) and dob parameters" }, 400);
+    }
+
+    // 1. Authenticate using DOB + Reference / Certificate ID
+    let cert = null;
+    if (ref) {
+      cert = await ctx.runQuery(internal.certificates.getByReferenceNumber, {
+        referenceNumber: ref,
+      });
+    } else if (certId) {
+      cert = await ctx.runQuery(internal.certificates.getByCertificateId, {
+        certificateId: certId.toUpperCase(),
+      });
+    }
+
+    if (!cert) {
+      return json({ error: "Certificate not found" }, 404);
+    }
+
+    let resolvedDob = cert.holderDob || null;
+    if (!resolvedDob && cert.holderEmail) {
+      const emp = await ctx.runQuery(internal.certificates.getEmployeeByEmail, {
+        email: cert.holderEmail,
+      });
+      if (emp && emp.meta) {
+        try {
+          const meta = JSON.parse(emp.meta);
+          if (meta.dob) resolvedDob = meta.dob;
+        } catch {}
+      }
+    }
+
+    if (!resolvedDob) {
+      return json({ error: "Secure upload is not enabled for this certificate" }, 403);
+    }
+
+    const normalise = (d: string) => d.replace(/\s/g, "").toLowerCase();
+    if (normalise(resolvedDob) !== normalise(dob)) {
+      return json({ error: "Authentication failed. Incorrect date of birth." }, 401);
+    }
+
+    // 2. Process uploaded file blob
+    const blob = await request.blob();
+    if (blob.size === 0) {
+      return json({ error: "File blob is empty" }, 400);
+    }
+    if (blob.size > 5 * 1024 * 1024) {
+      return json({ error: "File exceeds 5MB size limit" }, 400);
+    }
+
+    // Store in Convex storage
+    const storageId = await ctx.storage.store(blob);
+    const signedUrl = await ctx.storage.getUrl(storageId);
+
+    if (!signedUrl) {
+      return json({ error: "Failed to generate storage URL" }, 500);
+    }
+
+    // 3. Update database record
+    await ctx.runMutation(internal.certificates.updateSignedDocument, {
+      id: cert._id,
+      signedUrl,
+      signedAt: new Date().toISOString(),
+    });
+
+    return json({ success: true, signedUrl });
+  }),
+});
+
+http.route({
+  path: "/admin/upload-signed",
+  method: "OPTIONS",
+  handler: httpAction(async () => preflight()),
+});
+
+http.route({
+  path: "/admin/upload-signed",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    // 1. Authenticate admin/hr role
+    if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
+    if (!checkRole(request, "admin", "hr")) return forbidden();
+
+    const url = new URL(request.url);
+    const idParam = url.searchParams.get("id")?.trim();
+    if (!idParam) {
+      return json({ error: "Provide certificate database id parameter" }, 400);
+    }
+
+    const certDbId = ctx.db.normalizeId("certificates", idParam);
+    if (!certDbId) {
+      return json({ error: "Invalid certificate database ID" }, 400);
+    }
+
+    // 2. Process file blob
+    const blob = await request.blob();
+    if (blob.size === 0) {
+      return json({ error: "File blob is empty" }, 400);
+    }
+    if (blob.size > 5 * 1024 * 1024) {
+      return json({ error: "File exceeds 5MB size limit" }, 400);
+    }
+
+    // Store in Convex storage
+    const storageId = await ctx.storage.store(blob);
+    const signedUrl = await ctx.storage.getUrl(storageId);
+
+    if (!signedUrl) {
+      return json({ error: "Failed to generate storage URL" }, 500);
+    }
+
+    // 3. Update database record
+    await ctx.runMutation(internal.certificates.updateSignedDocument, {
+      id: certDbId,
+      signedUrl,
+      signedAt: new Date().toISOString(),
+    });
+
+    return json({ success: true, signedUrl });
   }),
 });
 

@@ -38,9 +38,10 @@ export default defineSchema({
     revokedDate: v.optional(v.string()),
     revokedReason: v.optional(v.string()),
 
-    // ── Meta ─────────────────────────────────────────────────────────────
     notes: v.optional(v.string()),
     templateData: v.optional(v.string()), // JSON string — full set of fields used to generate the document
+    signedUrl: v.optional(v.string()),    // URL to the uploaded signed document copy
+    signedAt: v.optional(v.string()),     // Timestamp when the signed document was uploaded
     verificationCount: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),

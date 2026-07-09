@@ -128,6 +128,8 @@ export const patchCertificate = internalMutation({
     notes: v.optional(v.string()),
     status: v.optional(v.string()),
     templateData: v.optional(v.string()),
+    signedUrl: v.optional(v.string()),
+    signedAt: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { id, ...fields } = args;
@@ -314,4 +316,20 @@ export const deleteEmployee = internalMutation({
     await ctx.db.delete(args.id);
   },
 });
+
+export const updateSignedDocument = internalMutation({
+  args: {
+    id: v.id("certificates"),
+    signedUrl: v.string(),
+    signedAt: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, {
+      signedUrl: args.signedUrl,
+      signedAt: args.signedAt,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
 

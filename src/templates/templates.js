@@ -409,7 +409,7 @@ function letterWrapper({ title, refNum='', date='', body='', confidential=true, 
   @page{ size:A4 portrait; margin:0; }
   *{ box-sizing:border-box; margin:0; padding:0; }
   html{ background:#f8fafc; min-height:100vh; display:flex; justify-content:center; align-items:flex-start; padding:24px 0; overflow-y:auto; overflow-x:hidden; }
-  body{ width:210mm; height:297mm; background:#ffffff; font-family:'Inter',Arial,sans-serif; -webkit-print-color-adjust:exact; print-color-adjust:exact; display:flex; flex-direction:column; position:relative; box-shadow:0 10px 30px rgba(0,0,0,0.08); overflow:hidden; flex-shrink:0; }
+  body{ width:210mm; min-height:297mm; height:auto; background:#ffffff; font-family:'Inter',Arial,sans-serif; -webkit-print-color-adjust:exact; print-color-adjust:exact; display:flex; flex-direction:column; position:relative; box-shadow:0 10px 30px rgba(0,0,0,0.08); overflow:visible; flex-shrink:0; }
   /* Letterhead */
   .lh{ background:linear-gradient(135deg,#0d1b3e 0%,#1e3264 100%);padding:24px 40px 20px;display:flex;justify-content:space-between;align-items:flex-end; }
   .lh-contact{ text-align:right;font-size:8px;color:rgba(255,255,255,0.7);line-height:1.8; }
@@ -500,8 +500,9 @@ function letterWrapper({ title, refNum='', date='', body='', confidential=true, 
   .gold-strip-bottom{ height:3px;background:linear-gradient(90deg,#c9a227,#f0d078,#c9a227); }
   @media print{
     html{ background:none; padding:0; overflow:hidden; }
-    body{ width:210mm; height:297mm; margin:0!important; box-shadow:none!important; overflow:hidden; }
+    body{ width:210mm; height:auto!important; min-height:297mm; margin:0!important; box-shadow:none!important; overflow:visible!important; }
     .no-print{ display:none!important; }
+    .page-break{ page-break-before:always; break-before:page; }
   }
   .print-btn{ position:fixed;top:16px;right:16px;padding:10px 22px;background:#0d1b3e;color:white;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.3); }
   .print-btn:hover{ background:#1e3264; }
@@ -625,6 +626,55 @@ ${signatureBlockHTML()}
   <div>
     <div style="font-size:9px;color:#555;margin-bottom:2px;">Accepted by — ${esc(recipientName)}</div>
     <div style="border-top:1px solid #333;padding-top:4px;font-size:9px;color:#333;min-width:160px;">Date: _______________</div>
+  </div>
+</div>
+
+<div class="page-break no-print" style="margin-top: 50px; border-top: 1px dashed #cbd5e1; padding-top: 40px; margin-bottom: 20px;"></div>
+<div class="annexure-section" style="position: relative; font-family: 'Inter', sans-serif;">
+  <div class="section-title" style="margin-top: 0; margin-bottom: 12px; font-size: 11px; font-weight: 800; border-bottom: 2px solid #c9a227; display: inline-block; text-transform: uppercase; letter-spacing: 1.5px; color: #0d1b3e;">TERMS AND CONDITIONS — ANNEXURE A</div>
+  <p class="para" style="font-size: 10px; color: #475569; margin-bottom: 14px; line-height: 1.6; text-align: justify;">
+    The following terms govern your internship with WaveSeed Co. (referred to as 'the Company' hereinafter), and may be amended from time to time at the Company's discretion.
+  </p>
+  
+  <ol class="terms-list" style="padding-left: 18px; margin: 0 0 24px; font-size: 9px; color: #334155; line-height: 1.6; display: flex; flex-direction: column; gap: 6px; list-style-type: decimal;">
+    <li>The roles, responsibilities, and duties appropriate to your designation will be specified by the Company from time to time and may be modified at its sole discretion. You may also be required to provide services to the Company's affiliates, contractors, and clients as necessary.</li>
+    <li>The duration of the internship is 2 (two) months with 4–5 working hours each day, commencing ${startDate ? fmtDate(startDate) : '13 May 2026'} and concluding ${endDate ? fmtDate(endDate) : '12 July 2026'}. You are required to devote your time and efforts solely to WaveSeed Co. work during this period. Please inform your mentor in advance of any upcoming commitments so that work can be planned accordingly.</li>
+    <li>You will work remotely for the entire duration. Regular catch-up calls will be scheduled with the Chief Developer to review progress and overall internship experience.</li>
+    <li>You will be on probation for the first 15 days. Confirmation of continued internship will be based on your mentor's assessment of your performance.</li>
+    <li>All work produced during or in relation to WaveSeed Co. shall be the exclusive intellectual property of WaveSeed Co. You are prohibited from storing, copying, selling, sharing, or distributing any such work to third parties. You shall refrain from discussing your work publicly — online (blogs, social media) or offline — without prior written approval from your mentor.</li>
+    <li>Data privacy and security are paramount. All student, customer, client, and company data accessed during your internship must be kept strictly confidential. WaveSeed Co. operates on a zero-tolerance policy toward any breach of data security. Upon completion of your internship, all Company data stored on your devices must be handed over to your mentor and permanently deleted from your systems.</li>
+    <li>During the internship, you shall not directly or indirectly engage with any other organization (other than your college) in any capacity. Breach of this condition may result in immediate termination and liability for liquidated damages as estimated by the Company.</li>
+    <li>Either party may terminate this internship with 30 days' written notice without assigning any reason. The Company reserves the right to terminate immediately in cases of indiscipline, misconduct, data breach, or any violation of these terms.</li>
+    <li>You are expected to conduct yourself with utmost professionalism in all interactions with your mentor, colleagues, clients, and customers.</li>
+    <li>You shall receive continuous objective feedback from your mentor and are encouraged to seek and provide feedback at every opportunity. Constructive feedback is central to the WaveSeed culture.</li>
+    <li>This is an unpaid internship.</li>
+    <li>A Certificate of Internship Completion will be issued upon successful completion of the internship period.</li>
+    <li>Subject to your overall performance and at the management's discretion, you may receive a Letter of Recommendation.</li>
+    <li>A Pre-Placement Offer (PPO) may be extended based on outstanding performance and management's discretion.</li>
+    <li>WaveSeed Co. reserves the right to amend any policy or term at any time. Such changes will be communicated and shall be binding upon you.</li>
+    <li>The tenure of the internship may be extended or reduced upon mutual consent of both the intern and WaveSeed Co. management.</li>
+    <li>You shall at all times abide by WaveSeed Co.'s policies and code of conduct throughout your internship.</li>
+    <li>You acknowledge that this offer is based on information provided by you. If any discrepancy is discovered, WaveSeed Co. reserves the right to terminate the internship immediately.</li>
+    <li>You shall maintain strict confidentiality regarding all entities related to WaveSeed Co. during and after your internship. Upon termination or expiry, you shall update all professional and social profiles to reflect that you are no longer associated with the Company.</li>
+    <li>All intellectual property, work product, inventions, designs, software, documentation, or other materials created during or as a consequence of your internship — whether alone or with others, during or outside working hours — shall belong exclusively to WaveSeed Co. You hereby assign all such rights to the Company and waive any moral rights thereto.</li>
+    <li>You agree not to violate or attempt to violate the intellectual property rights of any third party during your internship.</li>
+    <li>These Terms of Internship shall be governed by and construed in accordance with the Laws of India. This offer letter, together with Annexure A, constitutes the entire agreement between the parties and supersedes all prior discussions and representations.</li>
+  </ol>
+
+  <div class="section-title" style="margin-top: 10px; margin-bottom: 10px; font-size: 11px; font-weight: 800; border-bottom: 2px solid #c9a227; display: inline-block; text-transform: uppercase; letter-spacing: 1.5px; color: #0d1b3e;">ACKNOWLEDGEMENT</div>
+  <p class="para" style="font-size: 10px; color: #1e293b; line-height: 1.6; margin-bottom: 24px; text-align: justify;">
+    I, <strong>${esc(recipientName)}</strong>, confirm that I have read, understood, and agree to all the terms and conditions contained in this Internship Offer Letter and Annexure A. I accept this offer and commit to fulfilling my responsibilities with dedication, professionalism, and integrity.
+  </p>
+
+  <div style="margin-top: 24px; display: flex; gap: 60px;">
+    <div>
+      <div style="font-size: 8px; color: #555; margin-bottom: 2px;">Signature of Intern</div>
+      <div style="border-top: 1px solid #333; padding-top: 4px; font-size: 8.5px; color: #333; min-width: 170px;">Date: _______________</div>
+    </div>
+    <div>
+      <div style="font-size: 8px; color: #555; margin-bottom: 2px;">For WaveSeed Co. (Authorized Signatory)</div>
+      <div style="border-top: 1px solid #333; padding-top: 4px; font-size: 8.5px; color: #333; min-width: 170px;">Date: _______________</div>
+    </div>
   </div>
 </div>`;
 

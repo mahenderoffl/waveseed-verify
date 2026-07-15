@@ -536,9 +536,13 @@ window.wsGenerate = async function(typeId) {
 
     // Open print window
     const win = window.open('', '_blank', 'width=1100,height=800');
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
+    if (win) {
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+    } else {
+      showToast('⚠️ Saved to Registry, but preview popup was blocked. Please allow popups.', 'warning');
+    }
 
     document.getElementById('gen-modal')?.remove();
     showToast('✅ Saved to Registry & document preview ready!', 'success');

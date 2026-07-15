@@ -945,15 +945,9 @@ function openEditModal(id) {
         <input id="e-dept" class="form-input" value="${esc(cert.holderDepartment || '')}" />
       </div>
       <div class="form-group">
-        <label class="form-label">Certificate Type</label>
-        <select id="e-type" class="form-select">
-          <option value="internship" ${cert.certificateType==='internship'?'selected':''}>Internship Completion</option>
-          <option value="employment" ${cert.certificateType==='employment'?'selected':''}>Employment Confirmation</option>
-          <option value="course" ${cert.certificateType==='course'?'selected':''}>Course Completion</option>
-          <option value="partnership" ${cert.certificateType==='partnership'?'selected':''}>Partnership</option>
-          <option value="appreciation" ${cert.certificateType==='appreciation'?'selected':''}>Appreciation</option>
-          <option value="other" ${cert.certificateType==='other'?'selected':''}>Other</option>
-        </select>
+        <label class="form-label">Document Type</label>
+        <input class="form-input" value="${esc(getNiceTypeLabel(cert.certificateType))}" disabled style="background:#f1f5f9; cursor:not-allowed; border-color:#cbd5e1; font-weight:600; color:#475569;" />
+        <input type="hidden" id="e-type" value="${esc(cert.certificateType)}" />
       </div>
       <div class="form-group">
         <label class="form-label">Role / Designation <span class="req">*</span></label>

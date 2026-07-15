@@ -1121,6 +1121,13 @@ export function generateDocument(type, data) {
     'appreciation-cert':  d => certificateTemplate({...d, certType:'appreciation'}),
     'achievement-cert':   d => certificateTemplate({...d, certType:'achievement'}),
     'volunteer-cert':     d => certificateTemplate({...d, certType:'volunteer'}),
+    // Suffixless fallbacks for legacy or edited entries
+    'internship':         d => certificateTemplate({...d, certType:'internship'}),
+    'employment':         d => certificateTemplate({...d, certType:'employment'}),
+    'course':             d => certificateTemplate({...d, certType:'course'}),
+    'partnership':        d => certificateTemplate({...d, certType:'partnership'}),
+    'appreciation':       d => certificateTemplate({...d, certType:'appreciation'}),
+    'other':              d => certificateTemplate({...d, certType:'other'}),
     'internship-offer':   internshipOfferTemplate,
     'employment-offer':   employmentOfferTemplate,
     'experience-letter':  experienceLetterTemplate,

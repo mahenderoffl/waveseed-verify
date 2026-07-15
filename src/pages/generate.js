@@ -1,6 +1,7 @@
 // ─── generate.js — Document Generation Dashboard ──────────────────────────────
 import { generateDocument } from '../templates/templates.js';
 import { adminGetAll, adminGetEmployees, adminGetNextIds, adminAddCertificate } from '../api.js';
+import { productDropdownHTML } from './shared.js';
 
 // ─── Document Type Catalogue ───────────────────────────────────────────────────
 const DOC_TYPES = [
@@ -559,6 +560,14 @@ function buildFormFields(docType) {
     const req = def.req ? '<span class="req">*</span>' : '';
     const full = ['customMessage','responsibilities','reason','strengths','achievements','recommendation','incident'].includes(fid) ? ' form-full' : '';
 
+    if (fid === 'product') {
+      return `
+<div class="form-group${full}">
+  <label class="form-label">${def.label} ${req}</label>
+  ${productDropdownHTML(inputId, def.def || '')}
+</div>`;
+    }
+
     if (def.type === 'textarea') {
       return `
 <div class="form-group${full}">
@@ -587,8 +596,15 @@ function buildFormFields(docType) {
 function collectFormData(docType) {
   const data = {};
   docType.fields.forEach(fid => {
-    const el = document.getElementById(`f-${fid}`);
-    data[fid] = el?.value?.trim() || '';
+    if (fid === 'product') {
+      const selectVal = document.getElementById('f-product')?.value || '';
+      data[fid] = selectVal === '__custom__' 
+        ? (document.getElementById('f-product-custom')?.value?.trim() || '') 
+        : selectVal;
+    } else {
+      const el = document.getElementById(`f-${fid}`);
+      data[fid] = el?.value?.trim() || '';
+    }
   });
   data.recipientEmail = document.getElementById('f-recipientEmail')?.value?.trim() || '';
   data.holderDob      = document.getElementById('f-holderDob')?.value?.trim() || '';

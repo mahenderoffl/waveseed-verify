@@ -84,8 +84,50 @@ export function certificateTemplate(data) {
     certId='', refNum='', holderName='', holderInstitution='', holderDepartment='',
     certType='internship', role='', product='WaveBase AI', workMode='', reportingTo='',
     startDate='', endDate='', issuedDate='', issuerName='Mahender',
-    issuerTitle='Founder, WaveSeed Co.', customMessage='',
+    issuerTitle='Founder, WaveSeed Co.', customMessage='', nameFont='cursive',
   } = data;
+
+  const nameLen = holderName.length;
+  let nameFontSize = '66px';
+  let nameFontFamily = "'Great Vibes', cursive";
+  let nameFontStyle = "normal";
+  let nameFontWeight = "400";
+  let nameLetterSpacing = "normal";
+
+  if (nameFont === 'serif') {
+    nameFontFamily = "'Playfair Display', 'Georgia', serif";
+    nameFontStyle = "italic";
+    nameFontWeight = "700";
+    nameLetterSpacing = "0.5px";
+    if (nameLen > 28) {
+      nameFontSize = '34px';
+    } else if (nameLen > 20) {
+      nameFontSize = '42px';
+    } else {
+      nameFontSize = '50px';
+    }
+  } else if (nameFont === 'modern') {
+    nameFontFamily = "'Dancing Script', cursive";
+    nameFontStyle = "normal";
+    nameFontWeight = "700";
+    nameLetterSpacing = "0.5px";
+    if (nameLen > 28) {
+      nameFontSize = '38px';
+    } else if (nameLen > 20) {
+      nameFontSize = '48px';
+    } else {
+      nameFontSize = '60px';
+    }
+  } else {
+    // Default cursive
+    if (nameLen > 28) {
+      nameFontSize = '42px';
+    } else if (nameLen > 20) {
+      nameFontSize = '52px';
+    } else {
+      nameFontSize = '66px';
+    }
+  }
 
   const typeLabels = {
     internship:   { of:'COMPLETION', badge:'INTERNSHIP', verb:'completed the internship' },
@@ -202,7 +244,7 @@ export function certificateTemplate(data) {
   /* Body */
   .body-block { text-align:center; width:100%; z-index: 2; }
   .certify-text { font-size:12px; font-weight: 600; color:#888; letter-spacing:3px; text-transform:uppercase; margin-bottom:4px; }
-  .holder-name { font-family:'Great Vibes',cursive; font-size:66px; font-weight:400; color:#0B1F3A; line-height:1; margin:6px 0; border-bottom: 2px solid #C9A34A; display: inline-block; padding-bottom: 4px; }
+  .holder-name { font-family: ${nameFontFamily}; font-size: ${nameFontSize}; font-weight: ${nameFontWeight}; font-style: ${nameFontStyle}; letter-spacing: ${nameLetterSpacing}; color:#0B1F3A; line-height:1.1; margin:6px 0; border-bottom: 2px solid #C9A34A; display: inline-block; padding-bottom: 4px; }
   .body-text { font-size:13.5px; color:#111111; line-height:1.6; max-width:680px; margin:16px auto 0; font-family: 'Montserrat', sans-serif; }
   .body-text strong { color:#0B1F3A; font-weight:700; }
   .body-subtext { font-size:11px; color:#777; margin-top:10px; line-height:1.5; font-weight: 500; }

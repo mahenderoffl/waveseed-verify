@@ -9,37 +9,37 @@ const DOC_TYPES = [
     id:'internship-cert', cat:'certificate', icon:'🎓',
     name:'Internship Completion', color:'#0d1b3e',
     desc:'Certificate for successfully completing an internship at WaveSeed Co.',
-    fields:['certId','refNum','holderName','holderInstitution','holderDepartment','role','product','workMode','startDate','endDate','issuedDate','customMessage'],
+    fields:['certId','refNum','holderName','nameFont','holderInstitution','holderDepartment','role','product','workMode','startDate','endDate','issuedDate','customMessage'],
   },
   {
     id:'employment-cert', cat:'certificate', icon:'💼',
     name:'Employment Certificate', color:'#1e3264',
     desc:'Proof of employment / service certificate for current or former employees.',
-    fields:['certId','refNum','holderName','role','startDate','endDate','issuedDate','customMessage'],
+    fields:['certId','refNum','holderName','nameFont','role','startDate','endDate','issuedDate','customMessage'],
   },
   {
     id:'course-cert', cat:'certificate', icon:'📚',
     name:'Course Completion', color:'#7c3aed',
     desc:'Certificate for completing a course, training, or workshop at WaveSeed.',
-    fields:['certId','refNum','holderName','holderInstitution','role','product','startDate','endDate','issuedDate','customMessage'],
+    fields:['certId','refNum','holderName','nameFont','holderInstitution','role','product','startDate','endDate','issuedDate','customMessage'],
   },
   {
     id:'appreciation-cert', cat:'certificate', icon:'⭐',
     name:'Appreciation Certificate', color:'#c9a227',
     desc:'Certificate of appreciation for outstanding contributions and dedication.',
-    fields:['certId','refNum','holderName','holderInstitution','role','issuedDate','customMessage'],
+    fields:['certId','refNum','holderName','nameFont','holderInstitution','role','issuedDate','customMessage'],
   },
   {
     id:'achievement-cert', cat:'certificate', icon:'🏆',
     name:'Excellence / Achievement', color:'#059669',
     desc:'Certificate of excellence for top-performing interns or employees.',
-    fields:['certId','refNum','holderName','holderInstitution','role','issuedDate','customMessage'],
+    fields:['certId','refNum','holderName','nameFont','holderInstitution','role','issuedDate','customMessage'],
   },
   {
     id:'volunteer-cert', cat:'certificate', icon:'🤲',
     name:'Volunteer Recognition', color:'#0891b2',
     desc:'Certificate recognising volunteer contributions to WaveSeed projects.',
-    fields:['certId','refNum','holderName','holderInstitution','role','startDate','endDate','issuedDate','customMessage'],
+    fields:['certId','refNum','holderName','nameFont','holderInstitution','role','startDate','endDate','issuedDate','customMessage'],
   },
   // ── Letters ──────────────────────────────────────────────────────────────────
   {
@@ -109,6 +109,7 @@ const FIELD_DEF = {
   certId:          { label:'Verification ID',       ph:'WS-CERT-2026-0043',        req:true },
   refNum:          { label:'Reference Number',      ph:'WS/INT/2026/AI-FS/043',   req:true },
   holderName:      { label:'Holder / Recipient Name', ph:'Full Name',             req:true },
+  nameFont:        { label:'Holder Name Font Style',  type:'select', opts:['cursive','serif','modern'], optLabels:['Cursive Script (Great Vibes)','Premium Serif (Playfair Display)','Elegant Calligraphy (Dancing Script)'], def:'cursive' },
   holderInstitution:{ label:'Institution / Organization', ph:'College or Company' },
   holderDepartment:{ label:'Department / Branch',   ph:'e.g. AI & ML (CSM)' },
   role:            { label:'Role / Designation',    ph:'e.g. AI Full Stack Developer Intern', req:true },
@@ -520,6 +521,7 @@ window.wsGenerate = async function(typeId) {
       issuerName:        data.issuerName || 'Mahender',
       issuerTitle:       data.issuerTitle || 'Founder, WaveSeed Co.',
       notes:             `Generated via DocGen Dashboard: ${docType.name}`,
+      nameFont:          data.nameFont || 'cursive',
       templateData:      JSON.stringify(data),  // store ALL fields for future re-rendering
     });
 

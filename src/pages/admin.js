@@ -520,6 +520,7 @@ window.wsViewCert = (certId) => {
   data.issuerTitle       = cert.issuerTitle  || data.issuerTitle || 'Founder, WaveSeed Co.';
   data.verificationId    = cert.certificateId;
   data.certType          = cert.certificateType.replace('-cert', '');
+  data.nameFont          = cert.nameFont     || data.nameFont || 'cursive';
 
   // 3. Generate the HTML
   let html;
@@ -861,6 +862,14 @@ function openEditModal(id) {
         <input id="e-name" class="form-input" value="${esc(cert.holderName)}" />
       </div>
       <div class="form-group">
+        <label class="form-label">Holder Name Font Style</label>
+        <select id="e-namefont" class="form-select">
+          <option value="cursive" ${cert.nameFont==='cursive'?'selected':''}>Cursive Script (Great Vibes)</option>
+          <option value="serif" ${cert.nameFont==='serif'?'selected':''}>Premium Serif (Playfair Display)</option>
+          <option value="modern" ${cert.nameFont==='modern'?'selected':''}>Elegant Calligraphy (Dancing Script)</option>
+        </select>
+      </div>
+      <div class="form-group">
         <label class="form-label">Holder Email</label>
         <input id="e-email" class="form-input" type="email" value="${esc(cert.holderEmail || '')}" />
       </div>
@@ -984,6 +993,7 @@ async function submitEdit(id) {
     issuerName:        get('e-issuer-name') || undefined,
     issuerTitle:       get('e-issuer-title') || undefined,
     notes:             get('e-notes') || undefined,
+    nameFont:          get('e-namefont') || undefined,
   };
 
   const btn = document.getElementById('submit-edit');

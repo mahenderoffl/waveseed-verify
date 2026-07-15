@@ -85,6 +85,7 @@ export const insertCertificate = internalMutation({
     issuerName: v.string(),
     issuerTitle: v.string(),
     notes: v.optional(v.string()),
+    nameFont: v.optional(v.string()),
     templateData: v.optional(v.string()),  // JSON string of all original form fields
   },
   handler: async (ctx, args) => {
@@ -126,6 +127,7 @@ export const patchCertificate = internalMutation({
     issuerName: v.optional(v.string()),
     issuerTitle: v.optional(v.string()),
     notes: v.optional(v.string()),
+    nameFont: v.optional(v.string()),
     status: v.optional(v.string()),
     templateData: v.optional(v.string()),
     signedUrl: v.optional(v.string()),

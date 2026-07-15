@@ -39,6 +39,7 @@ export default defineSchema({
     revokedReason: v.optional(v.string()),
 
     notes: v.optional(v.string()),
+    nameFont: v.optional(v.string()),     // cursive | serif | modern
     templateData: v.optional(v.string()), // JSON string — full set of fields used to generate the document
     signedUrl: v.optional(v.string()),    // URL to the uploaded signed document copy
     signedAt: v.optional(v.string()),     // Timestamp when the signed document was uploaded

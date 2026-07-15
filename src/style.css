@@ -1016,6 +1016,7 @@ a { text-decoration: none; color: inherit; }
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--gray-200);
   overflow: hidden;
+  min-height: 320px;
 }
 .cert-table {
   width: 100%;

@@ -639,6 +639,21 @@ window.wsToggleDropdown = (event, id) => {
   const menu = document.getElementById(`dropdown-${id}`);
   if (menu) {
     menu.classList.toggle('show');
+    
+    // Auto-align dropup if close to the bottom of the viewport
+    const btnRect = event.currentTarget.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - btnRect.bottom;
+    if (spaceBelow < 280) {
+      menu.style.top = 'auto';
+      menu.style.bottom = '100%';
+      menu.style.marginTop = '0';
+      menu.style.marginBottom = '5px';
+    } else {
+      menu.style.top = '100%';
+      menu.style.bottom = 'auto';
+      menu.style.marginTop = '5px';
+      menu.style.marginBottom = '0';
+    }
   }
 };
 

@@ -167,8 +167,7 @@ async function runVerify(mode, value) {
 function renderResult(data, query) {
   if (!data.found) return renderNotFound(query);
   if (data.status === 'revoked') return renderRevoked(data);
-  const isExpired = data.status === 'active' && data.endDate && new Date(data.endDate) < new Date();
-  if (data.status === 'expired' || isExpired) {
+  if (data.status === 'expired') {
     if (!data.expiryDate) data.expiryDate = data.endDate;
     return renderExpired(data);
   }

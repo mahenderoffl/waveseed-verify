@@ -2,7 +2,7 @@
 import {
   adminLogin, adminGetStats, adminGetAll,
   adminAddCertificate, adminUpdateCertificate, adminRevoke, adminRestore, adminSeed, adminDeleteCertificate,
-  adminGetEmployees, adminGetNextIds, adminUploadSigned
+  adminGetEmployees, adminGetNextIds, adminUploadSigned, adminExpire
 } from '../api.js';
 import { initGeneratePage } from './generate.js';
 import { initEmployeesPage } from './employees.js';
@@ -418,13 +418,10 @@ function renderTable() {
   const statusF   = document.getElementById('filter-status')?.value || '';
 
   const filtered = allCerts.filter(c => {
-    const isExpired = c.status === 'active' && c.endDate && new Date(c.endDate) < new Date();
-    const displayStatus = isExpired ? 'expired' : c.status;
-
     const matchQ = !query || [c.holderName, c.certificateId, c.role, c.referenceNumber]
       .join(' ').toLowerCase().includes(query);
     const matchT = !typeF   || c.certificateType === typeF;
-    const matchS = !statusF || displayStatus === statusF;
+    const matchS = !statusF || c.status === statusF;
     return matchQ && matchT && matchS;
   });
 
@@ -435,8 +432,6 @@ function renderTable() {
   }
 
   tbody.innerHTML = filtered.map(c => {
-    const isExpired = c.status === 'active' && c.endDate && new Date(c.endDate) < new Date();
-    const displayStatus = isExpired ? 'expired' : c.status;
     return `
 <tr>
   <td>
@@ -457,7 +452,7 @@ function renderTable() {
   <td><div class="td-role">${esc(c.role)}</div></td>
   <td><span class="type-pill ${c.certificateType}">${esc(getNiceTypeLabel(c.certificateType))}</span></td>
   <td style="white-space:nowrap;font-size:0.8rem;">${formatDateShort(c.issuedDate)}</td>
-  <td><span class="status-pill ${displayStatus}"><span class="dot"></span>${displayStatus}</span></td>
+  <td><span class="status-pill ${c.status}"><span class="dot"></span>${c.status}</span></td>
   <td style="text-align:center;font-weight:700;color:var(--navy);">${c.verificationCount}</td>
   <td>
     <div class="actions-cell">
@@ -466,8 +461,13 @@ function renderTable() {
       <button class="btn-action email" onclick="window.wsEmailModal('${esc(c.certificateId)}')" title="Generate email template for this document">📧 Email</button>
       <button class="btn-action edit" onclick="window.wsEditModal('${c._id}')">✏️ Edit</button>
       ${c.status === 'active'
-        ? `<button class="btn-action revoke" onclick="window.wsRevokeModal('${c._id}','${esc(c.holderName)}')">🚫 Revoke</button>`
-        : `<button class="btn-action restore" onclick="window.wsRestore('${c._id}')">↩ Restore</button>`
+        ? `
+          <button class="btn-action expire" onclick="window.wsExpire('${c._id}','${esc(c.holderName)}')" title="Mark this certificate/letter as expired">⏳ Expire</button>
+          <button class="btn-action revoke" onclick="window.wsRevokeModal('${c._id}','${esc(c.holderName)}')" title="Revoke this certificate/letter">🚫 Revoke</button>
+        `
+        : c.status === 'expired'
+        ? `<button class="btn-action restore" onclick="window.wsRestore('${c._id}')" title="Renew/Restore this certificate/letter back to active status">♻️ Renew</button>`
+        : `<button class="btn-action restore" onclick="window.wsRestore('${c._id}')" title="Restore this revoked certificate/letter back to active status">↩ Restore</button>`
       }
       <button class="btn-action delete" onclick="window.wsDeleteModal('${c._id}','${esc(c.holderName)}')">🗑 Delete</button>
     </div>
@@ -570,6 +570,17 @@ window.wsRestore = async (id) => {
   try {
     await adminRestore(token, id);
     showToast('✅ Certificate restored!', 'success');
+    await loadData();
+  } catch (e) {
+    showToast('❌ ' + e.message, 'error');
+  }
+};
+
+window.wsExpire = async (id, name) => {
+  if (!confirm(`Are you sure you want to mark ${name}'s certificate/letter as EXPIRED?`)) return;
+  try {
+    await adminExpire(token, id);
+    showToast('✅ Certificate expired!', 'success');
     await loadData();
   } catch (e) {
     showToast('❌ ' + e.message, 'error');

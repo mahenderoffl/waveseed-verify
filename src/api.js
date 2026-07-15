@@ -93,6 +93,17 @@ export async function adminRestore(token, id) {
   return json;
 }
 
+export async function adminExpire(token, id) {
+  const res = await fetch(`${HTTP_URL}/admin/expire`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ id }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || 'Failed to expire');
+  return json;
+}
+
 export async function adminDeleteCertificate(token, id) {
   const res = await fetch(`${HTTP_URL}/admin/delete`, {
     method: 'POST',

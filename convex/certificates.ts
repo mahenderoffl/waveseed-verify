@@ -167,6 +167,16 @@ export const doRestore = internalMutation({
   },
 });
 
+export const doExpire = internalMutation({
+  args: { id: v.id("certificates") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, {
+      status: "expired",
+      updatedAt: Date.now(),
+    });
+  },
+});
+
 export const doDelete = internalMutation({
   args: { id: v.id("certificates") },
   handler: async (ctx, args) => {

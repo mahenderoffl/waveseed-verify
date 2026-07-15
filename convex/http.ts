@@ -411,6 +411,33 @@ http.route({
   }),
 });
 
+// ─── Admin Expire ─────────────────────────────────────────────────────────────
+
+http.route({
+  path: "/admin/expire",
+  method: "OPTIONS",
+  handler: httpAction(async () => preflight()),
+});
+
+// POST expire — admin, hr only
+http.route({
+  path: "/admin/expire",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
+    if (!checkRole(request, "admin", "hr")) return forbidden();
+    const body = await request.json().catch(() => null);
+    if (!body) return json({ error: "Invalid JSON" }, 400);
+
+    try {
+      await ctx.runMutation(internal.certificates.doExpire, body as Parameters<typeof internal.certificates.doExpire>[0]);
+      return json({ success: true });
+    } catch (e: unknown) {
+      return json({ error: (e as Error).message }, 400);
+    }
+  }),
+});
+
 // ─── Admin Delete ─────────────────────────────────────────────────────────────
 
 http.route({

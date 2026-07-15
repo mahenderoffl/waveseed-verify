@@ -456,20 +456,57 @@ function renderTable() {
   <td style="text-align:center;font-weight:700;color:var(--navy);">${c.verificationCount}</td>
   <td>
     <div class="actions-cell">
-      <button class="btn-action view" onclick="window.wsViewCert('${esc(c.certificateId)}')" title="Open the full rendered certificate/letter document">📄 View Doc</button>
-      ${(c.holderDob || c.holderEmail) ? `<button class="btn-action copy-link" onclick="window.wsCopyLink('${esc(c.referenceNumber)}')" title="Copy download link to share with recipient">🔗 Link</button>` : ''}
-      <button class="btn-action email" onclick="window.wsEmailModal('${esc(c.certificateId)}')" title="Generate email template for this document">📧 Email</button>
-      <button class="btn-action edit" onclick="window.wsEditModal('${c._id}')">✏️ Edit</button>
-      ${c.status === 'active'
-        ? `
-          <button class="btn-action expire" onclick="window.wsExpire('${c._id}','${esc(c.holderName)}')" title="Mark this certificate/letter as expired">⏳ Expire</button>
-          <button class="btn-action revoke" onclick="window.wsRevokeModal('${c._id}','${esc(c.holderName)}')" title="Revoke this certificate/letter">🚫 Revoke</button>
-        `
-        : c.status === 'expired'
-        ? `<button class="btn-action restore" onclick="window.wsRestore('${c._id}')" title="Renew/Restore this certificate/letter back to active status">♻️ Renew</button>`
-        : `<button class="btn-action restore" onclick="window.wsRestore('${c._id}')" title="Restore this revoked certificate/letter back to active status">↩ Restore</button>`
-      }
-      <button class="btn-action delete" onclick="window.wsDeleteModal('${c._id}','${esc(c.holderName)}')">🗑 Delete</button>
+      <div class="ws-dropdown">
+        <button class="ws-dropdown-trigger" onclick="window.wsToggleDropdown(event, '${c._id}')">
+          ⚙️ Actions ▾
+        </button>
+        <div id="dropdown-${c._id}" class="ws-dropdown-menu">
+          <button class="ws-dropdown-item" onclick="window.wsViewCert('${esc(c.certificateId)}')" title="Open document">
+            <span>📄</span> View Doc
+          </button>
+          ${(c.holderDob || c.holderEmail) ? `
+            <button class="ws-dropdown-item" onclick="window.wsCopyLink('${esc(c.referenceNumber)}')" title="Copy recipient link">
+              <span>🔗</span> Copy Link
+            </button>
+          ` : ''}
+          <button class="ws-dropdown-item" onclick="window.wsEmailModal('${esc(c.certificateId)}')" title="Send email">
+            <span>📧</span> Email Doc
+          </button>
+          <button class="ws-dropdown-item" onclick="window.wsEditModal('${c._id}')" title="Edit details">
+            <span>✏️</span> Edit Details
+          </button>
+          
+          <div class="ws-dropdown-divider"></div>
+          
+          ${c.status === 'active'
+            ? `
+              <button class="ws-dropdown-item warning" onclick="window.wsExpire('${c._id}','${esc(c.holderName)}')" title="Expire document">
+                <span>⏳</span> Expire Doc
+              </button>
+              <button class="ws-dropdown-item danger" onclick="window.wsRevokeModal('${c._id}','${esc(c.holderName)}')" title="Revoke document">
+                <span>🚫</span> Revoke Doc
+              </button>
+            `
+            : c.status === 'expired'
+            ? `
+              <button class="ws-dropdown-item success" onclick="window.wsRestore('${c._id}')" title="Renew document">
+                <span>♻️</span> Renew Doc
+              </button>
+            `
+            : `
+              <button class="ws-dropdown-item success" onclick="window.wsRestore('${c._id}')" title="Restore document">
+                <span>↩</span> Restore Doc
+              </button>
+            `
+          }
+          
+          <div class="ws-dropdown-divider"></div>
+          
+          <button class="ws-dropdown-item danger" onclick="window.wsDeleteModal('${c._id}','${esc(c.holderName)}')" title="Delete record">
+            <span>🗑</span> Delete Record
+          </button>
+        </div>
+      </div>
     </div>
   </td>
 </tr>`;
@@ -589,6 +626,28 @@ window.wsExpire = async (id, name) => {
 };
 
 window.wsDeleteModal = (id, name) => openDeleteModal(id, name);
+
+window.wsToggleDropdown = (event, id) => {
+  event.stopPropagation();
+  // Close all other dropdowns
+  document.querySelectorAll('.ws-dropdown-menu').forEach(el => {
+    if (el.id !== `dropdown-${id}`) {
+      el.classList.remove('show');
+    }
+  });
+  // Toggle the current one
+  const menu = document.getElementById(`dropdown-${id}`);
+  if (menu) {
+    menu.classList.toggle('show');
+  }
+};
+
+// Close dropdowns when clicking anywhere outside
+document.addEventListener('click', () => {
+  document.querySelectorAll('.ws-dropdown-menu').forEach(el => {
+    el.classList.remove('show');
+  });
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ADD CERTIFICATE MODAL

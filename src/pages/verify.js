@@ -441,7 +441,7 @@ function certTypeLabel(type) {
     appreciation:        'Appreciation',
     other:               'Certificate',
   };
-  return map[type] || type;
+  return map[type] || 'Document'; // never echo unknown DB values into markup
 }
 function certTypeOf(type) {
   const map = {

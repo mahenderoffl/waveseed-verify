@@ -131,7 +131,7 @@ function renderEmployeesTable(token) {
   tbody.innerHTML = filtered.map(emp => {
     // Parse meta JSON for extended fields
     let meta = {};
-    try { if (emp.meta) meta = JSON.parse(emp.meta); } catch {}
+    try { const m = emp.meta ? JSON.parse(emp.meta) : null; if (m && typeof m === 'object') meta = m; } catch {}
     const phone = meta.phone || '';
     const dob   = meta.dob   || '';
     return `
@@ -161,7 +161,7 @@ function renderEmployeesTable(token) {
     <div class="actions-cell">
       <button class="btn-action view" onclick="window.wsViewEmpProfile('${emp._id}')">👁 Profile</button>
       <button class="btn-action view" onclick="window.wsIssueFromEmp('${emp._id}')">🎓 Issue Cert</button>
-      <button class="btn-action delete" onclick="window.wsDeleteEmp('${emp._id}','${esc(emp.name)}')">✕ Delete</button>
+      <button class="btn-action delete" onclick="window.wsDeleteEmp('${emp._id}')">✕ Delete</button>
     </div>
   </td>
 </tr>`;
@@ -299,7 +299,8 @@ function openAddEmployeeModal(token) {
 }
 
 // ─── Actions ───────────────────────────────────────────────────────────────────
-window.wsDeleteEmp = async (id, name) => {
+window.wsDeleteEmp = async (id) => {
+  const name = employeesList.find(e => e._id === id)?.name || 'this';
   if (!confirm(`Are you sure you want to delete ${name}'s profile?`)) return;
   const token = sessionStorage.getItem('ws_admin_token');
   try {
@@ -318,7 +319,7 @@ window.wsViewEmpProfile = (id) => {
   if (!emp) return;
 
   let meta = {};
-  try { if (emp.meta) meta = JSON.parse(emp.meta); } catch {}
+  try { const m = emp.meta ? JSON.parse(emp.meta) : null; if (m && typeof m === 'object') meta = m; } catch {}
 
   const row = (label, value) => value
     ? `<div class="prof-row"><span class="prof-label">${label}</span><span class="prof-value">${esc(String(value))}</span></div>`
@@ -418,7 +419,7 @@ function formatDateShort(dateStr) {
 function esc(str) {
   if (!str) return '';
   return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 
 function showToast(msg, type='success') {
@@ -427,7 +428,8 @@ function showToast(msg, type='success') {
   const t = document.createElement('div');
   t.id = 'ws-toast';
   t.className = `toast ${type}`;
-  t.innerHTML = `<span>${msg}</span>`;
+  t.innerHTML = `<span></span>`;
+  t.firstElementChild.textContent = msg;
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 3500);
 }

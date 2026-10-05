@@ -32,6 +32,13 @@ export async function adminLogin(password) {
   return res.json();
 }
 
+export async function adminLogout(token) {
+  await fetch(`${HTTP_URL}/admin/logout`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
 // ── Admin API (all require Bearer token) ───────────────────────────────────────
 function authHeaders(token) {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };

@@ -1,3 +1,4 @@
+import { safeUrl } from './shared.js';
 // --- download.js --- Secure Recipient Document Download -----------------------
 import { publicDownload, publicUploadSigned } from '../api.js';
 import { generateDocument } from '../templates/templates.js';
@@ -93,7 +94,7 @@ export function initDownloadPage(app) {
             class="dl-input"
             type="text"
             placeholder="e.g. WS/INT/2026/AI-FS/043"
-            value="${urlRef}"
+            value="${esc(urlRef)}"
             autocomplete="off"
             spellcheck="false"
           />
@@ -247,13 +248,13 @@ export function initDownloadPage(app) {
     </p>
 
     <div id="upload-status-box" style="margin-bottom:14px;">
-      ${result.signedUrl ? `
+      ${safeUrl(result.signedUrl) ? `
         <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; font-size:0.8rem; color:#166534;">
           <div>
             <strong style="display:flex; align-items:center; gap:4px;">✅ Signed Copy Attached</strong>
             <span style="font-size:0.7rem; color:#15803d; display:block; margin-top:2px;">Uploaded on ${new Date(result.signedAt).toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'})}</span>
           </div>
-          <a href="${result.signedUrl}" target="_blank" style="color:#166534; font-weight:700; text-decoration:underline; font-size:0.75rem;">Download Copy</a>
+          <a href="${esc(safeUrl(result.signedUrl))}" target="_blank" rel="noopener noreferrer" style="color:#166534; font-weight:700; text-decoration:underline; font-size:0.75rem;">Download Copy</a>
         </div>
       ` : `
         <div style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:12px; text-align:center; font-size:0.75rem; color:#64748b;">
@@ -349,7 +350,7 @@ export function initDownloadPage(app) {
                   <strong style="display:flex; align-items:center; gap:4px;">✅ Signed Copy Attached</strong>
                   <span style="font-size:0.7rem; color:#15803d; display:block; margin-top:2px;">Uploaded just now</span>
                 </div>
-                <a href="${uploadRes.signedUrl}" target="_blank" style="color:#166534; font-weight:700; text-decoration:underline; font-size:0.75rem;">Download Copy</a>
+                <a href="${esc(safeUrl(uploadRes.signedUrl))}" target="_blank" rel="noopener noreferrer" style="color:#166534; font-weight:700; text-decoration:underline; font-size:0.75rem;">Download Copy</a>
               </div>`;
 
           } catch (err) {

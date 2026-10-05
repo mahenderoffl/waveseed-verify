@@ -664,7 +664,8 @@ function showToast(msg, type='success') {
   const t = document.createElement('div');
   t.id = 'ws-toast';
   t.className = `toast ${type}`;
-  t.innerHTML = `<span>${msg}</span>`;
+  t.innerHTML = `<span></span>`;
+  t.firstElementChild.textContent = msg;
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 3500);
 }

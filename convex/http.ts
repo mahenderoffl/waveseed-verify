@@ -1,6 +1,7 @@
 import { httpRouter } from "convex/server";
-import { httpAction } from "./_generated/server";
+import { httpAction, type ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { Doc, Id } from "./_generated/dataModel";
 
 const http = httpRouter();
 
@@ -30,30 +31,177 @@ const ROLES: Record<string, string> = {
   operations: "OPERATIONS_PASSWORD",
 };
 
-function resolveRole(token: string): string | null {
+const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+async function sha256Hex(s: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Constant-time comparison (both inputs hashed first so lengths match) */
+async function safeEqual(a: string, b: string): Promise<boolean> {
+  const [ha, hb] = await Promise.all([sha256Hex(a), sha256Hex(b)]);
+  let diff = 0;
+  for (let i = 0; i < ha.length; i++) diff |= ha.charCodeAt(i) ^ hb.charCodeAt(i);
+  return diff === 0;
+}
+
+/** Password → role. Only used at login; requests authenticate with session tokens. */
+async function resolveRole(password: string): Promise<string | null> {
+  if (!password) return null;
+  let match: string | null = null;
   for (const [role, envKey] of Object.entries(ROLES)) {
     const pw = process.env[envKey];
-    if (pw && pw.length > 0 && token === pw) return role;
+    // Check every role (no early exit) to keep timing uniform
+    if (pw && pw.length > 0 && (await safeEqual(password, pw)) && !match) match = role;
   }
-  return null;
+  return match;
+}
+
+function bearerToken(request: Request): string {
+  const auth = request.headers.get("Authorization") ?? "";
+  return auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
 }
 
 /** Returns the caller's role or null if unauthenticated */
-function getRole(request: Request): string | null {
-  const auth = request.headers.get("Authorization") ?? "";
-  const token = auth.replace("Bearer ", "").trim();
-  return resolveRole(token);
+async function getRole(ctx: ActionCtx, request: Request): Promise<string | null> {
+  const token = bearerToken(request);
+  if (!token || token.length < 32) return null;
+  return await ctx.runQuery(internal.security.getSessionRole, { tokenHash: await sha256Hex(token) });
 }
 
 /** Gate: only passes if caller has one of the allowed roles */
-function checkRole(request: Request, ...allowed: string[]): boolean {
-  const role = getRole(request);
+async function checkRole(ctx: ActionCtx, request: Request, ...allowed: string[]): Promise<boolean> {
+  const role = await getRole(ctx, request);
   return role !== null && allowed.includes(role);
 }
 
 /** Shorthand: any authenticated role */
-function checkAuth(request: Request): boolean {
-  return getRole(request) !== null;
+async function checkAuth(ctx: ActionCtx, request: Request): Promise<boolean> {
+  return (await getRole(ctx, request)) !== null;
+}
+
+function clientIp(request: Request): string {
+  return (request.headers.get("x-forwarded-for") ?? "unknown").slice(0, 100);
+}
+
+function tooMany(ms: number) {
+  const mins = Math.ceil(ms / 60_000);
+  return json({ error: `Too many attempts. Please try again in ${mins} minute${mins === 1 ? "" : "s"}.` }, 429);
+}
+
+// ─── Holder DOB check (secure download / signed upload) ──────────────────────
+// Limited per certificate (not per IP) so rotating IPs doesn't help brute force.
+const DOB_MAX_FAILS = 5;
+const DOB_WINDOW_MS = 15 * 60_000;
+const DOB_LOCK_MS = 15 * 60_000;
+
+type CertDoc = Doc<"certificates">;
+
+async function resolveHolderDob(ctx: ActionCtx, cert: CertDoc): Promise<string | null> {
+  if (cert.holderDob) return cert.holderDob;
+  if (!cert.holderEmail) return null;
+  const emp = await ctx.runQuery(internal.certificates.getEmployeeByEmail, { email: cert.holderEmail });
+  try { return emp?.meta ? (JSON.parse(emp.meta).dob || null) : null; } catch { return null; }
+}
+
+/** Returns null when the DOB matches, otherwise the error Response to send. */
+async function verifyHolderDob(ctx: ActionCtx, cert: CertDoc, dob: string): Promise<Response | null> {
+  const key = `dob:${cert._id}`;
+  const locked = await ctx.runQuery(internal.security.lockedFor, { key });
+  if (locked > 0) return tooMany(locked);
+
+  const resolved = await resolveHolderDob(ctx, cert);
+  if (!resolved) {
+    return json({ error: "Secure access is not enabled for this document. Please contact WaveSeed." }, 403);
+  }
+  const normalise = (d: string) => d.replace(/\s/g, "").toLowerCase();
+  if (!(await safeEqual(normalise(resolved), normalise(dob)))) {
+    const r = await ctx.runMutation(internal.security.hit, {
+      key, max: DOB_MAX_FAILS, windowMs: DOB_WINDOW_MS, lockMs: DOB_LOCK_MS,
+    });
+    if (r.lockedFor > 0) return tooMany(r.lockedFor);
+    return json({
+      error: `Incorrect date of birth. ${r.remaining} attempt${r.remaining === 1 ? "" : "s"} remaining.`,
+      remaining: r.remaining,
+    }, 401);
+  }
+  await ctx.runMutation(internal.security.clear, { key });
+  return null;
+}
+
+// ─── Public onboarding validation ────────────────────────────────────────────
+// This endpoint is unauthenticated and its data is rendered in the admin
+// portal, so accept only known fields with bounded, well-formed values.
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const EMAIL_RE = /^[^\s@<>"'`]+@[^\s@<>"'`]+\.[^\s@<>"'`]+$/;
+// Strip control chars and angle brackets (no legitimate use in these fields)
+const cleanText = (v: unknown, max: number) =>
+  String(v ?? "").replace(/[\u0000-\u001f\u007f<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+
+function sanitizeOnboarding(b: Record<string, unknown>) {
+  const name = cleanText(b.name, 120);
+  const email = cleanText(b.email, 254).toLowerCase();
+  const role = cleanText(b.role, 120);
+  const employeeType = b.employeeType === "employee" ? "employee" : b.employeeType === "intern" ? "intern" : null;
+  const workMode = ["", "Remote", "On-site", "Hybrid"].includes(String(b.workMode ?? "")) ? String(b.workMode ?? "") : null;
+  const startDate = String(b.startDate ?? "");
+  const endDate = b.endDate ? String(b.endDate) : "";
+
+  if (!name || !role) return "Name and role are required.";
+  if (!email || !EMAIL_RE.test(email)) return "Please provide a valid email address.";
+  if (!employeeType) return "Invalid employee type.";
+  if (workMode === null) return "Invalid work mode.";
+  if (startDate && !DATE_RE.test(startDate)) return "Invalid start date.";
+  if (endDate && !DATE_RE.test(endDate)) return "Invalid end date.";
+
+  // meta: flat JSON object of short strings / booleans
+  let meta: string | undefined;
+  if (b.meta !== undefined) {
+    let obj: unknown;
+    try { obj = typeof b.meta === "string" ? JSON.parse(b.meta) : b.meta; } catch { return "Invalid profile details."; }
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return "Invalid profile details.";
+    const out: Record<string, string | boolean> = {};
+    for (const [k, val] of Object.entries(obj as Record<string, unknown>).slice(0, 40)) {
+      const key = k.replace(/[^A-Za-z0-9_]/g, "").slice(0, 40);
+      if (!key) continue;
+      out[key] = typeof val === "boolean" ? val : cleanText(val, 2000);
+    }
+    if (out.dob && !DATE_RE.test(String(out.dob))) return "Invalid date of birth.";
+    meta = JSON.stringify(out);
+  }
+
+  return {
+    name, email, role, employeeType,
+    workMode: workMode || undefined,
+    institution: cleanText(b.institution, 200) || undefined,
+    department: cleanText(b.department, 200) || undefined,
+    product: cleanText(b.product, 120) || undefined,
+    reportingTo: cleanText(b.reportingTo, 120) || undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+    meta,
+  };
+}
+
+// ─── Upload validation ───────────────────────────────────────────────────────
+// Trust the file's magic bytes, not the client's Content-Type, so nothing
+// executable (HTML/SVG/JS) can be hosted from our storage.
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+
+async function validatedUpload(request: Request): Promise<Blob | Response> {
+  const blob = await request.blob();
+  if (blob.size === 0) return json({ error: "File is empty" }, 400);
+  if (blob.size > MAX_UPLOAD_BYTES) return json({ error: "File exceeds 5MB size limit" }, 400);
+  const b = new Uint8Array(await blob.slice(0, 12).arrayBuffer());
+  const starts = (...sig: number[]) => sig.every((x, i) => b[i] === x);
+  let type: string | null = null;
+  if (starts(0x25, 0x50, 0x44, 0x46)) type = "application/pdf";                 // %PDF
+  else if (starts(0x89, 0x50, 0x4e, 0x47)) type = "image/png";
+  else if (starts(0xff, 0xd8, 0xff)) type = "image/jpeg";
+  else if (starts(0x52, 0x49, 0x46, 0x46) && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) type = "image/webp";
+  if (!type) return json({ error: "Only PDF, PNG, JPEG or WEBP files are allowed" }, 415);
+  return new Blob([await blob.arrayBuffer()], { type });
 }
 
 /** 403 Forbidden helper */
@@ -133,10 +281,6 @@ http.route({
 // PUBLIC — Secure Document Download (ref + dob auth)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// In-memory brute-force guard: key = IP+ref, value = { fails, lockedUntil }
-const _downloadAttempts = new Map<string, { fails: number; lockedUntil: number }>();
-const MAX_FAILS = 5;
-const LOCKOUT_MS = 30_000; // 30 seconds
 
 http.route({
   path: "/public/download",
@@ -157,66 +301,19 @@ http.route({
       return json({ error: "Provide (ref or certId) and dob" }, 400);
     }
 
-    // Rate limiting — basic IP-based guard
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    const rateLimitKey = `${ip}:${(ref || certId || "").toLowerCase()}`;
-    const attempt = _downloadAttempts.get(rateLimitKey) ?? { fails: 0, lockedUntil: 0 };
-
-    if (attempt.lockedUntil > Date.now()) {
-      const secsLeft = Math.ceil((attempt.lockedUntil - Date.now()) / 1000);
-      return json({ error: `Too many failed attempts. Please wait ${secsLeft} seconds and try again.` }, 429);
-    }
-
     // Look up certificate
     let cert = null;
     if (ref) {
-      cert = await ctx.runQuery(internal.certificates.getByReferenceNumber, { referenceNumber: ref.trim() });
+      cert = await ctx.runQuery(internal.certificates.getByReferenceNumber, { referenceNumber: String(ref).trim() });
     } else if (certId) {
-      cert = await ctx.runQuery(internal.certificates.getByCertificateId, { certificateId: certId.trim().toUpperCase() });
+      cert = await ctx.runQuery(internal.certificates.getByCertificateId, { certificateId: String(certId).trim().toUpperCase() });
     }
-
     if (!cert) {
-      // Increment fail counter
-      attempt.fails += 1;
-      if (attempt.fails >= MAX_FAILS) attempt.lockedUntil = Date.now() + LOCKOUT_MS;
-      _downloadAttempts.set(rateLimitKey, attempt);
       return json({ error: "Certificate not found. Please check your reference number." }, 404);
     }
 
-    // Resolve DOB: either directly on certificate, or from employee directory matching email
-    let resolvedDob = cert.holderDob || null;
-    if (!resolvedDob && cert.holderEmail) {
-      const emp = await ctx.runQuery(internal.certificates.getEmployeeByEmail, { email: cert.holderEmail });
-      if (emp && emp.meta) {
-        try {
-          const meta = JSON.parse(emp.meta);
-          if (meta.dob) {
-            resolvedDob = meta.dob;
-          }
-        } catch {}
-      }
-    }
-
-    if (!resolvedDob) {
-      return json({ error: "Secure download is not enabled for this certificate. Please contact WaveSeed." }, 403);
-    }
-
-    const normalise = (d: string) => d.replace(/\s/g, "").toLowerCase();
-    if (normalise(resolvedDob) !== normalise(dob)) {
-      attempt.fails += 1;
-      if (attempt.fails >= MAX_FAILS) attempt.lockedUntil = Date.now() + LOCKOUT_MS;
-      _downloadAttempts.set(rateLimitKey, attempt);
-      const remaining = MAX_FAILS - attempt.fails;
-      return json({
-        error: remaining > 0
-          ? `Incorrect date of birth. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`
-          : "Too many failed attempts. Please wait 30 seconds.",
-        remaining,
-      }, 401);
-    }
-
-    // ✅ Auth passed — reset fail counter
-    _downloadAttempts.delete(rateLimitKey);
+    const denied = await verifyHolderDob(ctx, cert, String(dob));
+    if (denied) return denied;
 
     if (cert.status === "revoked") {
       return json({ error: "This certificate has been revoked and is no longer valid.", revoked: true }, 403);
@@ -262,12 +359,47 @@ http.route({
 http.route({
   path: "/admin/auth",
   method: "POST",
-  handler: httpAction(async (_ctx, request) => {
+  handler: httpAction(async (ctx, request) => {
+    // Per-IP lockout, plus a global cap so rotating IPs can't brute force either
+    const ipKey = `login:ip:${clientIp(request)}`;
+    const globalKey = "login:global";
+    const locked = Math.max(
+      await ctx.runQuery(internal.security.lockedFor, { key: ipKey }),
+      await ctx.runQuery(internal.security.lockedFor, { key: globalKey }),
+    );
+    if (locked > 0) return tooMany(locked);
+
     const body = await request.json().catch(() => ({}));
-    const password = (body as { password?: string }).password ?? "";
-    const role = resolveRole(password);
-    if (!role) return json({ valid: false }, 401);
-    return json({ valid: true, role });
+    const password = String((body as { password?: unknown }).password ?? "").slice(0, 256);
+    const role = await resolveRole(password);
+    if (!role) {
+      await ctx.runMutation(internal.security.hit, { key: ipKey, max: 5, windowMs: 15 * 60_000, lockMs: 15 * 60_000 });
+      await ctx.runMutation(internal.security.hit, { key: globalKey, max: 50, windowMs: 60 * 60_000, lockMs: 15 * 60_000 });
+      return json({ valid: false }, 401);
+    }
+    await ctx.runMutation(internal.security.clear, { key: ipKey });
+
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    const token = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+    const expiresAt = Date.now() + SESSION_TTL_MS;
+    await ctx.runMutation(internal.security.createSession, { tokenHash: await sha256Hex(token), role, expiresAt });
+    return json({ valid: true, role, token, expiresAt });
+  }),
+});
+
+http.route({
+  path: "/admin/logout",
+  method: "OPTIONS",
+  handler: httpAction(async () => preflight()),
+});
+
+http.route({
+  path: "/admin/logout",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const token = bearerToken(request);
+    if (token) await ctx.runMutation(internal.security.deleteSession, { tokenHash: await sha256Hex(token) });
+    return json({ success: true });
   }),
 });
 
@@ -286,8 +418,8 @@ http.route({
   path: "/admin/certificates",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
-    if (!checkRole(request, "admin", "hr", "finance")) return forbidden();
+    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
+    if (!(await checkRole(ctx, request, "admin", "hr", "finance"))) return forbidden();
     const certs = await ctx.runQuery(internal.certificates.getAllCertificates, {});
     return json(certs);
   }),
@@ -298,8 +430,8 @@ http.route({
   path: "/admin/certificates",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
-    if (!checkRole(request, "admin", "hr")) return forbidden();
+    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
+    if (!(await checkRole(ctx, request, "admin", "hr"))) return forbidden();
     const body = await request.json().catch(() => null);
     if (!body) return json({ error: "Invalid JSON" }, 400);
 
@@ -324,7 +456,7 @@ http.route({
   path: "/admin/stats",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
+    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
     const stats = await ctx.runQuery(internal.certificates.getStats, {});
     return json(stats);
   }),
@@ -343,13 +475,18 @@ http.route({
   path: "/admin/update",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
-    if (!checkRole(request, "admin", "hr")) return forbidden();
+    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
+    if (!(await checkRole(ctx, request, "admin", "hr"))) return forbidden();
     const body = await request.json().catch(() => null);
     if (!body) return json({ error: "Invalid JSON" }, 400);
 
     try {
-      await ctx.runMutation(internal.certificates.patchCertificate, body as Parameters<typeof internal.certificates.patchCertificate>[0]);
+      // Status changes go through revoke/restore/expire; signed copies through upload.
+      const { status: _s, signedUrl: _u, signedAt: _a, ...fields } = body as Record<string, unknown>;
+      if (fields.certificateType !== undefined && !/^[a-z0-9-]{1,40}$/.test(String(fields.certificateType))) {
+        return json({ error: "Invalid document type" }, 400);
+      }
+      await ctx.runMutation(internal.certificates.patchCertificate, fields as Parameters<typeof internal.certificates.patchCertificate>[0]);
       return json({ success: true });
     } catch (e: unknown) {
       return json({ error: (e as Error).message }, 400);
@@ -370,8 +507,8 @@ http.route({
   path: "/admin/revoke",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
-    if (!checkRole(request, "admin", "hr")) return forbidden();
+    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
+    if (!(await checkRole(ctx, request, "admin", "hr"))) return forbidden();
     const body = await request.json().catch(() => null);
     if (!body) return json({ error: "Invalid JSON" }, 400);
 
@@ -397,8 +534,8 @@ http.route({
   path: "/admin/restore",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
-    if (!checkRole(request, "admin", "hr")) return forbidden();
+    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
+    if (!(await checkRole(ctx, request, "admin", "hr"))) return forbidden();
     const body = await request.json().catch(() => null);
     if (!body) return json({ error: "Invalid JSON" }, 400);
 
@@ -424,8 +561,8 @@ http.route({
   path: "/admin/expire",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
-    if (!checkRole(request, "admin", "hr")) return forbidden();
+    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
+    if (!(await checkRole(ctx, request, "admin", "hr"))) return forbidden();
     const body = await request.json().catch(() => null);
     if (!body) return json({ error: "Invalid JSON" }, 400);
 
@@ -451,8 +588,8 @@ http.route({
   path: "/admin/delete",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
-    if (!checkRole(request, "admin")) return forbidden("Only the Admin can permanently delete certificates.");
+    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
+    if (!(await checkRole(ctx, request, "admin"))) return forbidden("Only the Admin can permanently delete certificates.");
     const body = await request.json().catch(() => null);
     if (!body?.id) return json({ error: "Missing id" }, 400);
 
@@ -477,7 +614,8 @@ http.route({
   path: "/admin/seed",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
+    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
+    if (!(await checkRole(ctx, request, "admin"))) return forbidden();
     const result = await ctx.runMutation(internal.certificates.seedSample, {});
     return json(result);
   }),
@@ -494,7 +632,7 @@ http.route({
   path: "/admin/next-ids",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
+    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
     const result = await ctx.runQuery(internal.certificates.getNextIds, {});
     return json(result);
   }),
@@ -512,8 +650,8 @@ http.route({
   path: "/admin/employees",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
-    if (!checkRole(request, "admin", "hr", "operations")) return forbidden();
+    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
+    if (!(await checkRole(ctx, request, "admin", "hr", "operations"))) return forbidden();
     const list = await ctx.runQuery(internal.certificates.getAllEmployees, {});
     return json(list);
   }),
@@ -524,8 +662,8 @@ http.route({
   path: "/admin/employees",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
-    if (!checkRole(request, "admin", "hr", "operations")) return forbidden();
+    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
+    if (!(await checkRole(ctx, request, "admin", "hr", "operations"))) return forbidden();
     const body = await request.json().catch(() => null);
     if (!body) return json({ error: "Invalid JSON" }, 400);
 
@@ -549,7 +687,7 @@ http.route({
   path: "/admin/employees/delete",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    if (!checkRole(request, "admin", "hr")) return forbidden();
+    if (!(await checkRole(ctx, request, "admin", "hr"))) return forbidden();
     const body = await request.json().catch(() => null);
     if (!body) return json({ error: "Invalid JSON" }, 400);
 
@@ -573,7 +711,7 @@ http.route({
   path: "/admin/employees/update",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    if (!checkRole(request, "admin", "hr")) return forbidden();
+    if (!(await checkRole(ctx, request, "admin", "hr"))) return forbidden();
     const body = await request.json().catch(() => null);
     if (!body) return json({ error: "Invalid JSON" }, 400);
 
@@ -596,11 +734,24 @@ http.route({
   path: "/public/onboard",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const body = await request.json().catch(() => null);
-    if (!body) return json({ error: "Invalid JSON" }, 400);
+    // Spam guard: per IP and overall
+    const ipKey = `onboard:ip:${clientIp(request)}`;
+    const locked = Math.max(
+      await ctx.runQuery(internal.security.lockedFor, { key: ipKey }),
+      await ctx.runQuery(internal.security.lockedFor, { key: "onboard:global" }),
+    );
+    if (locked > 0) return tooMany(locked);
+    await ctx.runMutation(internal.security.hit, { key: ipKey, max: 5, windowMs: 60 * 60_000, lockMs: 60 * 60_000 });
+    await ctx.runMutation(internal.security.hit, { key: "onboard:global", max: 200, windowMs: 24 * 60 * 60_000, lockMs: 60 * 60_000 });
+
+    const raw = await request.json().catch(() => null);
+    if (!raw || typeof raw !== "object") return json({ error: "Invalid JSON" }, 400);
+    const parsed = sanitizeOnboarding(raw as Record<string, unknown>);
+    if (typeof parsed === "string") return json({ error: parsed }, 400);
+    const body = parsed;
 
     // Duplicate email check
-    const email = (body as { email?: string }).email?.trim().toLowerCase();
+    const email = body.email;
     if (email) {
       const existing = await ctx.runQuery(internal.certificates.getEmployeeByEmail, { email });
       if (existing) {
@@ -611,7 +762,7 @@ http.route({
     }
 
     try {
-      const id = await ctx.runMutation(internal.certificates.insertEmployee, body as Parameters<typeof internal.certificates.insertEmployee>[0]);
+      const id = await ctx.runMutation(internal.certificates.insertEmployee, body);
       return json({ success: true, id }, 201);
     } catch (e: unknown) {
       return json({ error: (e as Error).message }, 400);
@@ -643,49 +794,22 @@ http.route({
     // 1. Authenticate using DOB + Reference / Certificate ID
     let cert = null;
     if (ref) {
-      cert = await ctx.runQuery(internal.certificates.getByReferenceNumber, {
-        referenceNumber: ref,
-      });
+      cert = await ctx.runQuery(internal.certificates.getByReferenceNumber, { referenceNumber: ref });
     } else if (certId) {
-      cert = await ctx.runQuery(internal.certificates.getByCertificateId, {
-        certificateId: certId.toUpperCase(),
-      });
+      cert = await ctx.runQuery(internal.certificates.getByCertificateId, { certificateId: certId.toUpperCase() });
     }
-
     if (!cert) {
       return json({ error: "Certificate not found" }, 404);
     }
+    if (cert.status === "revoked") {
+      return json({ error: "This document has been revoked." }, 403);
+    }
+    const denied = await verifyHolderDob(ctx, cert, dob);
+    if (denied) return denied;
 
-    let resolvedDob = cert.holderDob || null;
-    if (!resolvedDob && cert.holderEmail) {
-      const emp = await ctx.runQuery(internal.certificates.getEmployeeByEmail, {
-        email: cert.holderEmail,
-      });
-      if (emp && emp.meta) {
-        try {
-          const meta = JSON.parse(emp.meta);
-          if (meta.dob) resolvedDob = meta.dob;
-        } catch {}
-      }
-    }
-
-    if (!resolvedDob) {
-      return json({ error: "Secure upload is not enabled for this certificate" }, 403);
-    }
-
-    const normalise = (d: string) => d.replace(/\s/g, "").toLowerCase();
-    if (normalise(resolvedDob) !== normalise(dob)) {
-      return json({ error: "Authentication failed. Incorrect date of birth." }, 401);
-    }
-
-    // 2. Process uploaded file blob
-    const blob = await request.blob();
-    if (blob.size === 0) {
-      return json({ error: "File blob is empty" }, 400);
-    }
-    if (blob.size > 5 * 1024 * 1024) {
-      return json({ error: "File exceeds 5MB size limit" }, 400);
-    }
+    // 2. Validate uploaded file (type by magic bytes, size)
+    const blob = await validatedUpload(request);
+    if (blob instanceof Response) return blob;
 
     // Store in Convex storage
     const storageId = await ctx.storage.store(blob);
@@ -717,8 +841,8 @@ http.route({
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     // 1. Authenticate admin/hr role
-    if (!checkAuth(request)) return json({ error: "Unauthorized" }, 401);
-    if (!checkRole(request, "admin", "hr")) return forbidden();
+    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
+    if (!(await checkRole(ctx, request, "admin", "hr"))) return forbidden();
 
     const url = new URL(request.url);
     const idParam = url.searchParams.get("id")?.trim();
@@ -726,19 +850,9 @@ http.route({
       return json({ error: "Provide certificate database id parameter" }, 400);
     }
 
-    const certDbId = ctx.db.normalizeId("certificates", idParam);
-    if (!certDbId) {
-      return json({ error: "Invalid certificate database ID" }, 400);
-    }
-
-    // 2. Process file blob
-    const blob = await request.blob();
-    if (blob.size === 0) {
-      return json({ error: "File blob is empty" }, 400);
-    }
-    if (blob.size > 5 * 1024 * 1024) {
-      return json({ error: "File exceeds 5MB size limit" }, 400);
-    }
+    // 2. Validate file (type by magic bytes, size)
+    const blob = await validatedUpload(request);
+    if (blob instanceof Response) return blob;
 
     // Store in Convex storage
     const storageId = await ctx.storage.store(blob);
@@ -750,7 +864,7 @@ http.route({
 
     // 3. Update database record
     await ctx.runMutation(internal.certificates.updateSignedDocument, {
-      id: certDbId,
+      id: idParam as Id<"certificates">, // validated by v.id() in the mutation
       signedUrl,
       signedAt: new Date().toISOString(),
     });

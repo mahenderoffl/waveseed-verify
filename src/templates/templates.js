@@ -168,7 +168,7 @@ export function certificateTemplate(data) {
   const period = isOngoing(data)
     ? ` since <strong>${fmtDate(startDate)}</strong> and continues to serve with the organisation as on <strong>${fmtDate(issuedDate)}</strong>`
     : (startDate && endDate) ? ` during the period of <strong>${fmtDate(startDate)} to ${fmtDate(endDate)}</strong>` : '';
-  const bodyText = customMessage ||
+  const bodyText = (customMessage ? esc(customMessage).replace(/\n/g, '<br>') : '') ||
     `has successfully ${t.verb} as <strong>${esc(role)}</strong>${product ? ` at <strong>WaveSeed Co.</strong> on the <em>${esc(product)}</em> project` : ` at <strong>WaveSeed Co.</strong>`}${period}.`;
 
   const verificationUrl = `https://verify.waveseed.app/?id=${certId}`;
@@ -803,7 +803,7 @@ ${signatureBlockHTML()}
     <li>The roles, responsibilities, and duties appropriate to your designation will be specified by the Company from time to time and may be modified at its sole discretion. You may also be required to provide services to the Company's affiliates, contractors, and clients as necessary.</li>
     <li>The duration of your employment is permanent and indefinite, commencing ${joiningDate ? fmtDate(joiningDate) : 'upon joining'}, subject to successful completion of the probation period. You are required to devote your full time, attention, and efforts solely to the business of WaveSeed Co. during this association.</li>
     <li>You may work remotely or from the office as specified in your offer details. Regular catch-up calls and status syncs will be scheduled to review progress and performance.</li>
-    <li>You will be on probation for a period of ${probation || '3 Months'}. Confirmation of employment is based on the management's assessment of your performance and conduct during probation.</li>
+    <li>You will be on probation for a period of ${esc(probation) || '3 Months'}. Confirmation of employment is based on the management's assessment of your performance and conduct during probation.</li>
     <li>All software, designs, algorithms, code, documentation, and work product produced during or in relation to WaveSeed Co. shall be the exclusive intellectual property of WaveSeed Co. You are prohibited from storing, copying, selling, sharing, or distributing any such work to third parties.</li>
     <li>Data privacy and security are paramount. All customer, client, user, and company data accessed during your employment must be kept strictly confidential. WaveSeed Co. operates on a zero-tolerance policy toward any breach of data security.</li>
     <li>During your employment, you shall not directly or indirectly engage with any other organization or business in any capacity (including freelance, advisory, or part-time work) without prior written permission from the Company.</li>

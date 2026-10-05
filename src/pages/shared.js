@@ -1,5 +1,19 @@
 // ─── shared.js — Shared Page Components & Helpers ─────────────────────────────
 
+/** HTML-escape for text and quoted attribute values. Never rely on this inside
+ *  inline event handlers (entities are decoded before the JS runs) — pass ids only. */
+export function escHTML(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
+/** Only allow https links (e.g. uploaded signed copies); anything else → '' */
+export function safeUrl(u) {
+  try { return new URL(String(u)).protocol === 'https:' ? String(u) : ''; } catch { return ''; }
+}
+
 export function productDropdownHTML(selectId, selectedValue = '') {
   const PRODUCT_OPTIONS = [
     'WaveBase AI', 'WaveSeed Verify', 'WaveSeed Platform',
@@ -42,7 +56,7 @@ export function productDropdownHTML(selectId, selectedValue = '') {
       </optgroup>
       <option value="__custom__" ${!isKnown ? 'selected' : ''}>✏️ Other / Custom…</option>
     </select>
-    <input id="${selectId}-custom" class="form-input" value="${!isKnown ? selectedValue : ''}" placeholder="Enter custom product/project name" style="margin-top:8px;display:${!isKnown ? 'block' : 'none'};" />
+    <input id="${selectId}-custom" class="form-input" value="${!isKnown ? escHTML(selectedValue) : ''}" placeholder="Enter custom product/project name" style="margin-top:8px;display:${!isKnown ? 'block' : 'none'};" />
   `;
 }
 
@@ -67,7 +81,7 @@ export function purposeDropdownHTML(selectId, selectedValue = '') {
       ${groups}
       <option value="__custom__" ${!isKnown ? 'selected' : ''}>✏️ Other / Custom…</option>
     </select>
-    <input id="${selectId}-custom" class="form-input" value="${!isKnown ? selectedValue : ''}" placeholder="e.g. Admission to M.S. program at XYZ University" style="margin-top:8px;display:${!isKnown ? 'block' : 'none'};" />
+    <input id="${selectId}-custom" class="form-input" value="${!isKnown ? escHTML(selectedValue) : ''}" placeholder="e.g. Admission to M.S. program at XYZ University" style="margin-top:8px;display:${!isKnown ? 'block' : 'none'};" />
   `;
 }
 

@@ -73,4 +73,22 @@ export default defineSchema({
     .index("by_name", ["name"])
     .index("by_type", ["employeeType"])
     .index("by_status", ["status"]),
+
+  // Admin portal sessions — only the SHA-256 hash of the token is stored
+  sessions: defineTable({
+    tokenHash: v.string(),
+    role: v.string(),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_token_hash", ["tokenHash"])
+    .index("by_expires_at", ["expiresAt"]),
+
+  // Brute-force / spam protection counters (login, DOB checks, onboarding)
+  rateLimits: defineTable({
+    key: v.string(),
+    count: v.number(),
+    windowStart: v.number(),
+    lockedUntil: v.number(),
+  }).index("by_key", ["key"]),
 });

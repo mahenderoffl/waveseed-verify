@@ -2,11 +2,11 @@
 import {
   adminLogin, adminGetStats, adminGetAll,
   adminAddCertificate, adminUpdateCertificate, adminRevoke, adminRestore, adminSeed, adminDeleteCertificate,
-  adminGetEmployees, adminGetNextIds, adminUploadSigned, adminExpire
+  adminGetEmployees, adminGetNextIds, adminUploadSigned, adminExpire, adminLogout
 } from '../api.js';
 import { initGeneratePage } from './generate.js';
 import { initEmployeesPage } from './employees.js';
-import { productDropdownHTML, purposeDropdownHTML, tableSkeletonHTML } from './shared.js';
+import { productDropdownHTML, purposeDropdownHTML, tableSkeletonHTML, safeUrl } from './shared.js';
 
 // Document types whose tenure can still be running (see generate.js "currentlyWorking")
 const ONGOING_TYPES = ['experience-letter', 'employment-cert', 'lor', 'noc'];
@@ -18,6 +18,12 @@ import { generateDocument, purposeClause, isEducationPurpose } from '../template
 
 
 let token = sessionStorage.getItem('ws_admin_token') || null;
+// Older builds stored the raw password here; only 64-hex session tokens are valid now
+if (token && !/^[0-9a-f]{64}$/.test(token)) {
+  token = null;
+  sessionStorage.removeItem('ws_admin_token');
+  sessionStorage.removeItem('ws_admin_role');
+}
 let currentRole = sessionStorage.getItem('ws_admin_role') || 'admin';
 let allCerts = [];
 let statsData = {};
@@ -77,13 +83,13 @@ function renderLogin(app) {
     try {
       const res = await adminLogin(password);
       if (res.valid) {
-        token = password;
+        token = res.token;
         currentRole = res.role || 'admin';
         sessionStorage.setItem('ws_admin_token', token);
         sessionStorage.setItem('ws_admin_role', currentRole);
         renderDashboard(app);
       } else {
-        err.textContent = 'Incorrect password. Please try again.';
+        err.textContent = res.error || 'Incorrect password. Please try again.';
         pw.value = '';
         pw.focus();
       }
@@ -260,6 +266,7 @@ function buildDashboardHTML() {
 function attachDashboardEvents(app) {
   // Logout
   document.getElementById('btn-logout')?.addEventListener('click', () => {
+    adminLogout(token).catch(() => {});
     token = null;
     currentRole = 'admin';
     sessionStorage.removeItem('ws_admin_token');
@@ -444,9 +451,9 @@ function renderTable() {
   <td>
     <div class="td-cert-id">${esc(c.certificateId)}</div>
     <div style="font-size:0.68rem;color:#94a3b8;margin-top:2px;">${esc(c.referenceNumber)}</div>
-    ${c.signedUrl ? `
+    ${safeUrl(c.signedUrl) ? `
       <div style="margin-top:4px;">
-        <a href="${c.signedUrl}" target="_blank" class="status-pill active" style="font-size:0.65rem; padding:2px 6px; display:inline-flex; align-items:center; gap:3px; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; text-decoration:none; font-weight:700; border-radius:4px;">
+        <a href="${esc(safeUrl(c.signedUrl))}" target="_blank" rel="noopener noreferrer" class="status-pill active" style="font-size:0.65rem; padding:2px 6px; display:inline-flex; align-items:center; gap:3px; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; text-decoration:none; font-weight:700; border-radius:4px;">
           <span>📄</span> Signed Doc
         </a>
       </div>
@@ -457,10 +464,10 @@ function renderTable() {
     ${c.holderInstitution ? `<div style="font-size:0.72rem;color:#94a3b8;">${esc(c.holderInstitution)}</div>` : ''}
   </td>
   <td><div class="td-role">${esc(c.role)}</div></td>
-  <td><span class="type-pill ${c.certificateType}">${esc(getNiceTypeLabel(c.certificateType))}</span></td>
+  <td><span class="type-pill ${esc(cssToken(c.certificateType))}">${esc(getNiceTypeLabel(c.certificateType))}</span></td>
   <td style="white-space:nowrap;font-size:0.8rem;">${formatDateShort(c.issuedDate)}</td>
-  <td><span class="status-pill ${c.status}"><span class="dot"></span>${c.status}</span></td>
-  <td style="text-align:center;font-weight:700;color:var(--navy);">${c.verificationCount}</td>
+  <td><span class="status-pill ${esc(cssToken(c.status))}"><span class="dot"></span>${esc(c.status)}</span></td>
+  <td style="text-align:center;font-weight:700;color:var(--navy);">${Number(c.verificationCount) || 0}</td>
   <td>
     <div class="actions-cell">
       <div class="ws-dropdown">
@@ -468,15 +475,15 @@ function renderTable() {
           ⚙️ Actions ▾
         </button>
         <div id="dropdown-${c._id}" class="ws-dropdown-menu">
-          <button class="ws-dropdown-item" onclick="window.wsViewCert('${esc(c.certificateId)}')" title="Open document">
+          <button class="ws-dropdown-item" onclick="window.wsViewCert('${c._id}')" title="Open document">
             <span>📄</span> View Doc
           </button>
           ${(c.holderDob || c.holderEmail) ? `
-            <button class="ws-dropdown-item" onclick="window.wsCopyLink('${esc(c.referenceNumber)}')" title="Copy recipient link">
+            <button class="ws-dropdown-item" onclick="window.wsCopyLink('${c._id}')" title="Copy recipient link">
               <span>🔗</span> Copy Link
             </button>
           ` : ''}
-          <button class="ws-dropdown-item" onclick="window.wsEmailModal('${esc(c.certificateId)}')" title="Send email">
+          <button class="ws-dropdown-item" onclick="window.wsEmailModal('${c._id}')" title="Send email">
             <span>📧</span> Email Doc
           </button>
           <button class="ws-dropdown-item" onclick="window.wsEditModal('${c._id}')" title="Edit details">
@@ -487,10 +494,10 @@ function renderTable() {
           
           ${c.status === 'active'
             ? `
-              <button class="ws-dropdown-item warning" onclick="window.wsExpire('${c._id}','${esc(c.holderName)}')" title="Expire document">
+              <button class="ws-dropdown-item warning" onclick="window.wsExpire('${c._id}')" title="Expire document">
                 <span>⏳</span> Expire Doc
               </button>
-              <button class="ws-dropdown-item danger" onclick="window.wsRevokeModal('${c._id}','${esc(c.holderName)}')" title="Revoke document">
+              <button class="ws-dropdown-item danger" onclick="window.wsRevokeModal('${c._id}')" title="Revoke document">
                 <span>🚫</span> Revoke Doc
               </button>
             `
@@ -509,7 +516,7 @@ function renderTable() {
           
           <div class="ws-dropdown-divider"></div>
           
-          <button class="ws-dropdown-item danger" onclick="window.wsDeleteModal('${c._id}','${esc(c.holderName)}')" title="Delete record">
+          <button class="ws-dropdown-item danger" onclick="window.wsDeleteModal('${c._id}')" title="Delete record">
             <span>🗑</span> Delete Record
           </button>
         </div>
@@ -522,9 +529,10 @@ function renderTable() {
 
 // Expose handlers on window for inline onclick (no framework)
 // ─── View actual document (admin-only) ─────────────────────────────────────────────────────────────
-window.wsViewCert = (certId) => {
+window.wsViewCert = (id) => {
   // Find the certificate in memory
-  const cert = allCerts.find(c => c.certificateId === certId);
+  const cert = allCerts.find(c => c._id === id);
+  const certId = cert?.certificateId || '';
   if (!cert) {
     // Fallback: open public verify page if cert not found in memory
     window.open(`/?id=${certId}`, '_blank');
@@ -586,12 +594,13 @@ window.wsViewCert = (certId) => {
   win.document.close();
 };
 
-window.wsRevokeModal = (id, name) => openRevokeModal(id, name);
+window.wsRevokeModal = (id) => openRevokeModal(id, certName(id));
 window.wsEditModal   = (id)       => openEditModal(id);
-window.wsEmailModal  = (certId)   => openEmailModal(certId);
+window.wsEmailModal  = (id)       => openEmailModal(allCerts.find(c => c._id === id)?.certificateId);
 
 // Copy the recipient's download link to clipboard
-window.wsCopyLink = (ref) => {
+window.wsCopyLink = (id) => {
+  const ref = allCerts.find(c => c._id === id)?.referenceNumber || '';
   const base = window.location.origin;
   const link = `${base}/#download?ref=${encodeURIComponent(ref)}`;
   navigator.clipboard.writeText(link).then(() => {
@@ -621,7 +630,8 @@ window.wsRestore = async (id) => {
   }
 };
 
-window.wsExpire = async (id, name) => {
+window.wsExpire = async (id) => {
+  const name = certName(id);
   if (!confirm(`Are you sure you want to mark ${name}'s certificate/letter as EXPIRED?`)) return;
   try {
     await adminExpire(token, id);
@@ -632,7 +642,11 @@ window.wsExpire = async (id, name) => {
   }
 };
 
-window.wsDeleteModal = (id, name) => openDeleteModal(id, name);
+window.wsDeleteModal = (id) => openDeleteModal(id, certName(id));
+
+function certName(id) { return allCerts.find(c => c._id === id)?.holderName || ''; }
+/** Restrict DB values used as CSS class names to a safe token */
+function cssToken(v) { return String(v || '').replace(/[^a-z0-9-]/gi, ''); }
 
 window.wsToggleDropdown = (event, id) => {
   event.stopPropagation();
@@ -1029,10 +1043,10 @@ function openEditModal(id) {
       <div class="form-group form-full" style="border-top: 1px dashed var(--gray-200); padding-top: 12px; margin-top: 8px;">
         <label class="form-label">Upload Signed Copy <span style="font-size:0.7rem;color:#94a3b8;font-weight:400;">(optional, max 4MB PDF/Image)</span></label>
         <input type="file" id="e-signed-file" accept="application/pdf,image/*" class="form-input" style="padding:6px; background:#fff;" />
-        ${cert.signedUrl ? `
+        ${safeUrl(cert.signedUrl) ? `
           <div style="font-size:0.75rem; color:#166534; margin-top:6px; display:flex; align-items:center; gap:6px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; padding:6px 10px; width:fit-content;">
             <span>✅ Signed Copy Attached:</span>
-            <a href="${cert.signedUrl}" target="_blank" style="color:#166534; font-weight:700; text-decoration:underline;">Download Copy</a>
+            <a href="${esc(safeUrl(cert.signedUrl))}" target="_blank" rel="noopener noreferrer" style="color:#166534; font-weight:700; text-decoration:underline;">Download Copy</a>
           </div>
         ` : ''}
       </div>
@@ -1254,7 +1268,8 @@ function showToast(msg, type = 'success') {
   const t = document.createElement('div');
   t.id = 'ws-toast';
   t.className = `toast ${type}`;
-  t.innerHTML = `<span class="toast-icon">${type === 'success' ? '✅' : '❌'}</span><span>${msg}</span>`;
+  t.innerHTML = `<span class="toast-icon">${type === 'success' ? '✅' : '❌'}</span><span></span>`;
+  t.lastElementChild.textContent = msg;
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 3500);
 }

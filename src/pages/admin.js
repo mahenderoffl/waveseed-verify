@@ -6,7 +6,14 @@ import {
 } from '../api.js';
 import { initGeneratePage } from './generate.js';
 import { initEmployeesPage } from './employees.js';
-import { productDropdownHTML, tableSkeletonHTML } from './shared.js';
+import { productDropdownHTML, purposeDropdownHTML, tableSkeletonHTML } from './shared.js';
+
+// Document types whose tenure can still be running (see generate.js "currentlyWorking")
+const ONGOING_TYPES = ['experience-letter', 'employment-cert', 'lor', 'noc'];
+
+function parseTemplateData(cert) {
+  try { return JSON.parse(cert.templateData || '{}') || {}; } catch { return {}; }
+}
 import { generateDocument, purposeClause, isEducationPurpose } from '../templates/templates.js';
 
 
@@ -918,6 +925,9 @@ function openEditModal(id) {
     'Internal R&D Project','Client Project','Consulting Engagement'
   ];
   const isKnownProduct = PRODUCT_OPTIONS.includes(cert.product);
+  const td = parseTemplateData(cert);
+  const canBeOngoing = ONGOING_TYPES.includes(cert.certificateType);
+  const isOngoing = canBeOngoing && td.currentlyWorking === 'yes' && !cert.endDate;
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -991,8 +1001,19 @@ function openEditModal(id) {
       </div>
       <div class="form-group">
         <label class="form-label">End Date</label>
-        <input id="e-end" class="form-input" type="date" value="${esc(cert.endDate||'')}" />
+        <input id="e-end" class="form-input" type="date" value="${esc(cert.endDate||'')}" ${isOngoing ? 'disabled' : ''} />
       </div>
+      ${canBeOngoing ? `
+      <div class="form-group form-full">
+        <label class="form-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;">
+          <input id="e-ongoing" type="checkbox" ${isOngoing ? 'checked' : ''} /> Currently working here (no end date — reads "since … till date")
+        </label>
+      </div>` : ''}
+      ${cert.certificateType === 'experience-letter' ? `
+      <div class="form-group form-full">
+        <label class="form-label">Purpose of Letter</label>
+        ${purposeDropdownHTML('e-letterPurpose', td.letterPurpose || '')}
+      </div>` : ''}
       <div class="form-group">
         <label class="form-label">Issuer Name</label>
         <input id="e-issuer-name" class="form-input" value="${esc(cert.issuerName||'')}" />
@@ -1029,6 +1050,11 @@ function openEditModal(id) {
   document.getElementById('close-edit-modal').addEventListener('click', () => closeModal('edit-modal'));
   document.getElementById('cancel-edit').addEventListener('click', () => closeModal('edit-modal'));
   document.getElementById('submit-edit').addEventListener('click', () => submitEdit(id));
+  document.getElementById('e-ongoing')?.addEventListener('change', (e) => {
+    const end = document.getElementById('e-end');
+    end.disabled = e.target.checked;
+    if (e.target.checked) end.value = '';
+  });
 }
 
 async function submitEdit(id) {
@@ -1057,12 +1083,32 @@ async function submitEdit(id) {
     reportingTo:       get('e-reporting') || undefined,
     workMode:          get('e-workmode') || undefined,
     startDate:         get('e-start') || undefined,
-    endDate:           get('e-end') || undefined,
+    // '' (not undefined) so a cleared End Date is actually removed
+    endDate:           get('e-end'),
     issuerName:        get('e-issuer-name') || undefined,
     issuerTitle:       get('e-issuer-title') || undefined,
     notes:             get('e-notes') || undefined,
     nameFont:          get('e-namefont') || undefined,
   };
+
+  // Keep stored templateData in sync — re-rendering falls back to its endDate,
+  // and it carries the ongoing flag and letter purpose.
+  const cert = allCerts.find(c => c._id === id);
+  if (cert) {
+    const td = parseTemplateData(cert);
+    const ongoingEl = document.getElementById('e-ongoing');
+    if (ongoingEl) {
+      td.currentlyWorking = ongoingEl.checked ? 'yes' : '';
+      if (ongoingEl.checked) data.endDate = '';
+    }
+    const purposeSel = document.getElementById('e-letterPurpose');
+    if (purposeSel) {
+      td.letterPurpose = purposeSel.value === '__custom__' ? get('e-letterPurpose-custom') : purposeSel.value;
+    }
+    if (data.startDate) td.startDate = data.startDate;
+    td.endDate = data.endDate;
+    data.templateData = JSON.stringify(td);
+  }
 
   const btn = document.getElementById('submit-edit');
   btn.disabled = true;

@@ -1,7 +1,7 @@
 // ─── generate.js — Document Generation Dashboard ──────────────────────────────
 import { generateDocument } from '../templates/templates.js';
 import { adminGetAll, adminGetEmployees, adminGetNextIds, adminAddCertificate } from '../api.js';
-import { productDropdownHTML } from './shared.js';
+import { productDropdownHTML, purposeDropdownHTML } from './shared.js';
 
 // ─── Document Type Catalogue ───────────────────────────────────────────────────
 const DOC_TYPES = [
@@ -16,7 +16,7 @@ const DOC_TYPES = [
     id:'employment-cert', cat:'certificate', icon:'💼',
     name:'Employment Certificate', color:'#1e3264',
     desc:'Proof of employment / service certificate for current or former employees.',
-    fields:['certId','refNum','holderName','nameFont','role','startDate','endDate','issuedDate','customMessage'],
+    fields:['certId','refNum','holderName','nameFont','role','startDate','endDate','currentlyWorking','issuedDate','customMessage'],
   },
   {
     id:'course-cert', cat:'certificate', icon:'📚',
@@ -58,8 +58,8 @@ const DOC_TYPES = [
   {
     id:'experience-letter', cat:'letter', icon:'📄',
     name:'Experience / Service Letter', color:'#475569',
-    desc:'Service verification letter confirming tenure and role for ex-employees.',
-    fields:['certId','refNum','date','recipientName','role','startDate','endDate','responsibilities','conduct'],
+    desc:'Service verification letter confirming tenure and role for current or former employees.',
+    fields:['certId','refNum','date','recipientName','role','startDate','endDate','currentlyWorking','letterPurpose','responsibilities','conduct'],
   },
   {
     id:'relieving-letter', cat:'letter', icon:'🤝',
@@ -77,13 +77,13 @@ const DOC_TYPES = [
     id:'lor', cat:'letter', icon:'🌟',
     name:'Letter of Recommendation', color:'#c9a227',
     desc:'Strong LOR for outstanding interns or employees, suitable for jobs or admissions.',
-    fields:['certId','refNum','date','recipientName','role','startDate','endDate','strengths','achievements','recommendation'],
+    fields:['certId','refNum','date','recipientName','role','startDate','endDate','currentlyWorking','strengths','achievements','recommendation'],
   },
   {
     id:'noc', cat:'letter', icon:'✅',
     name:'No Objection Certificate', color:'#0891b2',
     desc:'NOC for further studies, visa applications, or external opportunities.',
-    fields:['certId','refNum','date','recipientName','role','startDate','endDate','purpose'],
+    fields:['certId','refNum','date','recipientName','role','startDate','endDate','currentlyWorking','purpose'],
   },
   {
     id:'promotion-letter', cat:'letter', icon:'🚀',
@@ -118,6 +118,7 @@ const FIELD_DEF = {
   workMode:        { label:'Work Mode',             type:'select', opts:['','Remote','On-site','Hybrid'] },
   startDate:       { label:'Start Date',            type:'date' },
   endDate:         { label:'End Date',              type:'date' },
+  currentlyWorking:{ label:'Currently working here (no end date — reads "since … till date")', type:'checkbox' },
   issuedDate:      { label:'Date of Issue',         type:'date', req:true },
   customMessage:   { label:'Custom Body Text (optional)', type:'textarea', ph:'Leave blank for auto-generated text' },
   // Letter-specific
@@ -143,6 +144,7 @@ const FIELD_DEF = {
   strengths:       { label:'Key Strengths',         type:'textarea', ph:'Describe key strengths and qualities' },
   achievements:    { label:'Notable Achievements',  type:'textarea', ph:'Describe significant achievements' },
   recommendation:  { label:'Custom Recommendation Text', type:'textarea', ph:'Leave blank for auto-generated text' },
+  letterPurpose:   { label:'Purpose of Letter' },
   purpose:         { label:'Purpose of NOC',        ph:'e.g. Higher studies / Visa / Further employment', req:true },
   oldRole:         { label:'Previous Designation',  ph:'Previous role title' },
   newRole:         { label:'New Designation',       ph:'New promoted role title', req:true },
@@ -415,6 +417,8 @@ window.wsOpenGenForm = async function(typeId) {
         const el = document.getElementById(id);
         if (el && value) el.value = value;
       }
+      // Active employee with no end date → still serving
+      window.wsToggleOngoing(emp.status !== 'former' && !emp.endDate);
 
       // If document needs ID and ref number, auto-increment them
       const certEl = document.getElementById('f-certId');
@@ -471,6 +475,9 @@ window.wsAutoFill = function(typeId) {
     const el = document.getElementById(id);
     if (el && val) el.value = val;
   }
+  let ongoing = false;
+  try { ongoing = JSON.parse(cert.templateData || '{}').currentlyWorking === 'yes' && !cert.endDate; } catch {}
+  window.wsToggleOngoing(ongoing);
   showToast('✅ Fields auto-filled from certificate!', 'success');
 };
 
@@ -555,6 +562,18 @@ window.wsGenerate = async function(typeId) {
   }
 };
 
+// ─── Ongoing tenure toggle ─────────────────────────────────────────────────────
+// When "Currently working here" is ticked, the End Date is cleared and disabled
+// so the letter renders "since <start> … as on <letter date>" instead of a range.
+window.wsToggleOngoing = function(force) {
+  const chk = document.getElementById('f-currentlyWorking');
+  const end = document.getElementById('f-endDate');
+  if (!chk || !end) return;
+  if (typeof force === 'boolean') chk.checked = force;
+  end.disabled = chk.checked;
+  if (chk.checked) end.value = '';
+};
+
 // ─── Form Builder ──────────────────────────────────────────────────────────────
 function buildFormFields(docType) {
   return docType.fields.map(fid => {
@@ -563,6 +582,14 @@ function buildFormFields(docType) {
     const inputId = `f-${fid}`;
     const req = def.req ? '<span class="req">*</span>' : '';
     const full = ['customMessage','responsibilities','reason','strengths','achievements','recommendation','incident'].includes(fid) ? ' form-full' : '';
+
+    if (fid === 'letterPurpose') {
+      return `
+<div class="form-group${full}">
+  <label class="form-label">${def.label}</label>
+  ${purposeDropdownHTML(inputId)}
+</div>`;
+    }
 
     if (fid === 'product') {
       return `
@@ -577,6 +604,14 @@ function buildFormFields(docType) {
 <div class="form-group${full}">
   <label class="form-label">${def.label} ${req}</label>
   <textarea id="${inputId}" class="form-textarea" placeholder="${def.ph || ''}">${def.def || ''}</textarea>
+</div>`;
+    }
+    if (def.type === 'checkbox') {
+      return `
+<div class="form-group form-full">
+  <label class="form-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;">
+    <input id="${inputId}" type="checkbox" onchange="window.wsToggleOngoing()" /> ${def.label}
+  </label>
 </div>`;
     }
     if (def.type === 'select') {
@@ -600,11 +635,13 @@ function buildFormFields(docType) {
 function collectFormData(docType) {
   const data = {};
   docType.fields.forEach(fid => {
-    if (fid === 'product') {
-      const selectVal = document.getElementById('f-product')?.value || '';
-      data[fid] = selectVal === '__custom__' 
-        ? (document.getElementById('f-product-custom')?.value?.trim() || '') 
+    if (fid === 'product' || fid === 'letterPurpose') {
+      const selectVal = document.getElementById(`f-${fid}`)?.value || '';
+      data[fid] = selectVal === '__custom__'
+        ? (document.getElementById(`f-${fid}-custom`)?.value?.trim() || '')
         : selectVal;
+    } else if (FIELD_DEF[fid]?.type === 'checkbox') {
+      data[fid] = document.getElementById(`f-${fid}`)?.checked ? 'yes' : '';
     } else {
       const el = document.getElementById(`f-${fid}`);
       data[fid] = el?.value?.trim() || '';
@@ -615,6 +652,7 @@ function collectFormData(docType) {
   data.issuerName  = document.getElementById('f-issuerName')?.value?.trim() || 'Mahender';
   data.issuerTitle = document.getElementById('f-issuerTitle')?.value?.trim() || 'Founder, WaveSeed Co.';
   data.certType    = docType.id.replace('-cert',''); // for certificate templates
+  if (data.currentlyWorking) data.endDate = ''; // ongoing tenure has no end date
   return data;
 }
 

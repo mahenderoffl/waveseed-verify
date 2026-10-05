@@ -7,7 +7,7 @@ import {
 import { initGeneratePage } from './generate.js';
 import { initEmployeesPage } from './employees.js';
 import { productDropdownHTML, tableSkeletonHTML } from './shared.js';
-import { generateDocument } from '../templates/templates.js';
+import { generateDocument, purposeClause, isEducationPurpose } from '../templates/templates.js';
 
 
 let token = sessionStorage.getItem('ws_admin_token') || null;
@@ -1595,25 +1595,40 @@ function generateEmailTemplate(cert, email, downloadLink) {
       </p>`;
   } else if (cert.certificateType === 'experience-letter') {
     subject = `Official Experience & Service Letter — WaveSeed Co.`;
+    // No end date = still serving → "since <start> till date" instead of "to completion"
+    const ongoing = !cert.endDate && !!cert.startDate;
+    const tenure = ongoing ? `since ${startDate} till date` : `from ${startDate} to ${endDate}`;
+    const tenureHtml = ongoing
+      ? `since <strong>${esc(startDate)}</strong> till date`
+      : `from <strong>${esc(startDate)}</strong> to <strong>${esc(endDate)}</strong>`;
+    let letterPurpose = '';
+    try { letterPurpose = JSON.parse(cert.templateData || '{}').letterPurpose || ''; } catch {}
+    const pc = purposeClause(letterPurpose, ongoing);
+    const usedFor = pc.lead.replace(/\btheir\b/g, 'your') + pc.value;
+    const closing = ongoing
+      ? `This letter is issued ${usedFor}, and confirms your service up to the date of issue. ` +
+        (isEducationPurpose(letterPurpose) ? `Please note that any leave or release from duties for this purpose requires separate written approval from WaveSeed Co. ` : '') +
+        `We thank you for your continued service and contribution to WaveSeed Co.`
+      : `This letter is issued ${usedFor}. We thank you for your service and wish you all the best in your future career endeavors.`;
     bodyText = `Dear ${fullName},\n\n` +
       `Please find attached your official Experience & Service Verification Letter from WaveSeed Co.\n\n` +
-      `This letter confirms your tenure as ${role} from ${startDate} to ${endDate}.\n\n` +
+      `This letter confirms your tenure as ${role} ${tenure}.\n\n` +
       `You can download the letter securely via this link:\n` +
       `👉 ${downloadLink}\n\n` +
-      `We thank you for your service and wish you all the best in your future career endeavors.\n\n` +
+      `${closing}\n\n` +
       `Best regards,\n\n` +
       `Mahender Banoth\n` +
       `Founder, CEO & Building WaveSeed Co.`;
 
     bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
       <p>Please find attached your official Experience & Service Verification Letter from <strong>WaveSeed Co.</strong></p>
-      <p>This letter confirms your tenure as <strong>${esc(role)}</strong> from <strong>${esc(startDate)}</strong> to <strong>${esc(endDate)}</strong>.</p>
+      <p>This letter confirms your tenure as <strong>${esc(role)}</strong> ${tenureHtml}.</p>
       <div style="margin: 20px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 15px 0; background: #f8fafc; text-align: center;">
         <p style="margin: 5px 0; font-size: 1rem;">
           👉 <a href="${downloadLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;" target="_blank">Download Experience Letter</a>
         </p>
       </div>
-      <p>We thank you for your service and wish you all the best in your future career endeavors.</p>
+      <p>${esc(closing)}</p>
       <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
         Best regards,<br><br>
         <strong>Mahender Banoth</strong><br>

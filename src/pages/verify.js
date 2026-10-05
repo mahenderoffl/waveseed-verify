@@ -210,7 +210,8 @@ function renderValid(d) {
     : `has successfully ${completionVerb(d.certificateType)} as<br>
        <span class="cert-role-highlight">${esc(d.role)}</span><br>
        at <strong>WaveSeed Co.</strong>${d.product ? ` — <em>${esc(d.product)}</em>` : ''}
-       ${durationText ? `<br>during the period of <strong>${durationText}</strong>` : ''}`;
+       ${(d.startDate && d.endDate) ? `<br>during the period of <strong>${durationText}</strong>`
+         : d.startDate ? `<br>since <strong>${formatDate(d.startDate)}</strong>` : ''}`;
 
   const bottomNote = isLetter 
     ? `This document was verified on ${new Date().toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' })} at verify.waveseed.app`

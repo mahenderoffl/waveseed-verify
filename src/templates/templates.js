@@ -75,6 +75,30 @@ function fmtDate(d) {
 }
 function today() { return fmtDate(new Date().toISOString().split('T')[0]); }
 function esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }
+// Tenure still running: flagged "currently working" and no end date recorded.
+// An end date added later (e.g. via the admin Edit modal) wins, reverting to past tense.
+function isOngoing(d) { return d.currentlyWorking === 'yes' && !!d.startDate && !d.endDate; }
+
+// Purpose of an experience / service letter. Tolerates custom text typed as
+// "for higher studies" or "Purpose: visa." so the sentence never doubles up.
+export function cleanPurpose(p) {
+  return String(p || '').trim()
+    .replace(/^purpose\s*[:\-–]\s*/i, '')
+    .replace(/^(for\s+)?(the\s+)?purpose\s+of\s+/i, '')
+    .replace(/^for\s+/i, '')
+    .replace(/[.\s]+$/, '');
+}
+export function isEducationPurpose(p) {
+  return /educat|stud(y|ies)|admission|universit|college|school|scholar|course|degree|master|\bm\.?s\b|\bmba\b|ph\.?d/i.test(p || '');
+}
+// Wording after "issued upon their request …" — plain text; caller escapes for HTML.
+export function purposeClause(purpose, ongoing) {
+  const p = cleanPurpose(purpose);
+  if (p) return { lead: 'for the purpose of ', value: p };
+  return { lead: ongoing
+    ? 'for their personal records and for submission to any educational institution, employer, bank, embassy, or other authority as may be required'
+    : 'for their personal records, future employment, and academic pursuits', value: '' };
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1. COMPLETION CERTIFICATE (Internship, Course, Employment, Appreciation, etc.)
@@ -141,8 +165,11 @@ export function certificateTemplate(data) {
   };
   const t = typeLabels[certType] || typeLabels.other;
 
+  const period = isOngoing(data)
+    ? ` since <strong>${fmtDate(startDate)}</strong> and continues to serve with the organisation as on <strong>${fmtDate(issuedDate)}</strong>`
+    : (startDate && endDate) ? ` during the period of <strong>${fmtDate(startDate)} to ${fmtDate(endDate)}</strong>` : '';
   const bodyText = customMessage ||
-    `has successfully ${t.verb} as <strong>${esc(role)}</strong>${product ? ` at <strong>WaveSeed Co.</strong> on the <em>${esc(product)}</em> project` : ` at <strong>WaveSeed Co.</strong>`}${(startDate && endDate) ? ` during the period of <strong>${fmtDate(startDate)} to ${fmtDate(endDate)}</strong>` : ''}.`;
+    `has successfully ${t.verb} as <strong>${esc(role)}</strong>${product ? ` at <strong>WaveSeed Co.</strong> on the <em>${esc(product)}</em> project` : ` at <strong>WaveSeed Co.</strong>`}${period}.`;
 
   const verificationUrl = `https://verify.waveseed.app/?id=${certId}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(verificationUrl)}`;
@@ -819,9 +846,39 @@ ${signatureBlockHTML()}
 export function experienceLetterTemplate(data) {
   const {
     refNum='', date='', recipientName='', role='', startDate='', endDate='',
-    responsibilities='', conduct='satisfactory',
+    responsibilities='', conduct='satisfactory', letterPurpose='',
     certId='',
   } = data;
+  const name = esc(recipientName);
+  const pc = purposeClause(letterPurpose, isOngoing(data));
+  const purposeHTML = esc(pc.lead) + (pc.value ? `<strong>${esc(pc.value)}</strong>` : '');
+
+  // Current employee: no end date — state the tenure "since <start>" as on the letter date,
+  // keep everything in present tense, and make clear this is not a relieving letter.
+  if (isOngoing(data)) {
+    const body = `
+<div class="subject-line" style="margin-bottom:20px;">
+  <span class="subject-label">Subject: </span>
+  <span class="subject-text">Experience / Service Certificate — ${name}</span>
+</div>
+<p class="salutation">To Whomsoever It May Concern,</p>
+<p class="para">This is to certify that <strong>${name}</strong> has been associated with <strong>WaveSeed Co.</strong> as a <strong>${esc(role)}</strong> since <strong>${fmtDate(startDate)}</strong> and continues to be associated with the organisation in the same capacity as on the date of this letter, <strong>${fmtDate(date)}</strong>. Throughout their tenure of service, they have demonstrated high diligence, technical competency, and professional responsibility.</p>
+
+<p class="para">During their association with WaveSeed Co., ${name} has made valuable contributions to our engineering and product teams. They are actively involved in code deployment, design optimization, and full-stack development. Their dedication to maintaining clean architecture, resolving complex defects, and collaborating across teams is exemplary.</p>
+
+${responsibilities ? `<p class="para"><strong>Core Responsibilities &amp; Areas of Focus:</strong> ${esc(responsibilities)}</p>` : `
+<p class="para">As a part of their core responsibilities, ${name} works on refining application logic, integrating robust API endpoints, and enhancing UI components, ensuring that all development follows best practices, security protocols, and rigorous quality assurance guidelines.</p>
+`}
+
+<p class="para">During their service with WaveSeed Co. to date, <strong>${name}</strong> has demonstrated <strong>${esc(conduct)}</strong> conduct, maintained a high level of integrity, and exhibited positive interpersonal relationships with peers and management.</p>
+
+<p class="para">We appreciate their continued efforts, dedication, and contribution to the organization, and wish them continued success in their role and professional endeavours with us.</p>
+
+<p class="para" style="margin-bottom:24px;">This certificate is issued upon their request ${purposeHTML}. It confirms their service up to the date of issue and does not constitute a relieving letter or a release from their current employment.${isEducationPurpose(letterPurpose) ? ` Any leave, sabbatical, or release from duties required to pursue the same shall be subject to the company's policies and separate written approval from WaveSeed Co.` : ''}</p>
+
+${signatureBlockHTML()}`;
+    return letterWrapper({ title:`Experience Letter — ${recipientName}`, refNum, date, body, verificationId: certId });
+  }
 
   const body = `
 <div class="subject-line" style="margin-bottom:20px;">
@@ -841,7 +898,7 @@ ${responsibilities ? `<p class="para"><strong>Core Responsibilities &amp; Areas 
 
 <p class="para">We appreciate their valuable efforts, dedication, and contribution to the organization during their service period. On behalf of the management at WaveSeed Co., we wish them the absolute best in all their future career steps and professional endeavours.</p>
 
-<p class="para" style="margin-bottom:24px;">This certificate is issued upon their request for their personal records, future employment, and academic pursuits.</p>
+<p class="para" style="margin-bottom:24px;">This certificate is issued upon their request ${purposeHTML}.</p>
 
 ${signatureBlockHTML()}`;
 
@@ -921,7 +978,7 @@ export function lorTemplate(data) {
 
   const body = `
 <p class="salutation" style="margin-bottom:16px;">To Whomsoever It May Concern,</p>
-<p class="para">It is with great pleasure and without reservation that I write this Letter of Recommendation for <strong>${esc(recipientName)}</strong>, who served as a <strong>${esc(role)}</strong> at <strong>WaveSeed Co.</strong>${(startDate && endDate) ? ` during the period from <strong>${fmtDate(startDate)}</strong> to <strong>${fmtDate(endDate)}</strong>` : ''}. Throughout their tenure with us, they have consistently demonstrated an outstanding work ethic, technical proficiency, and a proactive attitude toward solving complex software challenges.</p>
+<p class="para">It is with great pleasure and without reservation that I write this Letter of Recommendation for <strong>${esc(recipientName)}</strong>, ${isOngoing(data) ? `who has been serving as a <strong>${esc(role)}</strong> at <strong>WaveSeed Co.</strong> since <strong>${fmtDate(startDate)}</strong>` : `who served as a <strong>${esc(role)}</strong> at <strong>WaveSeed Co.</strong>${(startDate && endDate) ? ` during the period from <strong>${fmtDate(startDate)}</strong> to <strong>${fmtDate(endDate)}</strong>` : ''}`}. Throughout their tenure with us, they have consistently demonstrated an outstanding work ethic, technical proficiency, and a proactive attitude toward solving complex software challenges.</p>
 
 <p class="para">During their association with WaveSeed Co., ${esc(recipientName)} was primarily involved in the design, development, and scaling of our core SaaS applications. They demonstrated high capability in working with modern web technologies, AI integrations, and responsive user interfaces. They did not just write code; they actively participated in sprint planning, architectural design discussions, and code reviews, showing a level of mature thinking and engineering discipline that is rare in a professional cohort.</p>
 
@@ -936,7 +993,7 @@ ${achievements ? `<p class="para"><strong>Notable Contributions &amp; Achievemen
 ${recommendation ? `<p class="para">${esc(recommendation)}</p>` : `
 <p class="para">Beyond their technical expertise, ${esc(recipientName)} is an excellent communicator and a reliable team player. They collaborate seamlessly with cross-functional team members, receive feedback constructively, and support peers. Their enthusiasm, professional maturity, and dedication make them stand out as a promising tech talent.</p>
 
-<p class="para">I highly recommend <strong>${esc(recipientName)}</strong> for any technical role, academic endeavor, or research project that requires intellectual curiosity, rigorous problem-solving, and dedication. I am confident they will bring the same excellence, energy, and value to your organization as they did to ours. We wish them the absolute best in all their future professional pursuits.</p>
+<p class="para">I highly recommend <strong>${esc(recipientName)}</strong> for any technical role, academic endeavor, or research project that requires intellectual curiosity, rigorous problem-solving, and dedication. I am confident they will bring the same excellence, energy, and value to your organization as they ${isOngoing(data) ? 'do' : 'did'} to ours. We wish them the absolute best in all their future professional pursuits.</p>
 `}
 
 <p class="para" style="margin-bottom:24px;">Please feel free to contact me at <strong>careers@waveseed.app</strong> if you require any additional information or verification regarding their tenure and contributions.</p>
@@ -958,7 +1015,9 @@ export function nocTemplate(data) {
   <span class="subject-text">No Objection Certificate (NOC)</span>
 </div>
 <p class="salutation">To Whomsoever It May Concern,</p>
-<p class="para">This is to certify that <strong>${esc(recipientName)}</strong> is${(startDate && endDate) ? `/was` : ''} associated with <strong>WaveSeed Co.</strong> as a <strong>${esc(role)}</strong>${(startDate && endDate) ? ` during the period from <strong>${fmtDate(startDate)}</strong> to <strong>${fmtDate(endDate)}</strong>` : ''}. Throughout their tenure with the company, they have maintained a clean record of service and adhered to all corporate codes of conduct.</p>
+<p class="para">This is to certify that <strong>${esc(recipientName)}</strong> ${isOngoing(data)
+  ? `has been associated with <strong>WaveSeed Co.</strong> as a <strong>${esc(role)}</strong> since <strong>${fmtDate(startDate)}</strong> and continues to be associated with the company as on <strong>${fmtDate(date)}</strong>`
+  : `is${(startDate && endDate) ? `/was` : ''} associated with <strong>WaveSeed Co.</strong> as a <strong>${esc(role)}</strong>${(startDate && endDate) ? ` during the period from <strong>${fmtDate(startDate)}</strong> to <strong>${fmtDate(endDate)}</strong>` : ''}`}. Throughout their tenure with the company, they have maintained a clean record of service and adhered to all corporate codes of conduct.</p>
 
 <p class="para">During their association, ${esc(recipientName)} has been an integral part of our software engineering workflows. They have consistently demonstrated professional discipline, integrity, and dedication in executing their responsibilities. All their projects and handovers have been documented and handled with high standard compliance.</p>
 

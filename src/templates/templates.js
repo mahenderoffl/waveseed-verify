@@ -597,7 +597,7 @@ function letterWrapper({ title, refNum='', date='', body='', confidential=true, 
       <span>${refNum ? `Ref: ${esc(refNum)}` : ''}</span>
       <span style="text-align:right;">
         ${verificationId ? `Verification ID: <strong>${esc(verificationId)}</strong><br/>` : ''}
-        Date: ${esc(date) || today()}
+        Date: ${/^\d{4}-\d{2}-\d{2}$/.test(date) ? fmtDate(date) : (esc(date) || today())}
       </span>
     </div>
     ${confidential ? '<div class="confidential">Strictly Private &amp; Confidential</div>' : ''}
@@ -1171,6 +1171,185 @@ ${signatureBlockHTML()}
   return letterWrapper({ title:`Salary Revision — ${recipientName}`, refNum, date, body, verificationId: certId });
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 12. SALARY / STIPEND SLIP (monthly payslip)
+// ═══════════════════════════════════════════════════════════════════════════════
+export const PAYSLIP_EARNINGS = [
+  ['basicPay', 'Basic Pay'], ['hra', 'House Rent Allowance'], ['specialAllowance', 'Special Allowance'],
+  ['conveyance', 'Conveyance Allowance'], ['bonus', 'Bonus / Incentive'], ['otherEarnings', 'Other Earnings'],
+];
+export const PAYSLIP_DEDUCTIONS = [
+  ['pfDeduction', 'Provident Fund (Employee)'], ['professionalTax', 'Professional Tax'], ['tds', 'Income Tax (TDS)'],
+  ['lopDeduction', 'Loss of Pay'], ['otherDeductions', 'Other Deductions'],
+];
+
+/** Parse an amount typed as "25,000" / "₹ 25000.50" → 25000.5 (invalid → 0) */
+export function amt(v) {
+  const n = parseFloat(String(v ?? '').replace(/[₹,\s]/g, ''));
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : 0;
+}
+export function payslipTotals(d) {
+  const gross = PAYSLIP_EARNINGS.reduce((s, [k]) => s + amt(d[k]), 0);
+  const deductions = PAYSLIP_DEDUCTIONS.reduce((s, [k]) => s + amt(d[k]), 0);
+  return { gross, deductions, net: Math.round((gross - deductions) * 100) / 100 };
+}
+export function inr(n) {
+  return '₹ ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/** 125050.5 → "Rupees One Lakh Twenty Five Thousand Fifty and Paise Fifty Only" (Indian numbering) */
+export function rupeesInWords(n) {
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve',
+    'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  const two = x => x < 20 ? ones[x] : `${tens[Math.floor(x / 10)]}${x % 10 ? ' ' + ones[x % 10] : ''}`;
+  const three = x => `${x >= 100 ? ones[Math.floor(x / 100)] + ' Hundred' + (x % 100 ? ' ' : '') : ''}${x % 100 ? two(x % 100) : ''}`;
+  const words = x => {
+    if (x === 0) return 'Zero';
+    const parts = [];
+    const crore = Math.floor(x / 1e7); x %= 1e7;
+    const lakh = Math.floor(x / 1e5); x %= 1e5;
+    const thousand = Math.floor(x / 1e3); x %= 1e3;
+    if (crore) parts.push(`${words(crore)} Crore`);
+    if (lakh) parts.push(`${two(lakh)} Lakh`);
+    if (thousand) parts.push(`${two(thousand)} Thousand`);
+    if (x) parts.push(three(x));
+    return parts.join(' ');
+  };
+  const total = Math.round(Math.max(0, Number(n) || 0) * 100);
+  const rupees = Math.floor(total / 100), paise = total % 100;
+  return `Rupees ${words(rupees)}${paise ? ` and Paise ${two(paise)}` : ''} Only`;
+}
+
+function fmtMonth(m) {
+  if (!/^\d{4}-\d{2}$/.test(m || '')) return esc(m || '—');
+  const [y, mo] = m.split('-').map(Number);
+  return new Date(y, mo - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+}
+/** Show only the last 4 digits of a bank account */
+function maskAccount(a) {
+  const s = String(a || '').replace(/\s/g, '');
+  return s.length > 4 ? 'XXXX' + s.slice(-4) : s;
+}
+
+export function salarySlipTemplate(data) {
+  const {
+    refNum='', date='', recipientName='', role='', certId='', payslipType='Salary Slip',
+    payMonth='', employeeCode='', department='', joiningDate='', pan='', uan='',
+    bankName='', bankAccount='', workingDays='', paidDays='', paymentDate='', paymentMode='Bank Transfer',
+  } = data;
+  const isStipend = payslipType === 'Stipend Slip';
+  const { gross, deductions, net } = payslipTotals(data);
+  const lop = Math.max(0, (parseFloat(workingDays) || 0) - (parseFloat(paidDays) || 0));
+
+  const earnings = PAYSLIP_EARNINGS.filter(([k]) => amt(data[k]) > 0)
+    .map(([k, label]) => [k === 'basicPay' && isStipend ? 'Stipend' : label, amt(data[k])]);
+  const deds = PAYSLIP_DEDUCTIONS.filter(([k]) => amt(data[k]) > 0).map(([k, label]) => [label, amt(data[k])]);
+  const rows = Math.max(earnings.length, deds.length, 1);
+  const cell = (r) => r ? `<td>${esc(r[0])}</td><td class="num">${inr(r[1])}</td>` : '<td></td><td></td>';
+  const info = (label, value) => value ? `<tr><td>${label}</td><td>${value}</td></tr>` : '';
+
+  const body = `
+<style>
+  .ps-title{ text-align:center; margin:-8px 0 18px; }
+  .ps-title h1{ font-size:15px; font-weight:800; letter-spacing:2px; text-transform:uppercase; color:#0d1b3e; }
+  .ps-title p{ font-size:10.5px; color:#64748b; margin-top:3px; font-weight:600; }
+  .ps-info{ display:grid; grid-template-columns:1fr 1fr; gap:0 24px; margin-bottom:16px; }
+  .ps-info table{ width:100%; border-collapse:collapse; font-size:10.5px; }
+  .ps-info td{ padding:5px 8px; border-bottom:1px solid #eef2f7; color:#334155; }
+  .ps-info td:first-child{ color:#64748b; font-weight:600; width:46%; }
+  .ps-table{ width:100%; border-collapse:collapse; font-size:10.5px; margin-top:6px; border:1px solid #dbe3ee; }
+  .ps-table th{ background:#0d1b3e; color:#fff; padding:8px 10px; text-align:left; font-size:9px; letter-spacing:1px; text-transform:uppercase; }
+  .ps-table td{ padding:7px 10px; border-bottom:1px solid #eef2f7; color:#1e293b; }
+  .ps-table td.num, .ps-table th.num{ text-align:right; white-space:nowrap; }
+  .ps-table td:nth-child(3){ border-left:1px solid #dbe3ee; }
+  .ps-table tr.total td{ font-weight:800; background:#f8fafc; color:#0d1b3e; border-top:2px solid #0d1b3e; }
+  .ps-net{ margin-top:16px; display:flex; justify-content:space-between; align-items:center; background:linear-gradient(135deg,#0d1b3e,#1e3264); color:#fff; border-radius:8px; padding:14px 18px; }
+  .ps-net .label{ font-size:10px; letter-spacing:1.5px; text-transform:uppercase; opacity:0.8; font-weight:700; }
+  .ps-net .value{ font-size:20px; font-weight:800; color:#f0d078; }
+  .ps-words{ font-size:10.5px; color:#334155; margin-top:8px; font-style:italic; }
+  .ps-note{ font-size:9px; color:#94a3b8; margin-top:18px; text-align:center; }
+</style>
+<div class="ps-title">
+  <h1>${isStipend ? 'Stipend Slip' : 'Salary Slip'}</h1>
+  <p>For the month of ${fmtMonth(payMonth)}</p>
+</div>
+<div class="ps-info">
+  <table>
+    ${info(isStipend ? 'Intern Name' : 'Employee Name', `<strong>${esc(recipientName)}</strong>`)}
+    ${info(isStipend ? 'Intern ID' : 'Employee ID', esc(employeeCode))}
+    ${info('Designation', esc(role))}
+    ${info('Department', esc(department))}
+    ${info('Date of Joining', joiningDate ? fmtDate(joiningDate) : '')}
+    ${info('PAN', esc(pan).toUpperCase())}
+    ${info('UAN', esc(uan))}
+  </table>
+  <table>
+    ${info('Pay Period', fmtMonth(payMonth))}
+    ${info('Working Days', esc(workingDays))}
+    ${info('Paid Days', esc(paidDays))}
+    ${lop ? info('LOP Days', String(lop)) : ''}
+    ${info('Payment Mode', esc(paymentMode))}
+    ${info('Bank', [esc(bankName), esc(maskAccount(bankAccount))].filter(Boolean).join(' — '))}
+    ${info('Payment Date', paymentDate ? fmtDate(paymentDate) : '')}
+  </table>
+</div>
+<table class="ps-table">
+  <tr><th>Earnings</th><th class="num">Amount</th><th>Deductions</th><th class="num">Amount</th></tr>
+  ${Array.from({ length: rows }, (_, i) => `<tr>${cell(earnings[i])}${cell(deds[i])}</tr>`).join('')}
+  <tr class="total"><td>Gross Earnings</td><td class="num">${inr(gross)}</td><td>Total Deductions</td><td class="num">${inr(deductions)}</td></tr>
+</table>
+<div class="ps-net">
+  <span class="label">Net Pay${isStipend ? ' (Stipend)' : ''}</span>
+  <span class="value">${inr(net)}</span>
+</div>
+<p class="ps-words"><strong>In words:</strong> ${rupeesInWords(net)}</p>
+${signatureBlockHTML()}
+<p class="ps-note">This is a computer-generated ${isStipend ? 'stipend' : 'salary'} slip issued by WaveSeed Co. Its authenticity can be verified at verify.waveseed.app using the Verification ID ${esc(certId)}. The contents of this document are confidential.</p>`;
+
+  return letterWrapper({ title: `${isStipend ? 'Stipend' : 'Salary'} Slip ${fmtMonth(payMonth)} — ${recipientName}`, refNum, date, body, verificationId: certId, docType: 'salary-slip' });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 13. SALARY CERTIFICATE (for bank / loan / visa)
+// ═══════════════════════════════════════════════════════════════════════════════
+export function salaryCertificateTemplate(data) {
+  const {
+    refNum='', date='', recipientName='', role='', department='', joiningDate='', certId='',
+    monthlyGross='', annualCtc='', monthlyNet='', letterPurpose='',
+  } = data;
+  const name = esc(recipientName);
+  const pc = purposeClause(letterPurpose, true);
+  const purposeHTML = esc(pc.lead) + (pc.value ? `<strong>${esc(pc.value)}</strong>` : '');
+  const gross = amt(monthlyGross), ctc = amt(annualCtc), net = amt(monthlyNet);
+
+  const body = `
+<div class="subject-line" style="margin-bottom:20px;">
+  <span class="subject-label">Subject: </span>
+  <span class="subject-text">Salary Certificate — ${name}</span>
+</div>
+<p class="salutation">To Whomsoever It May Concern,</p>
+<p class="para">This is to certify that <strong>${name}</strong> is employed with <strong>WaveSeed Co.</strong> as ${/^[aeiou]/i.test(role) ? 'an' : 'a'} <strong>${esc(role)}</strong>${department ? ` in the <strong>${esc(department)}</strong> department` : ''}${joiningDate ? ` since <strong>${fmtDate(joiningDate)}</strong>` : ''}, and continues to be in our employment as on the date of this letter.</p>
+
+<p class="para">As per the records of the company, their current compensation details are as follows:</p>
+<table class="highlight-table">
+  <tr><td>Employee Name</td><td>${name}</td></tr>
+  <tr><td>Designation</td><td>${esc(role)}</td></tr>
+  ${joiningDate ? `<tr><td>Date of Joining</td><td>${fmtDate(joiningDate)}</td></tr>` : ''}
+  ${gross ? `<tr><td>Monthly Gross Salary</td><td><strong>${inr(gross)}</strong></td></tr>` : ''}
+  ${net ? `<tr><td>Monthly Net Salary (Take-home)</td><td>${inr(net)}</td></tr>` : ''}
+  ${ctc ? `<tr><td>Annual CTC</td><td><strong>${inr(ctc)}</strong> <span style="color:#64748b;">(${rupeesInWords(ctc)})</span></td></tr>` : ''}
+</table>
+
+<p class="para">This certificate is issued upon their request ${purposeHTML}. It is issued without any risk or responsibility on the part of WaveSeed Co. or its management, and does not constitute a guarantee, surety, or undertaking of any kind towards any financial obligation of the employee.</p>
+
+<p class="para" style="margin-bottom:24px;">For verification of this document, please visit <strong>verify.waveseed.app</strong> with the Verification ID, or contact our HR department at <strong>careers@waveseed.app</strong>.</p>
+
+${signatureBlockHTML()}`;
+
+  return letterWrapper({ title: `Salary Certificate — ${recipientName}`, refNum, date, body, verificationId: certId });
+}
+
 // ─── Master dispatcher ─────────────────────────────────────────────────────────
 export function generateDocument(type, data) {
   const map = {
@@ -1196,6 +1375,8 @@ export function generateDocument(type, data) {
     'noc':                nocTemplate,
     'promotion-letter':   promotionLetterTemplate,
     'salary-revision':    salaryRevisionTemplate,
+    'salary-slip':        salarySlipTemplate,
+    'salary-certificate': salaryCertificateTemplate,
     'warning-letter':     warningLetterTemplate,
   };
   const fn = map[type];

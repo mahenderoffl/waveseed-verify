@@ -184,6 +184,7 @@ function renderValid(d) {
     d.certificateType.includes('lor') || 
     d.certificateType.includes('noc') || 
     d.certificateType.includes('revision') || 
+    d.certificateType.includes('salary') || 
     d.certificateType.includes('warning') || 
     d.certificateType.includes('termination') || 
     d.certificateType.includes('relieving')
@@ -433,6 +434,8 @@ function certTypeLabel(type) {
     'noc':                'No Objection Certificate',
     'promotion-letter':  'Promotion Letter',
     'salary-revision':   'Salary Revision Letter',
+    'salary-slip':       'Salary / Stipend Slip',
+    'salary-certificate':'Salary Certificate',
     'warning-letter':    'Warning / Show Cause Notice',
     internship:          'Internship Completion',
     employment:          'Employment Confirmation',
@@ -460,6 +463,8 @@ function certTypeOf(type) {
     'noc':                'No Objection',
     'promotion-letter':  'Promotion Details',
     'salary-revision':   'Salary Revision',
+    'salary-slip':       'Payslip',
+    'salary-certificate':'Salary Certificate',
     'warning-letter':    'Warning Notice',
     internship:          'Completion',
     employment:          'Employment',

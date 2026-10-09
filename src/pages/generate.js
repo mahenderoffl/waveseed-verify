@@ -1,5 +1,5 @@
 // ─── generate.js — Document Generation Dashboard ──────────────────────────────
-import { generateDocument } from '../templates/templates.js';
+import { generateDocument, payslipTotals, inr } from '../templates/templates.js';
 import { adminGetAll, adminGetEmployees, adminGetNextIds, adminAddCertificate } from '../api.js';
 import { productDropdownHTML, purposeDropdownHTML } from './shared.js';
 
@@ -92,10 +92,22 @@ const DOC_TYPES = [
     fields:['certId','refNum','date','recipientName','oldRole','newRole','effectiveDate','reportingTo','newCtc'],
   },
   {
-    id:'salary-revision', cat:'letter', icon:'💰',
+    id:'salary-revision', cat:'payroll', icon:'💰',
     name:'Salary Revision Letter', color:'#0d9488',
     desc:'Letter confirming salary increment or revision.',
     fields:['certId','refNum','date','recipientName','role','oldSalary','newSalary','effectiveDate'],
+  },
+  {
+    id:'salary-slip', cat:'payroll', icon:'🧾',
+    name:'Salary / Stipend Slip', color:'#0f766e',
+    desc:'Monthly payslip with earnings, deductions and net pay in words — for employees or interns.',
+    fields:['certId','refNum','date','recipientName','payslipType','payMonth','employeeCode','role','department','joiningDate','pan','uan','bankName','bankAccount','paymentMode','paymentDate','workingDays','paidDays','splitHelper','basicPay','hra','specialAllowance','conveyance','bonus','otherEarnings','pfDeduction','professionalTax','tds','lopDeduction','otherDeductions'],
+  },
+  {
+    id:'salary-certificate', cat:'payroll', icon:'🏦',
+    name:'Salary Certificate', color:'#1d4ed8',
+    desc:'Certifies current employment and salary — for bank loans, visas, rentals and similar.',
+    fields:['certId','refNum','date','recipientName','role','department','joiningDate','monthlyGross','monthlyNet','annualCtc','letterPurpose'],
   },
   {
     id:'warning-letter', cat:'letter', icon:'⚠️',
@@ -145,6 +157,33 @@ const FIELD_DEF = {
   achievements:    { label:'Notable Achievements',  type:'textarea', ph:'Describe significant achievements' },
   recommendation:  { label:'Custom Recommendation Text', type:'textarea', ph:'Leave blank for auto-generated text' },
   letterPurpose:   { label:'Purpose of Letter' },
+  // Payroll
+  payslipType:     { label:'Slip Type', type:'select', opts:['Salary Slip','Stipend Slip'] },
+  payMonth:        { label:'Pay Month', type:'month', req:true },
+  employeeCode:    { label:'Employee / Intern ID', ph:'e.g. WS-EMP-012' },
+  pan:             { label:'PAN', ph:'ABCDE1234F' },
+  uan:             { label:'UAN (PF)', ph:'Universal Account Number' },
+  bankName:        { label:'Bank Name', ph:'e.g. State Bank of India' },
+  bankAccount:     { label:'Bank Account No.', ph:'Only the last 4 digits are printed' },
+  paymentMode:     { label:'Payment Mode', type:'select', opts:['Bank Transfer','UPI','Cheque','Cash'] },
+  paymentDate:     { label:'Payment Date', type:'date' },
+  workingDays:     { label:'Working Days', type:'number', def:'30' },
+  paidDays:        { label:'Paid Days', type:'number', def:'30' },
+  splitHelper:     { label:'Quick fill from monthly gross (optional)' },
+  basicPay:        { label:'Basic Pay / Stipend (₹)', type:'amount', grp:'earn' },
+  hra:             { label:'House Rent Allowance (₹)', type:'amount', grp:'earn' },
+  specialAllowance:{ label:'Special Allowance (₹)', type:'amount', grp:'earn' },
+  conveyance:      { label:'Conveyance Allowance (₹)', type:'amount', grp:'earn' },
+  bonus:           { label:'Bonus / Incentive (₹)', type:'amount', grp:'earn' },
+  otherEarnings:   { label:'Other Earnings (₹)', type:'amount', grp:'earn' },
+  pfDeduction:     { label:'Provident Fund (₹)', type:'amount', grp:'ded' },
+  professionalTax: { label:'Professional Tax (₹)', type:'amount', grp:'ded' },
+  tds:             { label:'Income Tax / TDS (₹)', type:'amount', grp:'ded' },
+  lopDeduction:    { label:'Loss of Pay (₹)', type:'amount', grp:'ded' },
+  otherDeductions: { label:'Other Deductions (₹)', type:'amount', grp:'ded' },
+  monthlyGross:    { label:'Monthly Gross Salary (₹)', type:'amount' },
+  monthlyNet:      { label:'Monthly Net / Take-home (₹)', type:'amount' },
+  annualCtc:       { label:'Annual CTC (₹)', type:'amount' },
   purpose:         { label:'Purpose of NOC',        ph:'e.g. Higher studies / Visa / Further employment', req:true },
   oldRole:         { label:'Previous Designation',  ph:'Previous role title' },
   newRole:         { label:'New Designation',       ph:'New promoted role title', req:true },
@@ -198,6 +237,7 @@ function buildGenerateHTML() {
     <button class="gen-tab active" data-cat="all">All Documents</button>
     <button class="gen-tab" data-cat="certificate">🎓 Certificates</button>
     <button class="gen-tab" data-cat="letter">📝 Letters</button>
+    <button class="gen-tab" data-cat="payroll">💰 Payroll</button>
   </div>
   <!-- Document Grid -->
   <div class="doc-grid" id="doc-grid"></div>
@@ -220,7 +260,7 @@ function renderDocGrid(cat) {
   grid.innerHTML = filtered.map(doc => `
 <div class="doc-card" data-id="${doc.id}" style="--doc-color:${doc.color}">
   <div class="doc-card-icon">${doc.icon}</div>
-  <div class="doc-card-cat">${doc.cat === 'certificate' ? '🎓 Certificate' : '📝 Letter'}</div>
+  <div class="doc-card-cat">${doc.cat === 'certificate' ? '🎓 Certificate' : doc.cat === 'payroll' ? '💰 Payroll' : '📝 Letter'}</div>
   <div class="doc-card-name">${doc.name}</div>
   <div class="doc-card-desc">${doc.desc}</div>
   <button class="doc-card-btn" onclick="window.wsOpenGenForm('${doc.id}')">Generate →</button>
@@ -323,6 +363,7 @@ window.wsOpenGenForm = async function(typeId) {
 
   document.body.appendChild(overlay);
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  attachPayslipTotals();
 
   // Set today's date as default for date fields
   const today = new Date().toISOString().split('T')[0];
@@ -346,6 +387,8 @@ window.wsOpenGenForm = async function(typeId) {
       'noc':                'WS-NOC',
       'promotion-letter':  'WS-PROM',
       'salary-revision':   'WS-SAL',
+      'salary-slip':       'WS-PAY',
+      'salary-certificate':'WS-SALC',
       'warning-letter':    'WS-WARN'
     };
     let prefix = map[typeId] || 'WS-DOC';
@@ -410,6 +453,8 @@ window.wsOpenGenForm = async function(typeId) {
         'f-startDate':        emp.startDate,
         'f-endDate':          emp.endDate,
         'f-reportingTo':      emp.reportingTo,
+        'f-joiningDate':      emp.startDate,
+        'f-department':       emp.department,
         'f-holderDob':        empDob,
       };
 
@@ -468,6 +513,7 @@ window.wsAutoFill = function(typeId) {
     'f-endDate':          cert.endDate,
     'f-issuedDate':       cert.issuedDate,
     'f-reportingTo':      cert.reportingTo,
+    'f-department':       cert.holderDepartment,
     'f-issuerName':       cert.issuerName,
     'f-issuerTitle':      cert.issuerTitle,
   };
@@ -502,6 +548,8 @@ window.wsGenerate = async function(typeId) {
     errEl.textContent = `Required: ${labels}`;
     return;
   }
+  const payrollError = validatePayroll(typeId, data);
+  if (payrollError) { errEl.textContent = payrollError; return; }
 
   const btn = document.getElementById('btn-gen-doc');
   const origText = btn.innerHTML;
@@ -528,7 +576,7 @@ window.wsGenerate = async function(typeId) {
       endDate:           data.endDate || '',
       issuerName:        data.issuerName || 'Mahender',
       issuerTitle:       data.issuerTitle || 'Founder, WaveSeed Co.',
-      notes:             `Generated via DocGen Dashboard: ${docType.name}`,
+      notes:             `Generated via DocGen Dashboard: ${docType.name}${data.payMonth ? ` (${data.payMonth})` : ''}`,
       nameFont:          data.nameFont || 'cursive',
       templateData:      JSON.stringify(data),  // store ALL fields for future re-rendering
     });
@@ -562,6 +610,67 @@ window.wsGenerate = async function(typeId) {
   }
 };
 
+// ─── Payroll helpers ───────────────────────────────────────────────────────────
+function validatePayroll(typeId, data) {
+  if (typeId === 'salary-slip') {
+    const { gross, net } = payslipTotals(data);
+    if (gross <= 0) return 'Enter at least one earning amount.';
+    if (net < 0) return 'Total deductions exceed gross earnings — please check the amounts.';
+    const wd = parseFloat(data.workingDays), pd = parseFloat(data.paidDays);
+    if (data.workingDays && (!(wd > 0) || wd > 31)) return 'Working days must be between 1 and 31.';
+    if (data.paidDays && (pd < 0 || (wd > 0 && pd > wd))) return 'Paid days cannot exceed working days.';
+    if (data.pan && !/^[A-Z]{5}[0-9]{4}[A-Z]$/i.test(data.pan)) return 'PAN should look like ABCDE1234F.';
+    // One active slip per person per month
+    const name = (data.recipientName || '').trim().toLowerCase();
+    const dup = existingCerts.find(c => {
+      if (c.certificateType !== 'salary-slip' || c.status === 'revoked') return false;
+      if ((c.holderName || '').trim().toLowerCase() !== name) return false;
+      try { return JSON.parse(c.templateData || '{}').payMonth === data.payMonth; } catch { return false; }
+    });
+    if (dup) return `A slip for ${data.recipientName} for ${data.payMonth} already exists (${dup.certificateId}). Revoke it first or choose another month.`;
+  }
+  if (typeId === 'salary-certificate') {
+    if (!data.monthlyGross && !data.annualCtc) return 'Enter the monthly gross salary or the annual CTC.';
+  }
+  return '';
+}
+
+/** Live Gross / Deductions / Net panel under the payslip form */
+function attachPayslipTotals() {
+  const host = document.getElementById('gen-form-fields');
+  if (!host || !document.getElementById('f-basicPay')) return;
+  const panel = document.createElement('div');
+  panel.className = 'form-group form-full';
+  panel.id = 'payslip-totals';
+  panel.style.cssText = 'background:#0d1b3e;color:#fff;border-radius:8px;padding:12px 14px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:0.82rem;';
+  host.appendChild(panel);
+  const update = () => {
+    const vals = {};
+    host.querySelectorAll('input[data-pay]').forEach(el => { vals[el.id.slice(2)] = el.value; });
+    const t = payslipTotals(vals);
+    panel.innerHTML = `<span>Gross: <strong>${inr(t.gross)}</strong></span><span>Deductions: <strong>${inr(t.deductions)}</strong></span>`
+      + `<span>Net Pay: <strong style="color:${t.net < 0 ? '#fca5a5' : '#f0d078'};">${inr(t.net)}</strong></span>`;
+  };
+  host.addEventListener('input', e => { if (e.target.matches('input[data-pay]')) update(); });
+  update();
+}
+
+window.wsSplitGross = function() {
+  const g = parseFloat(document.getElementById('f-splitGross')?.value);
+  if (!(g > 0)) return showToast('Enter a monthly gross amount first', 'error');
+  const set = (id, v) => { const el = document.getElementById(`f-${id}`); if (el) el.value = v ? v.toFixed(2) : ''; };
+  const stipend = document.getElementById('f-payslipType')?.value === 'Stipend Slip';
+  if (stipend) {
+    set('basicPay', g); ['hra','specialAllowance','conveyance','pfDeduction','professionalTax'].forEach(k => set(k, 0));
+  } else {
+    const basic = Math.round(g * 0.5), hra = Math.round(basic * 0.4);
+    set('basicPay', basic); set('hra', hra); set('specialAllowance', g - basic - hra); set('conveyance', 0);
+    set('pfDeduction', Math.min(Math.round(basic * 0.12), 1800));
+    set('professionalTax', g >= 15000 ? 200 : 0);
+  }
+  document.getElementById('f-basicPay')?.dispatchEvent(new Event('input', { bubbles: true }));
+};
+
 // ─── Ongoing tenure toggle ─────────────────────────────────────────────────────
 // When "Currently working here" is ticked, the End Date is cleared and disabled
 // so the letter renders "since <start> … as on <letter date>" instead of a range.
@@ -582,6 +691,27 @@ function buildFormFields(docType) {
     const inputId = `f-${fid}`;
     const req = def.req ? '<span class="req">*</span>' : '';
     const full = ['customMessage','responsibilities','reason','strengths','achievements','recommendation','incident'].includes(fid) ? ' form-full' : '';
+
+    if (fid === 'splitHelper') {
+      return `
+<div class="form-group form-full" style="background:rgba(15,118,110,0.06);border:1px dashed rgba(15,118,110,0.35);border-radius:8px;padding:10px 12px;">
+  <label class="form-label">${def.label}</label>
+  <div style="display:flex;gap:8px;">
+    <input id="f-splitGross" class="form-input" type="number" min="0" step="0.01" placeholder="Monthly gross, e.g. 30000" style="flex:1;" />
+    <button type="button" class="btn-secondary" onclick="window.wsSplitGross()" style="white-space:nowrap;">⚡ Suggest split</button>
+  </div>
+  <div style="font-size:0.72rem;color:var(--gray-400);margin-top:6px;">Fills Basic 50%, HRA 40% of Basic, rest as Special Allowance, PF 12% of Basic (max ₹1,800) and PT ₹200 if gross ≥ ₹15,000. Suggestions only — review before generating. Stipend slips put the full amount as Stipend.</div>
+</div>`;
+    }
+    if (def.type === 'amount') {
+      const head = fid === 'basicPay' ? '<div class="form-group form-full" style="margin-bottom:-6px;"><div style="font-size:0.72rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#059669;">Earnings</div></div>'
+                 : fid === 'pfDeduction' ? '<div class="form-group form-full" style="margin-bottom:-6px;"><div style="font-size:0.72rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#dc2626;">Deductions</div></div>' : '';
+      return `${head}
+<div class="form-group${full}">
+  <label class="form-label">${def.label} ${req}</label>
+  <input id="${inputId}" class="form-input" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" ${def.grp ? 'data-pay="1"' : ''}/>
+</div>`;
+    }
 
     if (fid === 'letterPurpose') {
       return `
@@ -635,6 +765,7 @@ function buildFormFields(docType) {
 function collectFormData(docType) {
   const data = {};
   docType.fields.forEach(fid => {
+    if (fid === 'splitHelper') return; // UI-only helper
     if (fid === 'product' || fid === 'letterPurpose') {
       const selectVal = document.getElementById(`f-${fid}`)?.value || '';
       data[fid] = selectVal === '__custom__'

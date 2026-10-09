@@ -416,6 +416,8 @@ function getNiceTypeLabel(type) {
     'noc':                'NOC',
     'promotion-letter':  'Promotion Letter',
     'salary-revision':   'Salary Revision',
+    'salary-slip':       'Salary Slip',
+    'salary-certificate':'Salary Certificate',
     'warning-letter':    'Warning Notice',
     'internship':        'Internship Completion',
     'employment':        'Employment Confirmation',
@@ -1834,6 +1836,40 @@ function generateEmailTemplate(cert, email, downloadLink) {
           👉 <a href="${downloadLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;" target="_blank">Download Salary Revision Letter</a>
         </p>
       </div>
+      <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
+        Best regards,<br><br>
+        <strong>Mahender Banoth</strong><br>
+        Founder, CEO & Building WaveSeed Co.
+      </p>`;
+  } else if (cert.certificateType === 'salary-slip' || cert.certificateType === 'salary-certificate') {
+    const td = parseTemplateData(cert);
+    const isSlip = cert.certificateType === 'salary-slip';
+    const isStipend = td.payslipType === 'Stipend Slip';
+    let period = '';
+    if (isSlip && /^\d{4}-\d{2}$/.test(td.payMonth || '')) {
+      const [y, m] = td.payMonth.split('-').map(Number);
+      period = new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+    }
+    const docName = isSlip ? `${isStipend ? 'Stipend' : 'Salary'} Slip${period ? ' for ' + period : ''}` : 'Salary Certificate';
+    subject = `Confidential: ${docName} — WaveSeed Co.`;
+    bodyText = `Dear ${fullName},\n\n` +
+      `Your ${docName} from WaveSeed Co. is now available.\n\n` +
+      `You can download it securely here (your date of birth is required to open it):\n` +
+      `👉 ${downloadLink}\n\n` +
+      `This document contains confidential compensation details. Please do not share the link.\n\n` +
+      `Best regards,\n\n` +
+      `Mahender Banoth\n` +
+      `Founder, CEO & Building WaveSeed Co.`;
+
+    bodyHtml = `<p>Dear <strong>${esc(fullName)}</strong>,</p>
+      <p>Your <strong>${esc(docName)}</strong> from <strong>WaveSeed Co.</strong> is now available.</p>
+      <div style="margin: 20px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 15px 0; background: #f8fafc; text-align: center;">
+        <p style="margin: 5px 0; font-size: 1rem;">
+          👉 <a href="${downloadLink}" style="color: #c9a227; font-weight: bold; text-decoration: underline;" target="_blank">Download ${esc(docName)}</a>
+        </p>
+        <p style="margin: 5px 0; font-size: 0.8rem; color: #64748b;">Your date of birth is required to open it.</p>
+      </div>
+      <p>This document contains confidential compensation details. Please do not share the link.</p>
       <p style="margin-top: 24px; line-height: 1.5; font-size: 0.92rem;">
         Best regards,<br><br>
         <strong>Mahender Banoth</strong><br>

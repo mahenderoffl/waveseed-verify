@@ -499,7 +499,24 @@ ${v ? `<div class="venture">${v.logo ? `<img src="${v.logo}" alt=""/>` : ''}<spa
 // Free-text extra terms/notes from the form: one point per line (blank lines are ignored).
 // Offer letters print them as numbered terms inside Annexure A; other letters as 'Additional Notes'.
 let EXTRA = '', EXTRA_USED = false, EXTRA_ANNEX = false;   // EXTRA_ANNEX: offer letters keep the extras for Annexure A
-const extraLines = () => EXTRA.split(/\r?\n/).map(l => l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim()).filter(Boolean);
+// One point per line. Tidies a pasted box: strips bullets/numbers, splits a point that got glued onto the
+// end of the previous one ("...conduct that harStipend: ..."), and drops repeats and cut-off copies.
+const extraLines = () => {
+  const norm = (t) => t.toLowerCase().replace(/\s+/g, ' ').trim();
+  const lines = EXTRA.split(/\r?\n/)
+    .flatMap(l => l.split(/(?<=[a-z])(?=[A-Z][^:.\n]{1,69}:\s)/))
+    .map(l => l.replace(/^\s*(?:[-*\u2022]|\d+[.)])\s*/, '').trim())
+    .filter(l => l && !/^additional (terms|notes)( (&|and) conditions)?\s*:?$/i.test(l));   // a pasted heading is not a term
+  return lines.filter((l, i) => {
+    const n = norm(l);
+    return !lines.some((o, j) => {
+      if (j === i) return false;
+      const m = norm(o);
+      if (m === n) return j < i;                              // exact repeat: keep the first
+      return n.length >= 25 && m.length > n.length && m.includes(n);   // cut-off copy of a longer point
+    });
+  });
+};
 // "Stipend: text" -> bold label + text; anything else is plain text
 function fmtExtraLine(line) {
   const m = line.match(/^([^:.]{2,70}):\s+([\s\S]+)$/);
@@ -1446,7 +1463,7 @@ function renderDocument(type, data) {
 export function generateDocument(type, data) {
   setBrand(data && data.brand);
   EMP_CODE = esc((data && (data.empCode || data.employeeCode)) || '');
-  EXTRA = String((data && data.additionalTerms) || '').slice(0, 2000); EXTRA_USED = false; EXTRA_ANNEX = /-offer$/.test(String(type));
+  EXTRA = String((data && data.additionalTerms) || '').slice(0, 8000); EXTRA_USED = false; EXTRA_ANNEX = /-offer$/.test(String(type));
   try {
     return renderDocument(type, data);
   } finally {
@@ -1515,7 +1532,7 @@ ${items.length ? `<ol>${items.map(t => `<li>${esc(t)}</li>`).join('')}</ol>` : '
 export function generateSignedCopy(type, data, rec) {
   setBrand(data && data.brand);
   EMP_CODE = esc((data && (data.empCode || data.employeeCode)) || '');
-  EXTRA = String((data && data.additionalTerms) || '').slice(0, 2000); EXTRA_USED = false; EXTRA_ANNEX = /-offer$/.test(String(type));
+  EXTRA = String((data && data.additionalTerms) || '').slice(0, 8000); EXTRA_USED = false; EXTRA_ANNEX = /-offer$/.test(String(type));
   try {
     const html = renderDocument(type, data);
     const annex = acceptanceAnnexHTML(rec);

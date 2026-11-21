@@ -1,6 +1,6 @@
 // ─── verify.js — Public certificate verification page ─────────────────────────
 import { verifyCertificate } from '../api.js';
-import { LOGO_BASE64, SIG_BASE64, STAMP_BASE64 } from '../templates/assets.js';
+import { LOGO_URL, SIG_URL, STAMP_URL } from '../templates/assets.js';
 
 export function initVerifyPage(app) {
   app.innerHTML = buildVerifyHTML();
@@ -27,7 +27,7 @@ function buildVerifyHTML() {
   <!-- Header -->
   <header class="site-header">
     <div class="logo">
-      <img src="${LOGO_BASE64}" alt="WaveSeed Logo" style="height:52px;width:52px;object-fit:contain;border-radius:10px;" />
+      <img src="${LOGO_URL}" alt="WaveSeed Logo" style="height:52px;width:52px;object-fit:contain;border-radius:10px;" />
       <div class="logo-text">
         <div class="logo-name">WaveSeed Co.</div>
         <div class="logo-tagline">Building Tomorrow's Wave, Today</div>
@@ -182,7 +182,7 @@ function iss(d) {
     name,
     legal: i.legal || name,
     tagline: i.tagline !== undefined && i.tagline !== null ? i.tagline : "Building Tomorrow's Wave, Today",
-    logo: i.logoUrl || LOGO_BASE64,
+    logo: i.logoUrl || LOGO_URL,
     email: i.email || 'careers@waveseed.app',
     sigName: i.sigName || 'Mahender Banoth',
     sigTitle: i.sigTitle || 'Founder, CEO',
@@ -300,8 +300,8 @@ function renderValid(d) {
       <!-- Footer -->
       <div class="cert-footer" style="margin-top:28px; display:flex; justify-content:space-between; align-items:flex-end;">
         <div class="cert-sig-area" style="display:flex; flex-direction:column; align-items:center; position:relative; min-height:85px; min-width:160px; text-align:center;">
-          ${(I.isDefaultSigner && SIG_BASE64) ? `<img src="${SIG_BASE64}" alt="Signature" style="height:36px; max-width:110px; object-fit:contain; position:absolute; top:-26px; z-index:2; mix-blend-mode:multiply; filter:contrast(1.2);" />` : ''}
-          ${STAMP_BASE64 ? `<img src="${STAMP_BASE64}" alt="Company Stamp" style="height:72px; width:72px; object-fit:contain; position:absolute; top:-36px; left:80px; z-index:1; transform:rotate(-8deg); opacity:0.85; pointer-events:none;" />` : ''}
+          ${(I.isDefaultSigner && SIG_URL) ? `<img src="${SIG_URL}" alt="Signature" style="height:36px; max-width:110px; object-fit:contain; position:absolute; top:-26px; z-index:2; mix-blend-mode:multiply; filter:contrast(1.2);" />` : ''}
+          ${STAMP_URL ? `<img src="${STAMP_URL}" alt="Company Stamp" style="height:72px; width:72px; object-fit:contain; position:absolute; top:-36px; left:80px; z-index:1; transform:rotate(-8deg); opacity:0.85; pointer-events:none;" />` : ''}
           <div style="width:110px; height:1px; background:#cbd5e1; margin-bottom:4px; position:relative; z-index:2;"></div>
           <div class="cert-sig-name" style="font-size:0.75rem; font-weight:700; color:#0d1b3e; position:relative; z-index:2;">${esc(I.sigName)}</div>
           ${I.isDefaultSigner ? '<div style="font-size:0.55rem; color:#64748b; font-style:italic; line-height:1.2; position:relative; z-index:2;">Indian Institute of Technology Patna</div>' : ''}

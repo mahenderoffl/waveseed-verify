@@ -1,12 +1,24 @@
 // ─── main.js — App entry point & hash router ──────────────────────────────────
+// Every page is loaded on demand, so visitors to the public verification page do not
+// download the admin application (or anything else they never open).
 import './style.css';
-import { initVerifyPage }   from './pages/verify.js';
-import { initAdminPage }    from './pages/admin.js';
-import { initOnboardPage }  from './pages/onboard.js';
-import { initDownloadPage } from './pages/download.js';
-import { initUploadPage }   from './pages/upload.js';
 
-function route() {
+const PAGES = {
+  verify:   () => import('./pages/verify.js').then(m => m.initVerifyPage),
+  admin:    () => import('./pages/admin.js').then(m => m.initAdminPage),
+  onboard:  () => import('./pages/onboard.js').then(m => m.initOnboardPage),
+  upload:   () => import('./pages/upload.js').then(m => m.initUploadPage),
+  download: () => import('./pages/download.js').then(m => m.initDownloadPage),
+};
+
+let routeToken = 0;   // guards against a slow page finishing after the user already moved on
+
+function splash(app) {
+  app.innerHTML = '<div class="app-splash" role="status" aria-live="polite"><div class="spinner"></div><span class="sr-only">Loading…</span></div>';
+}
+
+async function route() {
+  const token = ++routeToken;
   const app  = document.getElementById('app');
   const hash = window.location.hash.split('?')[0]; // strip query params for routing
   const onboardMatch = hash.match(/^#onboard(?:\/([A-Za-z]{2,6}))?$/);   // #onboard or #onboard/wsg
@@ -14,21 +26,32 @@ function route() {
   // Kill any open modals from previous page
   document.querySelectorAll('.modal-overlay, .login-overlay').forEach(el => el.remove());
 
-  if (hash === '#admin') {
-    document.title = 'Admin — WaveSeed Certificate System';
-    initAdminPage(app);
+  let key, title, args = [];
+  if (hash === '#admin' || hash.startsWith('#admin/')) {
+    key = 'admin';    title = 'Admin — WaveSeed Certificate System';
   } else if (onboardMatch) {
-    document.title = 'Onboarding — WaveSeed';
-    initOnboardPage(app, onboardMatch[1] || '');
+    key = 'onboard';  title = 'Onboarding — WaveSeed';  args = [onboardMatch[1] || ''];
   } else if (hash === '#upload') {
-    document.title = 'Document Upload — WaveSeed Co.';
-    initUploadPage(app);
+    key = 'upload';   title = 'Document Upload — WaveSeed Co.';
   } else if (hash === '#download') {
-    document.title = 'Access Your Document — WaveSeed Co.';
-    initDownloadPage(app);
+    key = 'download'; title = 'Access Your Document — WaveSeed Co.';
   } else {
-    document.title = 'WaveSeed Certificate Verification | verify.waveseed.app';
-    initVerifyPage(app);
+    key = 'verify';   title = 'WaveSeed Certificate Verification | verify.waveseed.app';
+  }
+
+  document.title = title;
+  splash(app);
+  try {
+    const init = await PAGES[key]();
+    if (token !== routeToken) return;     // a newer navigation won
+    await init(app, ...args);
+  } catch (err) {
+    console.error('Failed to load page', key, err);
+    if (token !== routeToken) return;
+    app.innerHTML = `<div class="app-splash"><div style="max-width:420px;text-align:center;padding:24px;color:#fff;">
+      <h2 style="font-family:'Playfair Display',serif;margin-bottom:8px;">Something went wrong</h2>
+      <p style="color:#9fb0d4;margin-bottom:16px;">The page could not be loaded. Please check your connection and try again.</p>
+      <button onclick="location.reload()" style="padding:10px 22px;border-radius:10px;border:0;background:#c9a227;color:#0d1b3e;font-weight:700;cursor:pointer;">Reload</button></div></div>`;
   }
 }
 

@@ -1,5 +1,5 @@
 // ─── templates.js — All printable document HTML generators ────────────────────
-import { LOGO_BASE64, SIG_BASE64, STAMP_BASE64 } from './assets.js';
+import { LOGO_URL, SIG_URL, STAMP_URL } from './assets.js';
 
 // ─── Brand (issuer identity) ──────────────────────────────────────────────────
 // Documents store a snapshot of the issuing business's branding in data.brand, so
@@ -10,7 +10,7 @@ const DEFAULT_BRAND = {
   tagline: "Building Tomorrow's Wave, Today",
   website: 'www.waveseed.app', email: 'careers@waveseed.app', address: '',
   color: '#0d1b3e',
-  logo: LOGO_BASE64, seal: STAMP_BASE64, sigImage: SIG_BASE64,
+  logo: LOGO_URL, seal: STAMP_URL, sigImage: SIG_URL,
   sigName: 'Mahender Banoth', sigTitle: 'Founder, CEO',
   sigAffil: 'Indian Institute of Technology Patna',
 };

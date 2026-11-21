@@ -1,6 +1,6 @@
 // ─── onboard.js — Public Onboarding Form ─────────────────────────────────────
 import { publicOnboardEmployee, publicDocGetUploadUrl, publicDocUploadBlob, publicDocConfirm, publicGetBusiness } from '../api.js';
-import { LOGO_BASE64 } from '../templates/assets.js';
+import { LOGO_URL } from '../templates/assets.js';
 import { productDropdownHTML } from './shared.js';
 import { compressFile, fmtKB } from '../utils/compress.js';
 
@@ -27,7 +27,7 @@ export async function initOnboardPage(app, businessCode = '') {
 
 function buildOnboardHTML(brand, products) {
   const bName = esc(brand?.name || 'WaveSeed Co.');
-  const bLogo = esc(brand?.logoUrl || LOGO_BASE64);
+  const bLogo = esc(brand?.logoUrl || LOGO_URL);
   return `
 <div class="onboard-wrap">
   <div class="onboard-card" style="max-width:760px;">

@@ -1018,7 +1018,24 @@ http.route({
   }),
 });
 
-// ── Admin: list documents for an employee ────────────────────────────────────
+// ── Admin: per-employee upload summary (for the incomplete-documents badge) ───
+http.route({
+  path: "/admin/docs/summary",
+  method: "OPTIONS",
+  handler: httpAction(async () => preflight()),
+});
+
+http.route({
+  path: "/admin/docs/summary",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
+    const summary = await ctx.runQuery(internal.documents.getSummary, {});
+    return json({ summary });
+  }),
+});
+
+// ── Admin: list documents for an employee (no file URLs — those go through /open so access is logged)
 http.route({
   path: "/admin/docs",
   method: "OPTIONS",
@@ -1029,29 +1046,76 @@ http.route({
   path: "/admin/docs",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
+    const role = await getRole(ctx, request);
+    if (!role) return json({ error: "Unauthorized" }, 401);
 
     const url = new URL(request.url);
     const employeeId = url.searchParams.get("employeeId")?.trim();
     if (!employeeId) return json({ error: "Provide employeeId parameter" }, 400);
 
     const docs = await ctx.runQuery(internal.documents.getByEmployee, { employeeId: employeeId as any });
+    await ctx.runMutation(internal.documents.logAccess, { employeeId: employeeId as any, action: "view_list", role });
 
-    // Attach a short-lived signed URL to each document
-    const withUrls = await Promise.all(docs.map(async (d) => {
-      const url = await ctx.storage.getUrl(d.storageId as any);
-      return {
+    return json({
+      documents: docs.map((d) => ({
         id: d._id,
         docType: d.docType,
         fileName: d.fileName,
         mimeType: d.mimeType,
         sizeBytes: d.sizeBytes,
         uploadedAt: d.uploadedAt,
-        url,
-      };
-    }));
+        verified: d.verified ?? false,
+      })),
+    });
+  }),
+});
 
-    return json({ documents: withUrls });
+// ── Admin: open one document (returns a storage URL and logs the access) ──────
+http.route({
+  path: "/admin/docs/open",
+  method: "OPTIONS",
+  handler: httpAction(async () => preflight()),
+});
+
+http.route({
+  path: "/admin/docs/open",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const role = await getRole(ctx, request);
+    if (!role) return json({ error: "Unauthorized" }, 401);
+
+    let body: { id?: string };
+    try { body = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+    if (!body.id) return json({ error: "Provide document id" }, 400);
+
+    const doc = await ctx.runQuery(internal.documents.getDocumentById, { id: body.id as any });
+    if (!doc) return json({ error: "Document not found" }, 404);
+    const fileUrl = await ctx.storage.getUrl(doc.storageId as any);
+    if (!fileUrl) return json({ error: "File missing from storage" }, 404);
+
+    await ctx.runMutation(internal.documents.logAccess, {
+      employeeId: doc.employeeId, action: "view_file", docType: doc.docType, role,
+    });
+    return json({ url: fileUrl });
+  }),
+});
+
+// ── Admin: access log for an employee ─────────────────────────────────────────
+http.route({
+  path: "/admin/docs/log",
+  method: "OPTIONS",
+  handler: httpAction(async () => preflight()),
+});
+
+http.route({
+  path: "/admin/docs/log",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    if (!(await checkRole(ctx, request, "admin", "hr"))) return json({ error: "Unauthorized" }, 401);
+    const employeeId = new URL(request.url).searchParams.get("employeeId")?.trim();
+    if (!employeeId) return json({ error: "Provide employeeId parameter" }, 400);
+    const logs = await ctx.runQuery(internal.documents.getLogs, { employeeId: employeeId as any });
+    return json({ logs });
   }),
 });
 
@@ -1073,7 +1137,12 @@ http.route({
     try { body = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
     if (!body.id || typeof body.verified !== "boolean") return json({ error: "Provide id and verified" }, 400);
 
+    const doc = await ctx.runQuery(internal.documents.getDocumentById, { id: body.id as any });
     await ctx.runMutation(internal.documents.setVerified, { id: body.id as any, verified: body.verified });
+    const role = (await getRole(ctx, request)) ?? "unknown";
+    if (doc) await ctx.runMutation(internal.documents.logAccess, {
+      employeeId: doc.employeeId, action: body.verified ? "verify" : "unverify", docType: doc.docType, role,
+    });
     return json({ success: true });
   }),
 });
@@ -1090,6 +1159,11 @@ http.route({
     try { body = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
     if (!body.id) return json({ error: "Provide document id" }, 400);
 
+    const doc = await ctx.runQuery(internal.documents.getDocumentById, { id: body.id as any });
+    const role = (await getRole(ctx, request)) ?? "unknown";
+    if (doc) await ctx.runMutation(internal.documents.logAccess, {
+      employeeId: doc.employeeId, action: "delete", docType: doc.docType, role,
+    });
     await ctx.runMutation(internal.documents.deleteDocument, { id: body.id as any });
     return json({ success: true });
   }),

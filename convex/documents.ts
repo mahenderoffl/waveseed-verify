@@ -101,3 +101,41 @@ export const setVerified = internalMutation({
     });
   },
 });
+
+// ─── Summary & audit log ──────────────────────────────────────────────────────
+
+/** employeeId -> [{ docType, verified }] for every uploaded document. */
+export const getSummary = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query("documents").collect();
+    const out: Record<string, { docType: string; verified: boolean }[]> = {};
+    for (const d of all) {
+      (out[d.employeeId] ??= []).push({ docType: d.docType, verified: d.verified ?? false });
+    }
+    return out;
+  },
+});
+
+export const logAccess = internalMutation({
+  args: {
+    employeeId: v.id("employees"),
+    action: v.string(),
+    docType: v.optional(v.string()),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("docAccessLogs", { ...args, at: Date.now() });
+  },
+});
+
+export const getLogs = internalQuery({
+  args: { employeeId: v.id("employees") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("docAccessLogs")
+      .withIndex("by_employee", (q) => q.eq("employeeId", args.employeeId))
+      .order("desc")
+      .take(50);
+  },
+});

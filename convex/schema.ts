@@ -91,6 +91,15 @@ export default defineSchema({
     .index("by_employee",   ["employeeId"])
     .index("by_emp_type",   ["employeeId", "docType"]),
 
+  // ── Who accessed which KYC document (audit trail) ─────────────────────────
+  docAccessLogs: defineTable({
+    employeeId: v.id("employees"),
+    action:     v.string(),                 // view_list | view_file | verify | unverify | delete
+    docType:    v.optional(v.string()),
+    role:       v.string(),                 // admin | hr | ... (session role)
+    at:         v.number(),
+  }).index("by_employee", ["employeeId", "at"]),
+
   // Admin portal sessions — only the SHA-256 hash of the token is stored
   sessions: defineTable({
     tokenHash: v.string(),

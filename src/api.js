@@ -233,6 +233,32 @@ export async function adminGetDocuments(token, employeeId) {
   return res.json(); // { documents: [...] }
 }
 
+export async function adminGetDocSummary(token) {
+  const res = await fetch(`${HTTP_URL}/admin/docs/summary`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error('Failed to fetch document summary');
+  return (await res.json()).summary; // { [employeeId]: [{ docType, verified }] }
+}
+
+export async function adminOpenDocument(token, id) {
+  const res = await fetch(`${HTTP_URL}/admin/docs/open`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ id }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to open document');
+  return data.url;
+}
+
+export async function adminGetDocLog(token, employeeId) {
+  const res = await fetch(`${HTTP_URL}/admin/docs/log?employeeId=${encodeURIComponent(employeeId)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to load access log');
+  return data.logs;
+}
+
 export async function adminVerifyDocument(token, id, verified) {
   const res = await fetch(`${HTTP_URL}/admin/docs/verify`, {
     method: 'POST',

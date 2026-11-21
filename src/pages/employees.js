@@ -2,12 +2,20 @@
 import {
   adminGetEmployees, adminAddEmployee, adminDeleteEmployee,
   adminGetDocuments, adminDeleteDocument, adminVerifyDocument,
+  adminGetDocSummary, adminOpenDocument, adminGetDocLog,
 } from '../api.js';
 import { productDropdownHTML, tableSkeletonHTML } from './shared.js';
 import { DOC_TYPES, GROUPS, slotsFor, requirementProgress } from '../utils/docCatalog.js';
 
 
 let employeesList = [];
+let docSummary = {};   // employeeId -> [{ docType, verified }]
+
+// Document completeness for one person: { done, total, missing }
+function docProgress(emp) {
+  const uploaded = new Set((docSummary[emp._id] || []).map(d => d.docType));
+  return requirementProgress(slotsFor(emp.employeeType), t => uploaded.has(t));
+}
 
 export async function initEmployeesPage(mainEl, token) {
   mainEl.innerHTML = buildEmployeesHTML();
@@ -43,6 +51,11 @@ function buildEmployeesHTML() {
       <option value="intern">Interns</option>
       <option value="employee">Employees</option>
     </select>
+    <select id="emp-filter-docs" class="filter-select">
+      <option value="">Documents: All</option>
+      <option value="incomplete">⚠ Incomplete documents</option>
+      <option value="complete">✅ Complete documents</option>
+    </select>
   </div>
 
   <!-- Employees Table -->
@@ -56,6 +69,7 @@ function buildEmployeesHTML() {
           <th>Type</th>
           <th>Institution / Department</th>
           <th>Tenure</th>
+          <th>Documents</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -75,6 +89,7 @@ function attachEmployeesEvents(mainEl, token) {
   // Search/Filters
   document.getElementById('emp-search').addEventListener('input', () => renderEmployeesTable(token));
   document.getElementById('emp-filter-type').addEventListener('change', () => renderEmployeesTable(token));
+  document.getElementById('emp-filter-docs').addEventListener('change', () => renderEmployeesTable(token));
 }
 
 // ─── Load Data ─────────────────────────────────────────────────────────────────
@@ -85,6 +100,7 @@ async function loadEmployees(token) {
   }
   try {
     employeesList = await adminGetEmployees(token);
+    try { docSummary = await adminGetDocSummary(token); } catch { docSummary = {}; }
     renderEmployeesTable(token);
   } catch (err) {
     console.error('loadEmployees error:', err);
@@ -119,14 +135,17 @@ function renderEmployeesTable(token) {
     const matchQ = !query || [emp.name, emp.role, emp.institution, emp.department, emp.email]
       .join(' ').toLowerCase().includes(query);
     const matchT = !typeF || emp.employeeType === typeF;
-    return matchQ && matchT;
+    const docF = document.getElementById('emp-filter-docs')?.value || '';
+    const p = docProgress(emp);
+    const matchD = !docF || (docF === 'incomplete' ? p.done < p.total : p.done === p.total);
+    return matchQ && matchT && matchD;
   });
 
   const tbody = document.getElementById('emp-tbody');
   if (!tbody) return;
 
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-table"><div class="empty-icon">👥</div><p>No profiles found</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-table"><div class="empty-icon">👥</div><p>No profiles found</p></div></td></tr>`;
     return;
   }
 
@@ -159,6 +178,8 @@ function renderEmployeesTable(token) {
   <td style="font-size:0.78rem;white-space:nowrap;">
     ${emp.startDate ? formatDateShort(emp.startDate) : '—'} <br>to ${emp.endDate ? formatDateShort(emp.endDate) : 'Present'}
   </td>
+  <td>${(() => { const p = docProgress(emp); const ok = p.done === p.total;
+    return `<button class="btn-action" title="${esc(ok ? 'All required documents received' : 'Missing: ' + p.missing.join(', '))}" onclick="window.wsViewEmpDocs('${emp._id}')" style="font-weight:700;color:${ok ? '#15803d' : '#b45309'};background:${ok ? '#f0fdf4' : '#fffbeb'};border:1px solid ${ok ? '#86efac' : '#fde68a'};">${ok ? '✅' : '⚠'} ${p.done}/${p.total}</button>`; })()}</td>
   <td>
     <div class="actions-cell">
       <button class="btn-action view" onclick="window.wsViewEmpProfile('${emp._id}')">👁 Profile</button>
@@ -390,6 +411,13 @@ window.wsIssueFromEmp = (id) => {
   const emp = employeesList.find(e => e._id === id);
   if (!emp) return;
 
+  // Soft gate: warn (not block) when required documents are missing
+  const p = docProgress(emp);
+  if (p.done < p.total &&
+      !confirm(`${emp.name} has not submitted all required documents (${p.done}/${p.total}).\n\nMissing:\n• ${p.missing.join('\n• ')}\n\nIssue the certificate anyway?`)) {
+    return;
+  }
+
   // Closes the current modal if open
   document.getElementById('add-emp-modal')?.remove();
 
@@ -460,7 +488,7 @@ window.wsViewEmpDocs = async (id) => {
     <div style="font-size:0.76rem;color:var(--gray-500);margin-top:2px;">${esc(d.fileName)} · ${fmtBytes(d.sizeBytes)} · ${formatDateShort(new Date(d.uploadedAt).toISOString().slice(0,10))}</div>
   </div>
   <div style="display:flex;gap:6px;align-items:center;">
-    ${d.url ? `<a href="${esc(d.url)}" target="_blank" rel="noopener" class="btn-action view" style="text-decoration:none;">👁 View</a>` : ''}
+    <button class="btn-action view" onclick="window._wsOpenDoc('${d.id}')">👁 View</button>
     <button class="btn-action" onclick="window._wsVerifyDoc('${d.id}',${!d.verified},'${id}')">${d.verified ? '↩ Unverify' : '✔ Verify'}</button>
     <button class="btn-action delete" onclick="window._wsDeleteDoc('${d.id}','${id}')">🗑</button>
   </div>
@@ -481,7 +509,17 @@ ${GROUPS.map(g => {
   const items = slots.filter(s => s.group === g.id);
   return items.length ? groupTitle(g.title) + items.map(s => row(s.label, byType[s.type], s.required, s.oneOf)).join('') : '';
 }).join('')}
+${groupTitle('🔒 Access log')}<div id="docs-log" style="font-size:0.78rem;color:var(--gray-500);">Loading…</div>
 ${extra.length ? groupTitle('Other') + extra.map(d => row(DOC_TYPES[d.docType]?.label || d.docType, d, false)).join('') : ''}`;
+
+    // Access log (admin / HR only)
+    try {
+      const logs = await adminGetDocLog(token, id);
+      const ACTIONS = { view_list: 'opened the documents list', view_file: 'opened', verify: 'verified', unverify: 'removed verification of', delete: 'deleted' };
+      document.getElementById('docs-log').innerHTML = logs.length
+        ? logs.slice(0, 15).map(l => `<div style="padding:3px 0;border-bottom:1px solid var(--gray-100);">${new Date(l.at).toLocaleString('en-IN')} · <strong>${esc(l.role)}</strong> ${ACTIONS[l.action] || esc(l.action)}${l.docType ? ' ' + esc(DOC_TYPES[l.docType]?.label || l.docType) : ''}</div>`).join('')
+        : 'No access recorded yet.';
+    } catch { const el = document.getElementById('docs-log'); if (el) el.textContent = 'Access log is visible to admin / HR only.'; }
 
   } catch (e) {
     body.innerHTML = `<p style="color:var(--red);padding:16px;">❌ Failed to load documents: ${esc(e.message)}</p>`;
@@ -494,6 +532,18 @@ function fmtBytes(b) {
   if (b < 1024 * 1024) return Math.round(b / 1024) + ' KB';
   return (b / (1024 * 1024)).toFixed(2) + ' MB';
 }
+
+window._wsOpenDoc = async (docId) => {
+  const token = sessionStorage.getItem('ws_admin_token');
+  const w = window.open('', '_blank');   // open synchronously so popup blockers allow it
+  try {
+    const url = await adminOpenDocument(token, docId);
+    if (w) { w.opener = null; w.location.href = url; } else window.location.href = url;
+  } catch (err) {
+    if (w) w.close();
+    showToast('❌ ' + err.message, 'error');
+  }
+};
 
 window._wsVerifyDoc = async (docId, verified, empId) => {
   const token = sessionStorage.getItem('ws_admin_token');

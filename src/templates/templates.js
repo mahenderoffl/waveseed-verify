@@ -263,34 +263,26 @@ export function certificateTemplate(data) {
   const verificationUrl = `https://verify.waveseed.app/?id=${certId}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(verificationUrl)}`;
 
-  // Premium Gold & Navy Seal (Redesigned with White/Gold theme - no dark background)
-  const premiumSealHTML = `
-  <svg viewBox="0 0 120 120" width="115" height="115" style="z-index:2;">
-    <!-- Outer Ring Gold -->
-    <circle cx="60" cy="60" r="54" fill="none" stroke="#C9A34A" stroke-width="2.5" />
-    <!-- Inner Circle White -->
-    <circle cx="60" cy="60" r="48" fill="#ffffff" stroke="#C9A34A" stroke-width="0.8" />
-    
-    <!-- Circular Text Path for Wreath Title -->
-    <path id="sealTopTextPath" d="M 18,60 A 42,42 0 1,1 102,60" fill="none" />
-    <text font-family="'Montserrat', sans-serif" font-weight="700" font-size="6.8" fill="#C9A34A" letter-spacing="1.2">
-      <textPath href="#sealTopTextPath" startOffset="50%" text-anchor="middle">${esc(t.badge)}</textPath>
-    </text>
-    
-    <path id="sealBottomTextPath" d="M 102,60 A 42,42 0 0,1 18,60" fill="none" />
-    <text font-family="'Montserrat', sans-serif" font-weight="700" font-size="6.8" fill="#C9A34A" letter-spacing="1.2">
-      <textPath href="#sealBottomTextPath" startOffset="50%" text-anchor="middle">COMPLETION</textPath>
-    </text>
-    
-    <!-- Center star and laurel wreaths in Gold -->
-    <polygon points="60,42 63,49 70,49 65,53 67,60 60,56 53,60 55,53 50,49 57,49" fill="#C9A34A" />
-    <!-- Laurel Wreath -->
-    <path d="M 36,65 C 38,78 50,82 60,82 M 84,65 C 82,78 70,82 60,82" fill="none" stroke="#C9A34A" stroke-width="1.5" />
-    <!-- Leaves on left -->
-    <path d="M 38,68 Q 42,67 43,71 Q 40,74 38,68 M 43,73 Q 48,72 49,76 Q 45,78 43,73 M 50,78 Q 55,76 56,80 Q 52,82 50,78" fill="#C9A34A" />
-    <!-- Leaves on right -->
-    <path d="M 82,68 Q 78,67 77,71 Q 80,74 82,68 M 77,73 Q 72,72 71,76 Q 75,78 77,73 M 70,78 Q 65,76 64,80 Q 68,82 70,78" fill="#C9A34A" />
+  const sealBottom = t.of === t.badge ? 'CERTIFIED' : t.of;
+  const NAVY = '#0B1F3A', GOLD = '#B8913A';
+  const addrLine = [plain(B.address.replace(/<br\s*\/?>/g, ', ')), B.phone ? 'Tel ' + B.phone : '', B.reg ? 'CIN ' + B.reg : ''].filter(Boolean).join('  ·  ');
+
+  const sealHTML = `
+  <svg viewBox="0 0 120 120" width="112" height="112">
+    <defs><linearGradient id="gd" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E9CF8C"/><stop offset=".5" stop-color="#C9A34A"/><stop offset="1" stop-color="#A47E28"/></linearGradient></defs>
+    <circle cx="60" cy="60" r="57" fill="url(#gd)"/>
+    <circle cx="60" cy="60" r="53" fill="none" stroke="#fff" stroke-width=".8" stroke-dasharray="1.6 2.2" opacity=".85"/>
+    <circle cx="60" cy="60" r="47" fill="#fffdf6" stroke="#A47E28" stroke-width=".8"/>
+    <circle cx="60" cy="60" r="30" fill="none" stroke="#C9A34A" stroke-width=".7"/>
+    <path id="stp" d="M 17,60 A 43,43 0 0,1 103,60" fill="none"/>
+    <path id="sbp" d="M 13,60 A 47,47 0 0,0 107,60" fill="none"/>
+    <text font-family="Montserrat,sans-serif" font-weight="700" font-size="7.4" fill="#8A6A1C" letter-spacing="1.6"><textPath href="#stp" startOffset="50%" text-anchor="middle">${esc(t.badge)}</textPath></text>
+    <text font-family="Montserrat,sans-serif" font-weight="700" font-size="7.4" fill="#8A6A1C" letter-spacing="1.6"><textPath href="#sbp" startOffset="50%" text-anchor="middle" dominant-baseline="hanging">${esc(sealBottom)}</textPath></text>
+    <polygon points="60,38 64.4,50.6 77.5,50.8 67,58.8 70.9,71.4 60,63.8 49.1,71.4 53,58.8 42.5,50.8 55.6,50.6" fill="#B8913A"/>
+    <path d="M 40,76 C 46,86 54,88 60,88 C 66,88 74,86 80,76" fill="none" stroke="#B8913A" stroke-width="1.4" stroke-linecap="round"/>
   </svg>`;
+
+  const corner = (pos) => `<svg class="corner ${pos}" viewBox="0 0 70 70" width="62" height="62"><path d="M3 67 V3 H67" fill="none" stroke="${GOLD}" stroke-width="2.2"/><path d="M11 67 V11 H67" fill="none" stroke="${GOLD}" stroke-width=".8" opacity=".7"/><rect x="0.5" y="0.5" width="9" height="9" fill="${NAVY}"/></svg>`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -302,235 +294,122 @@ export function certificateTemplate(data) {
   @page { size: A4 landscape; margin: 0; }
   *{ box-sizing:border-box; margin:0; padding:0; }
   html,body{ width:100%; min-height:100vh; background:#0b1326; font-family:'Montserrat',Arial,sans-serif; -webkit-print-color-adjust:exact; print-color-adjust:exact; display:flex; align-items:center; justify-content:center; }
-  body{ position:relative; padding: 20px; overflow-y: auto; overflow-x: hidden; }
-  
-  /* Pure White layout with thin gold borders and generous whitespace */
-  .cert-paper {
-    width: 297mm;
-    height: 210mm;
-    background: #ffffff; 
-    border: 2px solid #C9A34A;
-    position: relative;
-    padding: 38px 70px 30px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    align-items: center;
-    box-shadow: 0 20px 50px rgba(0,0,0,0.45);
-    flex-shrink: 0;
-    transition: transform 0.2s ease;
+  body{ position:relative; padding:20px; overflow-y:auto; overflow-x:hidden; }
+
+  .cert-paper{ width:297mm; height:210mm; flex-shrink:0; position:relative; background:#fffefb; border:3px solid ${NAVY}; padding:14px; box-shadow:0 20px 50px rgba(0,0,0,.45); }
+  .cert-inner{ position:relative; height:100%; border:1.5px solid ${GOLD}; padding:26px 64px 18px; display:flex; flex-direction:column; align-items:center; text-align:center; overflow:hidden; }
+  @media (max-width:1200px){ .cert-paper{ transform:scale(.85); } }
+  @media (max-width:1000px){ .cert-paper{ transform:scale(.7); } }
+  @media (max-width:800px){ .cert-paper{ transform:scale(.55); } }
+  @media (max-width:600px){ .cert-paper{ transform:scale(.42); } }
+
+  .corner{ position:absolute; z-index:3; }
+  .corner.tl{ top:6px; left:6px; } .corner.tr{ top:6px; right:6px; transform:scaleX(-1); }
+  .corner.bl{ bottom:6px; left:6px; transform:scaleY(-1); } .corner.br{ bottom:6px; right:6px; transform:scale(-1,-1); }
+  .watermark{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:380px; height:380px; background:url("${B.logo}") center/contain no-repeat; opacity:.04; pointer-events:none; }
+
+  .head{ display:flex; flex-direction:column; align-items:center; z-index:2; }
+  .head img{ height:104px; margin-top:-8px; object-fit:contain; }
+  .head .org{ font-size:12px; font-weight:700; letter-spacing:4px; text-transform:uppercase; color:${NAVY}; margin-top:0; }
+  .head .tag{ font-size:8.5px; font-weight:600; letter-spacing:2.2px; text-transform:uppercase; color:#8a8f9c; margin-top:4px; }
+  .head .vent{ font-size:9.5px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#8A6A1C; margin-top:7px; padding-top:6px; border-top:1px solid #e6d9b3; }
+  .head .vent span{ color:#8a8f9c; font-weight:600; }
+
+  .title{ margin-top:24px; z-index:2; }
+  .title h1{ font-family:'Cinzel',serif; font-size:48px; font-weight:700; letter-spacing:12px; padding-left:12px; color:${NAVY}; line-height:1; text-transform:uppercase; }
+  .of{ display:flex; align-items:center; justify-content:center; gap:16px; margin-top:10px; }
+  .of i{ display:block; width:90px; height:1px; background:${GOLD}; }
+  .of b{ font-size:14px; font-weight:700; letter-spacing:7px; padding-left:7px; text-transform:uppercase; color:#8A6A1C; }
+
+  .mid{ z-index:2; margin-top:14px; width:100%; flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; }
+  .certify{ font-size:10.5px; font-weight:600; color:#8a8f9c; letter-spacing:3.5px; text-transform:uppercase; }
+  .name{ display:inline-block; min-width:48%; max-width:90%; font-family:${nameFontFamily}; font-size:${nameFontSize}; font-weight:${nameFontWeight}; font-style:${nameFontStyle}; letter-spacing:${nameLetterSpacing}; color:${NAVY}; line-height:1.15; margin-top:4px; padding:0 24px 4px; border-bottom:1.5px solid ${GOLD}; }
+  .text{ font-size:16px; font-weight:500; color:#222; line-height:1.75; max-width:800px; margin:20px auto 0; }
+  .text strong{ color:${NAVY}; font-weight:700; }
+  .sub{ font-size:12px; color:#6b7280; margin-top:12px; font-weight:500; }
+
+  .base{ margin-top:0; width:100%; display:grid; grid-template-columns:1fr auto 1fr; align-items:end; z-index:2; padding-bottom:6px; }
+  .col-l{ display:flex; align-items:flex-end; gap:14px; text-align:left; }
+  .qr{ width:66px; height:66px; border:1px solid ${GOLD}; padding:3px; background:#fff; }
+  .meta .k{ font-size:7px; font-weight:700; letter-spacing:1.4px; text-transform:uppercase; color:#8A6A1C; }
+  .meta .v{ font-size:10.5px; font-weight:700; color:${NAVY}; margin:2px 0 7px; }
+  .meta .v.id{ font-size:9.5px; letter-spacing:.3px; margin-bottom:0; }
+  .meta .hint{ font-size:6.8px; color:#8a8f9c; margin-top:3px; letter-spacing:.4px; }
+  .col-c{ display:flex; justify-content:center; padding:0 28px; }
+  .col-r{ display:flex; justify-content:flex-end; }
+  .sig{ position:relative; width:230px; text-align:center; }
+  .sig .img{ height:46px; display:flex; align-items:flex-end; justify-content:center; }
+  .sig .img img{ height:44px; object-fit:contain; }
+  .sig .stamp{ position:absolute; right:-34px; bottom:12px; width:92px; height:92px; object-fit:contain; transform:rotate(-8deg); opacity:.9; }
+  .sig .ln{ height:1px; background:${NAVY}; margin:4px 0 5px; opacity:.55; }
+  .sig .n{ font-size:10.5px; font-weight:700; letter-spacing:.8px; text-transform:uppercase; color:${NAVY}; }
+  .sig .r{ font-size:8.5px; color:#555; margin-top:2px; font-weight:500; }
+
+  .foot{ z-index:2; width:100%; border-top:1px solid #e6d9b3; padding-top:6px; margin-top:6px; padding-left:56px; padding-right:56px; font-size:8px; color:#6b7280; line-height:1.5; }
+  .foot b{ color:${NAVY}; font-weight:600; }
+
+  @media print{
+    html,body{ width:297mm; height:210mm; background:#fff; padding:0; margin:0; display:block; }
+    .cert-paper{ box-shadow:none; margin:0; transform:none !important; }
+    .no-print{ display:none !important; }
   }
-
-  /* Responsive Scaling for Desktop Screens to prevent overflow */
-  @media (max-width: 1200px) { .cert-paper { transform: scale(0.85); } }
-  @media (max-width: 1000px) { .cert-paper { transform: scale(0.7); } }
-  @media (max-width: 800px) { .cert-paper { transform: scale(0.55); } }
-  @media (max-width: 600px) { .cert-paper { transform: scale(0.42); } }
-
-  /* Double gold border frame */
-  .border-frame { position:absolute; inset:8px; border:1px solid #C9A34A; opacity:0.35; pointer-events:none; }
-
-  /* Header row */
-  .header-row { width:100%; display:flex; justify-content:space-between; align-items:center; z-index: 2; }
-  .cert-id-box { 
-    border: 1px solid #C9A34A;
-    padding: 8px 16px;
-    border-radius: 4px;
-    text-align: center;
-  }
-  .cert-id-val { 
-    font-size: 11px; 
-    font-weight: 700; 
-    color: #0B1F3A; 
-    font-family: 'Montserrat', sans-serif; 
-    letter-spacing: 0.5px;
-  }
-  .ref-badge { font-size:7px; color:#666; font-family:monospace; margin-top:2px; display:block; }
-
-  /* Title block */
-  .title-block { text-align:center; margin-top: 4px; z-index: 2; }
-  .cert-main-title { font-family:'Cinzel',serif; font-size:42px; font-weight:700; letter-spacing:10px; color:#0B1F3A; text-transform:uppercase; line-height:1; }
-  
-  .gold-divider-wrap { display:flex; align-items:center; justify-content:center; gap:16px; margin: 8px auto 4px; }
-  .gold-line { width:80px; height:1px; background:#C9A34A; }
-  .gold-diamond { width:6px; height:6px; background:#C9A34A; transform:rotate(45deg); }
-  
-  .of-text { font-size:16px; font-weight:700; letter-spacing:6px; text-transform:uppercase; color:#C9A34A; }
-
-  /* Body */
-  .body-block { text-align:center; width:100%; z-index: 2; }
-  .certify-text { font-size:12px; font-weight: 600; color:#888; letter-spacing:3px; text-transform:uppercase; margin-bottom:4px; }
-  .holder-name { font-family: ${nameFontFamily}; font-size: ${nameFontSize}; font-weight: ${nameFontWeight}; font-style: ${nameFontStyle}; letter-spacing: ${nameLetterSpacing}; color:#0B1F3A; line-height:1.1; margin:6px 0; border-bottom: 2px solid #C9A34A; display: inline-block; padding-bottom: 4px; }
-  .body-text { font-size:15.5px; font-weight:500; color:#111111; line-height:1.65; max-width:680px; margin:16px auto 0; font-family: 'Montserrat', sans-serif; }
-  .body-text strong { color:#0B1F3A; font-weight:700; }
-  .body-subtext { font-size:12.5px; color:#666; margin-top:12px; line-height:1.5; font-weight: 500; }
-
-  /* Bottom Row */
-  .bottom-row { width:100%; display:flex; justify-content:space-between; align-items:flex-end; z-index: 2; }
-  
-  .sig-area { text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; }
-  .sig-line { width:150px; height:1px; background:#C9A34A; margin: 4px auto; }
-  .sig-name { font-size:9.5px; color:#0B1F3A; font-weight:700; text-transform: uppercase; letter-spacing: 0.5px; }
-  .sig-role { font-size:8px; color:#555; font-weight:500; margin-top: 1px; }
-
-  .qr-area { text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
-  .qr-img { width:65px; height:65px; border:1.5px solid #C9A34A; padding:2px; background:white; }
-  .qr-label { font-size:6.5px; font-weight:500; color:#888; text-transform:uppercase; letter-spacing:0.5px; text-align:right; }
-
-  /* Watermark background logo */
-  .watermark { 
-    position:absolute; 
-    top:50%; left:50%; 
-    transform:translate(-50%,-50%) rotate(-12deg); 
-    width: 250px; height: 250px;
-    background-image: url("${B.logo}");
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: contain;
-    opacity:0.025; 
-    pointer-events:none; 
-    z-index:0; 
-  }
-
-  @media print {
-    html,body{ width:297mm; height:210mm; background:white; padding:0; margin:0; display:block; }
-    .cert-paper { border:2px solid #C9A34A; box-shadow:none; margin:0; transform:none !important; }
-    .no-print { display:none!important; }
-  }
-
-  .print-btn { position:fixed; top:16px; right:16px; padding:10px 22px; background:#0B1F3A; color:white; border:none; border-radius:6px; font-size:13px; font-weight:800; cursor:pointer; z-index:9999; box-shadow:0 4px 16px rgba(0,0,0,0.3); transition:background 0.2s; }
-  .print-btn:hover { background:${B.colorLight}; }
+  .print-btn{ position:fixed; top:16px; right:16px; padding:10px 22px; background:${NAVY}; color:#fff; border:none; border-radius:6px; font-size:13px; font-weight:800; cursor:pointer; z-index:9999; box-shadow:0 4px 16px rgba(0,0,0,.3); }
+  .print-btn:hover{ background:${B.colorLight}; }
 </style>
 </head>
 <body>
 <button class="print-btn no-print" onclick="window.print()">PRINT / SAVE PDF</button>
 
 <div class="cert-paper">
+ <div class="cert-inner">
+  ${corner('tl')}${corner('tr')}${corner('bl')}${corner('br')}
   <div class="watermark"></div>
-  <div class="border-frame"></div>
 
-  <!-- Breathtaking SVG Wave Lines (4% Opacity) -->
-  <!-- Top Right Wave -->
-  <svg style="position:absolute; top:40px; right:40px; width:300px; height:300px; opacity:0.04; pointer-events:none; z-index:1;" viewBox="0 0 300 300">
-    <path d="M 50,0 Q 150,100 100,200 T 300,300 M 100,0 Q 200,100 150,200 T 300,250 M 0,50 Q 100,150 50,250 T 250,300" fill="none" stroke="#0B1F3A" stroke-width="2" />
-  </svg>
-  <!-- Bottom Left Wave -->
-  <svg style="position:absolute; bottom:40px; left:40px; width:300px; height:300px; opacity:0.04; pointer-events:none; z-index:1;" viewBox="0 0 300 300">
-    <path d="M 0,100 Q 100,200 50,300 T 250,300 M 0,150 Q 100,250 100,300 M 50,0 Q 150,100 100,200 T 300,300" fill="none" stroke="#0B1F3A" stroke-width="2" />
-  </svg>
+  <div class="head">
+    <img src="${B.logo}" alt="${B.name} logo"/>
+    <div class="org">${B.legal}</div>
+    ${B.tagline ? `<div class="tag">${B.tagline}</div>` : ''}
+    ${B.venture ? `<div class="vent">${B.venture.name} <span>· A venture of ${B.legal}</span></div>` : ''}
+  </div>
 
-  <!-- Top Left Corner Poly Graphic -->
-  <svg style="position:absolute; top:0; left:0; width:180px; height:180px; pointer-events:none; z-index:2;" viewBox="0 0 180 180">
-    <polygon points="0,0 135,0 0,135" fill="#0B1F3A" />
-    <line x1="0" y1="148" x2="148" y2="0" stroke="#C9A34A" stroke-width="7" />
-  </svg>
+  <div class="title">
+    <h1>Certificate</h1>
+    <div class="of"><i></i><b>of ${esc(t.of)}</b><i></i></div>
+  </div>
 
-  <!-- Bottom Right Corner Poly Graphic -->
-  <svg style="position:absolute; bottom:0; right:0; width:180px; height:180px; pointer-events:none; z-index:2;" viewBox="0 0 180 180">
-    <polygon points="180,180 45,180 180,45" fill="#0B1F3A" />
-    <line x1="32" y1="180" x2="180" y2="32" stroke="#C9A34A" stroke-width="7" />
-  </svg>
+  <div class="mid">
+    <p class="certify">This is to certify that</p>
+    <h2 class="name">${esc(holderName)}</h2>
+    <p class="text">${bodyText}${holderInstitution ? ` (${esc(holderInstitution)}${holderDepartment ? ', '+esc(holderDepartment) : ''})` : ''}</p>
+    <p class="sub">We appreciate their dedication, commitment and valuable contributions to the projects and the team.</p>
+  </div>
 
-  <!-- Header -->
-  <div class="header-row">
-    <!-- Empty left placeholder to perfectly center the logo in flexbox -->
-    <div style="width: 160px;"></div>
-    
-    <!-- Centered Side-by-Side Logo block -->
-    <div style="display:flex; align-items:center; gap:20px;">
-      <!-- Left: Logo Icon -->
-      <img src="${B.logo}" alt="${B.name} logo" style="height:76px; object-fit:contain;" />
-      
-      <!-- Middle: Little vertical line -->
-      <div style="width:2px; height:56px; background:#C9A34A; opacity:0.85;"></div>
-      
-      <!-- Right: Company Name & Tagline -->
-      <div style="display:flex; flex-direction:column; align-items:flex-start; justify-content:center;">
-        <div style="font-family:'Montserrat',sans-serif; font-size:32px; font-weight:800; color:#0B1F3A; line-height:1.05; letter-spacing:0.5px;">${B.name}</div>
-        <div style="font-family:'Montserrat',sans-serif; font-size:9px; font-weight:650; color:#888; letter-spacing:1.8px; text-transform:uppercase; margin-top:5px; line-height:1;">${B.tagline}</div>
-        ${B.venture ? `<div style="font-family:'Montserrat',sans-serif; font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#a8861c; margin-top:8px; line-height:1;">${B.venture.name} <span style="color:#8a8f9c; font-weight:600;">· A venture of ${B.legal}</span></div>` : ''}
+  <div class="base">
+    <div class="col-l">
+      <div>
+        <img class="qr" src="${qrCodeUrl}" alt="Verification QR code"/>
+      </div>
+      <div class="meta">
+        <div class="k">Date of issue</div><div class="v">${fmtDate(issuedDate || startDate)}</div>
+        <div class="k">Certificate no.</div><div class="v id">${esc(certId)}</div>
+        ${refNum ? `<div class="hint">Ref: ${esc(refNum)}</div>` : ''}
+        <div class="hint">Scan to verify · verify.waveseed.app</div>
       </div>
     </div>
-    
-    <!-- ID Box on Right -->
-    <div class="cert-id-box">
-      <div class="cert-id-val">${esc(certId)}</div>
-      ${refNum ? `<div class="ref-badge">${esc(refNum)}</div>` : ''}
-    </div>
-  </div>
-
-  <!-- Title -->
-  <div class="title-block">
-    <h1 class="cert-main-title">Certificate</h1>
-    <div class="gold-divider-wrap">
-      <div class="gold-line"></div>
-      <div class="gold-diamond"></div>
-      <div class="gold-line"></div>
-    </div>
-    <span class="of-text">of ${esc(t.of)}</span>
-  </div>
-
-  <!-- Body row containing Redesigned Seal (Left), Name (Center), and Heavily Enlarged Stamp (Right) -->
-  <div style="display:flex; align-items:center; justify-content:center; gap:30px; width:100%; margin: 6px 0; min-height: 120px; z-index: 2;">
-    <!-- Left: Gold Seal -->
-    <div style="width: 130px; display: flex; justify-content: center; align-items: center;">
-      ${premiumSealHTML}
-    </div>
-
-    <!-- Center: Certification and Name -->
-    <div class="body-block" style="flex: 1; max-width: 460px;">
-      <p class="certify-text">This is to certify that</p>
-      <h2 class="holder-name">${esc(holderName)}</h2>
-    </div>
-
-    <!-- Right: Heavily Enlarged Company Stamp -->
-    <div style="width: 130px; display: flex; justify-content: center; align-items: center;">
-      <img src="${B.seal}" alt="Company Stamp" style="height:120px; width:120px; object-fit:contain; transform:rotate(-8deg); opacity:0.95; pointer-events:none;" />
-    </div>
-  </div>
-
-  <!-- Description Block -->
-  <div class="body-block" style="margin-top: -6px;">
-    <p class="body-text">${bodyText}${holderInstitution ? ` (${esc(holderInstitution)}${holderDepartment ? ', '+esc(holderDepartment) : ''})` : ''}</p>
-    <p class="body-subtext">We appreciate their dedication, commitment and valuable contributions to the projects and the team.</p>
-  </div>
-
-  <!-- Bottom -->
-  <div class="bottom-row">
-    <!-- Date area (Bottom Left) -->
-    <div style="display:flex; flex-direction:column; gap:4px; margin-bottom: 4px; z-index: 2;">
-      <div style="display:flex; align-items:center; gap:4px; font-size:7px; color:#C9A34A; font-weight:700; letter-spacing:0.5px;">
-        <span>DATE OF ISSUE:</span>
+    <div class="col-c">${sealHTML}</div>
+    <div class="col-r">
+      <div class="sig">
+        ${B.seal ? `<img class="stamp" src="${B.seal}" alt="Company stamp"/>` : ''}
+        <div class="img">${B.sigImage ? `<img src="${B.sigImage}" alt="Signature"/>` : ''}</div>
+        <div class="ln"></div>
+        <div class="n">${B.sigName}</div>
+        <div class="r">${B.sigTitle}, ${B.legal}</div>
       </div>
-      <span style="font-size:10px; color:#111111; font-weight:700; font-family:'Montserrat',sans-serif;">${fmtDate(issuedDate || startDate)}</span>
-    </div>
-    
-    <!-- Signature Area (Bottom Center) -->
-    <div class="sig-area" style="position:relative; min-width:180px; min-height:65px; margin-bottom:-4px;">
-      <div style="position:relative; display:inline-block; margin-bottom: 2px;">
-        <!-- Transparent Signature Image -->
-        ${B.sigImage ? `<img src="${B.sigImage}" alt="Founder Signature" style="height:36px; object-fit:contain; position:relative; z-index:2;" />` : ''}
-      </div>
-      <div class="sig-line"></div>
-      <div class="sig-name">${B.sigName}</div>
-      <div class="sig-role">${B.sigTitle} &nbsp;|&nbsp; ${B.legal}</div>
-    </div>
-    
-    <!-- QR Code Area (Bottom Right) -->
-    <div class="qr-area">
-      <img class="qr-img" src="${qrCodeUrl}" alt="Verification QR Code" />
-      <div class="qr-label">Scan to verify<br>this certificate</div>
     </div>
   </div>
 
-  <!-- Footer Links (Globe and Email) -->
-  <div style="display:flex; align-items:center; justify-content:center; gap:16px; font-size:9.5px; color:#0B1F3A; font-weight:600; margin-top:2px;">
-    <div style="width:50px; height:1px; background:#C9A34A; opacity:0.4;"></div>
-    <span>${B.website}</span>
-    <span style="color:#C9A34A; opacity:0.4;">|</span>
-    <span>${B.email}</span>
-    <div style="width:50px; height:1px; background:#C9A34A; opacity:0.4;"></div>
-  </div>
+  <div class="foot"><b>${B.website}</b> &nbsp;·&nbsp; ${B.email}${addrLine ? `<br/>${esc(addrLine)}` : ''}</div>
+ </div>
 </div>
 </body>
 </html>`;

@@ -496,19 +496,32 @@ function letterheadHTML() {
 ${v ? `<div class="venture">${v.logo ? `<img src="${v.logo}" alt=""/>` : ''}<span><b>${v.name}</b> &nbsp;A venture of ${B.legal}</span>${v.tagline ? `<em>${v.tagline}</em>` : ''}</div>` : ''}`;
 }
 
-// Free-text extra terms/notes from the form: one point per line. Printed once per document.
-let EXTRA = '', EXTRA_USED = false;
+// Free-text extra terms/notes from the form: one point per line (blank lines are ignored).
+// Offer letters print them as numbered terms inside Annexure A; other letters as 'Additional Notes'.
+let EXTRA = '', EXTRA_USED = false, EXTRA_ANNEX = false;   // EXTRA_ANNEX: offer letters keep the extras for Annexure A
+const extraLines = () => EXTRA.split(/\r?\n/).map(l => l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim()).filter(Boolean);
+// "Stipend: text" -> bold label + text; anything else is plain text
+function fmtExtraLine(line) {
+  const m = line.match(/^([^:.]{2,70}):\s+([\s\S]+)$/);
+  return m ? `<strong>${esc(m[1])}:</strong> ${esc(m[2])}` : esc(line);
+}
 function extraBlock(heading) {
   if (EXTRA_USED || !EXTRA.trim()) return '';
   EXTRA_USED = true;
-  const lines = EXTRA.split(/\r?\n/).map(l => l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim()).filter(Boolean);
-  const body = lines.length === 1 ? `<p class="para">${esc(lines[0])}</p>` : `<ul class="bullet-list">${lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>`;
+  const lines = extraLines();
+  const body = lines.length === 1 ? `<p class="para">${fmtExtraLine(lines[0])}</p>` : `<ul class="bullet-list">${lines.map(l => `<li>${fmtExtraLine(l)}</li>`).join('')}</ul>`;
   return `<div class="section-title">${heading}</div>\n${body}`;
+}
+/** Extra terms as list items for Annexure A (numbering continues from the standard terms). */
+function extraTermItems() {
+  if (EXTRA_USED || !EXTRA.trim()) return '';
+  EXTRA_USED = true;
+  return extraLines().map(l => `<li>${fmtExtraLine(l)}</li>`).join('\n    ');
 }
 
 export function signatureBlockHTML() {
   return `
-${extraBlock('Additional Notes')}
+${EXTRA_ANNEX ? '' : extraBlock('Additional Notes')}
 <div class="sign">
   <p class="sign-close">Yours sincerely,</p>
   <p class="sign-for">For <b>${B.legal}</b></p>
@@ -732,7 +745,6 @@ export function internshipOfferTemplate(data) {
   <li><strong>Termination:</strong> Either party may terminate the association by giving written notice of ${esc(noticePeriod)}. ${B.legal} reserves the right to terminate immediately for cause.</li>
 </ul>
 
-${extraBlock('Additional Terms &amp; Conditions')}
 <div class="section-title">Accepting this Offer &amp; Joining Formalities</div>
 <p class="para">${offerValidity ? `This offer is valid until <strong>${fmtDate(offerValidity)}</strong>. ` : ''}Please complete these steps in order:</p>
 <ol class="terms-list" style="font-size:inherit;color:inherit;">
@@ -775,6 +787,7 @@ ${signatureBlockHTML()}
     <li>You agree not to violate or attempt to violate the intellectual property rights of any third party during your internship.</li>
     <li>This internship is a learning engagement. It does not create an employer–employee relationship, and you are not entitled to employee benefits or any guarantee of future employment.</li>
     <li>On completion or termination of the internship, you shall promptly return all Company property, accounts, credentials, and access that were provided to you.</li>
+    ${extraTermItems()}
     <li><strong>Electronic acceptance.</strong> This offer may be accepted electronically through the link given in this letter. An electronic acceptance, using your typed full name as your signature, is binding on you in the same way as a handwritten signature and is an agreement concluded by electronic means under the Information Technology Act, 2000. The Company records the date and time of the acceptance (from its own server), your IP address and your device and browser details, and, only if you choose to share it, your location, as evidence of the acceptance and to prevent fraud. The Company's record of the acceptance is conclusive evidence of it unless you prove otherwise.</li>
     <li>If any term of this offer is found to be unenforceable, the remaining terms continue in full force. The Company's failure or delay in enforcing a term is not a waiver of it.</li>
     <li>These Terms of Internship shall be governed by and construed in accordance with the Laws of India, and the courts at the place of the Company's registered office shall have exclusive jurisdiction over any dispute arising from them. This offer letter, together with Annexure A, constitutes the entire agreement between the parties and supersedes all prior discussions and representations.</li>
@@ -831,7 +844,6 @@ export function employmentOfferTemplate(data) {
   <li><strong>Termination notice:</strong> Post-confirmation, the notice period required by either party shall be ${esc(noticePeriod)} in writing.</li>
 </ul>
 
-${extraBlock('Additional Terms &amp; Conditions')}
 <div class="section-title">Accepting this Offer &amp; Joining Formalities</div>
 <p class="para">${offerValidity ? `This offer is valid until <strong>${fmtDate(offerValidity)}</strong>. ` : ''}Please complete these steps in order:</p>
 <ol class="terms-list" style="font-size:inherit;color:inherit;">
@@ -873,6 +885,7 @@ ${signatureBlockHTML()}
     <li>You shall maintain strict confidentiality regarding all entities related to ${B.legal} during and after your employment. Upon termination, you shall update all professional and social profiles to reflect that you are no longer associated with the Company.</li>
     <li>You agree not to violate or attempt to violate the intellectual property rights of any third party during your employment.</li>
     <li>On separation, you shall promptly return all Company property, accounts, credentials, and access that were provided to you, and complete a proper handover of your work.</li>
+    ${extraTermItems()}
     <li><strong>Electronic acceptance.</strong> This offer may be accepted electronically through the link given in this letter. An electronic acceptance, using your typed full name as your signature, is binding on you in the same way as a handwritten signature and is an agreement concluded by electronic means under the Information Technology Act, 2000. The Company records the date and time of the acceptance (from its own server), your IP address and your device and browser details, and, only if you choose to share it, your location, as evidence of the acceptance and to prevent fraud. The Company's record of the acceptance is conclusive evidence of it unless you prove otherwise.</li>
     <li>If any term of this offer is found to be unenforceable, the remaining terms continue in full force. The Company's failure or delay in enforcing a term is not a waiver of it.</li>
     <li>These Terms of Employment shall be governed by and construed in accordance with the Laws of India, and the courts at the place of the Company's registered office shall have exclusive jurisdiction over any dispute arising from them. This offer letter, together with Annexure A, constitutes the entire agreement between the parties.</li>
@@ -1433,12 +1446,12 @@ function renderDocument(type, data) {
 export function generateDocument(type, data) {
   setBrand(data && data.brand);
   EMP_CODE = esc((data && (data.empCode || data.employeeCode)) || '');
-  EXTRA = String((data && data.additionalTerms) || '').slice(0, 2000); EXTRA_USED = false;
+  EXTRA = String((data && data.additionalTerms) || '').slice(0, 2000); EXTRA_USED = false; EXTRA_ANNEX = /-offer$/.test(String(type));
   try {
     return renderDocument(type, data);
   } finally {
     setBrand(null);
-    EMP_CODE = ''; EXTRA = ''; EXTRA_USED = false;
+    EMP_CODE = ''; EXTRA = ''; EXTRA_USED = false; EXTRA_ANNEX = false;
   }
 }
 
@@ -1502,13 +1515,13 @@ ${items.length ? `<ol>${items.map(t => `<li>${esc(t)}</li>`).join('')}</ol>` : '
 export function generateSignedCopy(type, data, rec) {
   setBrand(data && data.brand);
   EMP_CODE = esc((data && (data.empCode || data.employeeCode)) || '');
-  EXTRA = String((data && data.additionalTerms) || '').slice(0, 2000); EXTRA_USED = false;
+  EXTRA = String((data && data.additionalTerms) || '').slice(0, 2000); EXTRA_USED = false; EXTRA_ANNEX = /-offer$/.test(String(type));
   try {
     const html = renderDocument(type, data);
     const annex = acceptanceAnnexHTML(rec);
     return annex ? html.replace('</body>', () => annex + '\n</body>') : html;
   } finally {
     setBrand(null);
-    EMP_CODE = ''; EXTRA = ''; EXTRA_USED = false;
+    EMP_CODE = ''; EXTRA = ''; EXTRA_USED = false; EXTRA_ANNEX = false;
   }
 }

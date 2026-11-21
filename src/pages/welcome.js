@@ -2,7 +2,8 @@
 // The last formality: shown once the offer is accepted (and, ideally, documents are in).
 import { publicAcceptLookup } from '../api.js';
 import { icon } from '../ui/icons.js';
-import { esc, fmtDate, fmtIST, daysUntil, offerData, signedCopyHtml, offerHtml, openDoc, getJourney, clearJourney, stepperHTML, logoOf } from '../utils/journey.js';
+import { esc, fmtDate, fmtIST, daysUntil, offerData, signedCopyHtml, offerHtml, openDoc, getJourney, clearJourney, stepperHTML, logoOf, demoBannerHTML, bindDemo } from '../utils/journey.js';
+import { demoLookup } from '../utils/demo.js';
 
 const SPARKS = [[8, 18, 0], [18, 62, 1.1], [30, 28, 2.2], [44, 70, 0.6], [58, 22, 1.7], [70, 58, 2.9], [82, 30, 0.3], [92, 66, 1.4], [14, 84, 3.2], [76, 86, 2.4]];
 
@@ -11,10 +12,11 @@ export function initWelcomePage(app) {
   if (!J) { location.hash = '#accept'; return; }
   app.innerHTML = '<div class="app-splash" role="status"><div class="spinner"></div></div>';
 
-  publicAcceptLookup({ ref: J.ref, dob: J.dob }).then((r) => {
-    if (!r.acceptance || r.acceptance.state !== 'accepted') { location.hash = `#accept?ref=${encodeURIComponent(J.ref)}`; return; }
+  const back = () => { location.hash = J.demo ? '#accept?demo=1' : `#accept?ref=${encodeURIComponent(J.ref)}`; };
+  (J.demo ? demoLookup() : publicAcceptLookup({ ref: J.ref, dob: J.dob })).then((r) => {
+    if (!r.acceptance || r.acceptance.state !== 'accepted') { back(); return; }
     render(r);
-  }).catch(() => { location.hash = `#accept?ref=${encodeURIComponent(J.ref)}`; });
+  }).catch(() => { back(); });
 
   function render(r) {
     const d = offerData(r), iss = r.issuer || {}, v = iss.venture;
@@ -43,6 +45,7 @@ export function initWelcomePage(app) {
     ].filter((x) => x[1]);
 
     app.innerHTML = `<div class="ws-app jy">
+      ${J.demo ? demoBannerHTML() : ''}
       <section class="jyw-hero">
         ${SPARKS.map(([x, y, t]) => `<span class="jyw-spark" style="left:${x}%;top:${y}%;animation-delay:${t}s"></span>`).join('')}
         <div class="jyw-logo"><img src="${esc(logoOf(iss))}" alt="${esc(company)} logo"/></div>
@@ -96,6 +99,7 @@ export function initWelcomePage(app) {
       </main>
     </div>`;
     window.scrollTo({ top: 0 });
+    if (J.demo) bindDemo(app);
 
     app.querySelector('#w-signed').addEventListener('click', () => {
       const html = a.method === 'electronic' ? signedCopyHtml(r, rec) : offerHtml(r);

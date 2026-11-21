@@ -1,7 +1,8 @@
 // ─── accept.js — Offer acceptance (#accept?ref=…) ────────────────────────────
 // 1 Verify (reference + date of birth)  2 Review the offer  3 Accept: electronic signature,
 // signed-copy upload, or decline  → then the document upload page (#upload) and the welcome page.
-import { publicAcceptLookup, publicAcceptSubmit, publicUploadSigned } from '../api.js';
+import { publicAcceptLookup, publicAcceptSubmit as realSubmit, publicUploadSigned as realUploadSigned } from '../api.js';
+import { demoLookup, demoSubmit, demoUploadSigned } from '../utils/demo.js';
 import { icon } from '../ui/icons.js';
 import {
   esc, fmtDate, fmtIST, daysUntil, offerData, offerHtml, signedCopyHtml, previewDoc, openDoc, getGeo, shrinkImage,
@@ -13,11 +14,15 @@ const normName = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(
 export function initAcceptPage(app) {
   const q = new URLSearchParams(window.location.hash.split('?')[1] || '');
   const S = { ref: (q.get('ref') || '').trim(), dob: '', r: null, ui: null, rec: null };
-  let shell = mountShell(app, null);
+  const DEMO = q.get('demo') === '1';
+  const demoOpts = { biz: q.get('biz') || '', type: q.get('type') || '', name: q.get('name') || '' };
+  const publicAcceptSubmit = (p) => (DEMO ? demoSubmit(p, S.r) : realSubmit(p));
+  const publicUploadSigned = (p) => (DEMO ? demoUploadSigned(p) : realUploadSigned(p));
+  let shell = mountShell(app, null, { demo: DEMO });
   let main = shell.main;
 
   const rebrand = () => {   // re-draw the brand bar once we know which business the offer is from
-    shell = mountShell(app, S.r && S.r.issuer);
+    shell = mountShell(app, S.r && S.r.issuer, { demo: DEMO });
     main = shell.main;
   };
   const on = (map) => main.addEventListener('click', (e) => {
@@ -56,8 +61,10 @@ export function initAcceptPage(app) {
 
   async function load() {
     try {
-      S.r = await publicAcceptLookup({ ref: S.ref, dob: S.dob });
-      setJourney({ ref: S.ref, dob: S.dob, type: S.r.employeeType, name: S.r.holderName });
+      S.r = DEMO ? await demoLookup(demoOpts) : await publicAcceptLookup({ ref: S.ref, dob: S.dob });
+      const prev = getJourney() || {};
+      if (DEMO) setJourney({ ref: S.ref, dob: S.dob, demo: true, biz: (demoOpts.biz || 'ws').toLowerCase(), type: S.r.employeeType, name: S.r.holderName, demoRec: prev.demo ? prev.demoRec : undefined });
+      else setJourney({ ref: S.ref, dob: S.dob, type: S.r.employeeType, name: S.r.holderName });
       rebrand();
       const a = S.r.acceptance;
       if (a.state === 'accepted') return viewAccepted();
@@ -333,7 +340,7 @@ export function initAcceptPage(app) {
   function viewDone() {
     const r = S.r, rec = S.rec;
     r.acceptance = { ...rec };
-    patchJourney({ accepted: true });
+    patchJourney(DEMO ? { accepted: true, demoRec: rec } : { accepted: true });
     const first = (r.holderName || '').split(/\s+/)[0];
     shell.setHero({ eyebrow: 'Offer accepted', title: `Thank you, ${esc(first)}`, sub: 'Your acceptance has been recorded. One last step: upload your documents to complete your joining formalities.', step: 4 });
     main.innerHTML = `<div class="jy-card"><div class="jy-done">${tick()}
@@ -365,6 +372,10 @@ export function initAcceptPage(app) {
 
   // Resume: same tab, same offer, still signed in
   const j = getJourney();
-  if (j && S.ref && j.ref === S.ref) { S.dob = j.dob; load(); }
+  if (DEMO) {
+    S.ref = 'DEMO'; S.dob = 'demo';
+    if (!(j && j.demo)) setJourney({ ref: 'DEMO', dob: 'demo', demo: true });   // a fresh demo run starts clean
+    load();
+  } else if (j && S.ref && j.ref === S.ref && !j.demo) { S.dob = j.dob; load(); }
   else viewIdentify();
 }

@@ -10,6 +10,12 @@
 .jy button { font-family: inherit; }
 .jy .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
+/* demo banner */
+.jy-demo { position: sticky; top: 0; z-index: 40; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 7px 16px; background: #fff3cd; color: #6b4e00; border-bottom: 1px solid #f0d27a; font-size: 12.5px; }
+.jy-demo .icon { vertical-align: -3px; }
+.jy-demo button { margin-left: 8px; background: none; border: 0; padding: 0; color: #6b4e00; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.jy-demo + .jy-top { top: 33px; }
+
 /* top bar */
 .jy-top { position: sticky; top: 0; z-index: 30; background: rgba(255,255,255,.92); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
 .jy-top-in { max-width: 980px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }

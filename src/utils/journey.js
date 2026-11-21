@@ -118,13 +118,33 @@ export function stepperHTML(now) {
   }).join('')}</ol>`;
 }
 
-export function mountShell(app, issuer) {
+export function demoBannerHTML() {
+  return `<div class="jy-demo" role="note"><span>${icon('wand', { size: 15 })} <b>Demo mode</b> — a sample offer. Nothing is saved, uploaded or sent.</span><span><button data-demo="restart">Restart</button><button data-demo="exit">Exit demo</button></span></div>`;
+}
+
+export function bindDemo(root) {
+  root.querySelectorAll('[data-demo]').forEach((b) => b.addEventListener('click', () => {
+    const restart = b.dataset.demo === 'restart';
+    const j = getJourney() || {};
+    clearJourney();
+    if (!restart) { location.hash = ''; return; }
+    const q = new URLSearchParams({ demo: '1' });
+    if (j.biz) q.set('biz', j.biz);
+    if (j.type) q.set('type', j.type);
+    const h = '#accept?' + q.toString();
+    if (location.hash === h) location.reload(); else location.hash = h;
+  }));
+}
+
+export function mountShell(app, issuer, { demo = false } = {}) {
   app.innerHTML = `<div class="ws-app jy">
+    ${demo ? demoBannerHTML() : ''}
     ${brandBar(issuer)}
     <section class="jy-hero" id="jy-hero">${WAVES}<div class="jy-hero-in" id="jy-hero-in"></div></section>
     <main class="jy-main" id="jy-main"></main>
     <footer class="jy-foot" id="jy-foot"></footer>
   </div>`;
+  if (demo) bindDemo(app);
   const foot = app.querySelector('#jy-foot');
   const mail = issuer && issuer.email ? `<a href="mailto:${esc(issuer.email)}">${esc(issuer.email)}</a>` : '';
   foot.innerHTML = `${mail ? `Need help? Write to ${mail}. ` : ''}${esc((issuer && (issuer.legal || issuer.name)) || 'WaveSeed Co.')} · Your details are used only for your onboarding.`;

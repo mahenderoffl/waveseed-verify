@@ -1530,6 +1530,16 @@ http.route({
   }),
 });
 
+// Public: the consent wording (used by the demo mode so it always matches the real flow)
+http.route({ path: "/public/accept/consent", method: "OPTIONS", handler: httpAction(async () => preflight()) });
+http.route({
+  path: "/public/accept/consent",
+  method: "GET",
+  handler: httpAction(async () => json({
+    version: acc.CONSENT_VERSION, clauseTitle: acc.CONSENT_CLAUSE_TITLE, clause: acc.CONSENT_CLAUSE, items: acc.CONSENTS, privacy: acc.PRIVACY_NOTICE,
+  })),
+});
+
 // Admin: every acceptance record (for the Person page and reports)
 http.route({ path: "/admin/acceptances", method: "OPTIONS", handler: httpAction(async () => preflight()) });
 http.route({

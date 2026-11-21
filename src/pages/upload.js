@@ -7,17 +7,19 @@ import { compressFile, fmtKB } from '../utils/compress.js';
 import { slotsFor, GROUPS, requirementProgress } from '../utils/docCatalog.js';
 import { icon } from '../ui/icons.js';
 import { esc, getJourney, setJourney, patchJourney, mountShell, spinner, alertBox } from '../utils/journey.js';
+import { demoLookup } from '../utils/demo.js';
 
 const GROUP_ICON = { identity: 'id-card', education: 'graduation-cap', work: 'briefcase' };
 const GROUP_TITLE = { identity: 'Identity & bank', education: 'Education certificates', work: 'Work history' };
 
 export function initUploadPage(app) {
   let issuer = null;
-  let shell = mountShell(app, null);
+  const DEMO = !!(getJourney() || {}).demo;
+  let shell = mountShell(app, null, { demo: DEMO });
   let main = shell.main;
   const done = new Set();
 
-  const rebrand = () => { shell = mountShell(app, issuer); main = shell.main; };
+  const rebrand = () => { shell = mountShell(app, issuer, { demo: DEMO }); main = shell.main; };
 
   // ── Sign in (only when we are not coming from the acceptance page) ───────────
   function viewAuth(err = '') {
@@ -106,10 +108,14 @@ export function initUploadPage(app) {
       try {
         const { blob, mimeType, sizeBytes } = await compressFile(file, docType, (p) => setBar(8 + p * 0.4, 'Shrinking…'));
         setBar(55, 'Uploading…');
-        const { uploadUrl, employeeId } = await publicDocGetUploadUrl({ ref: J.ref, dob: J.dob, docType, fileName: file.name, mimeType, sizeBytes });
-        const { storageId } = await publicDocUploadBlob(uploadUrl, blob);
-        setBar(85, 'Saving…');
-        await publicDocConfirm({ ref: J.ref, dob: J.dob, employeeId, docType, storageId, fileName: file.name, mimeType, sizeBytes });
+        if (DEMO) {   // demo: nothing leaves the browser
+          await new Promise((r) => setTimeout(r, 600)); setBar(85, 'Saving…'); await new Promise((r) => setTimeout(r, 300));
+        } else {
+          const { uploadUrl, employeeId } = await publicDocGetUploadUrl({ ref: J.ref, dob: J.dob, docType, fileName: file.name, mimeType, sizeBytes });
+          const { storageId } = await publicDocUploadBlob(uploadUrl, blob);
+          setBar(85, 'Saving…');
+          await publicDocConfirm({ ref: J.ref, dob: J.dob, employeeId, docType, storageId, fileName: file.name, mimeType, sizeBytes });
+        }
         done.add(docType);
         box.classList.remove('busy'); box.classList.add('done'); bar.style.display = 'none';
         st.textContent = `Uploaded · ${fmtKB(sizeBytes)}`; lbl.textContent = 'Replace';
@@ -124,7 +130,7 @@ export function initUploadPage(app) {
   const J = getJourney();
   if (!J) return viewAuth();
   // Coming from the acceptance page: confirm the session, pick up the brand, go straight to the slots
-  publicAcceptLookup({ ref: J.ref, dob: J.dob }).then((r) => {
+  (DEMO ? demoLookup() : publicAcceptLookup({ ref: J.ref, dob: J.dob })).then((r) => {
     issuer = r.issuer; rebrand();
     patchJourney({ type: r.employeeType, name: r.holderName });
     viewDocs({ ...J, type: r.employeeType, name: r.holderName });

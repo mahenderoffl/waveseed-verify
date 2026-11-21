@@ -92,7 +92,7 @@ function buildVerifyHTML() {
   <!-- Footer -->
   <footer class="site-footer">
     <span>© 2026 WaveSeed Co. — <a href="https://waveseed.app" target="_blank">waveseed.app</a></span>
-    <span>All certificates are cryptographically tracked · <a href="mailto:${esc(I.email)}">${esc(I.email)}</a></span>
+    <span>All certificates are cryptographically tracked · <a href="mailto:careers@waveseed.app">careers@waveseed.app</a></span>
   </footer>
 </div>`;
 }
@@ -381,7 +381,7 @@ function renderNotFound(query) {
     <h2 class="error-title">Certificate Not Found</h2>
     <p class="error-msg">
       No certificate matching <strong>"${esc(query)}"</strong> exists in the WaveSeed registry.<br><br>
-      Please double-check the Certificate ID or Reference Number. If you believe this is an error, contact <a href="mailto:${esc(I.email)}" style="color:#c9a227;">${esc(I.email)}</a>
+      Please double-check the Certificate ID or Reference Number. If you believe this is an error, contact <a href="mailto:careers@waveseed.app" style="color:#c9a227;">careers@waveseed.app</a>
     </p>
   </div>
 </div>`;

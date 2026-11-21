@@ -1,6 +1,6 @@
 // ─── generate.js — Document Generation Dashboard ──────────────────────────────
-import { generateDocument, payslipTotals, inr } from '../templates/templates.js';
-import { adminGetAll, adminGetEmployees, adminGetNextIds, adminAddCertificate } from '../api.js';
+import { generateDocument, payslipTotals, inr, brandSnapshot } from '../templates/templates.js';
+import { adminGetAll, adminGetEmployees, adminGetNextIds, adminAddCertificate, adminGetBusinesses } from '../api.js';
 import { productDropdownHTML, purposeDropdownHTML } from './shared.js';
 
 // ─── Document Type Catalogue ───────────────────────────────────────────────────
@@ -200,6 +200,16 @@ const FIELD_DEF = {
 let adminToken = null;
 let existingCerts = [];
 let existingEmployees = [];
+let businessesList = [];          // from Settings (with resolved branding)
+let currentBizCode = 'WS';        // business the document is being issued for
+
+const bizCode = () => currentBizCode || 'WS';
+const idPrefix = base => base.replace(/^WS(?=-)/, bizCode());          // WS-CERT-INT -> WSG-CERT-INT
+// WaveSeed keeps its historical AI-FS reference format; other businesses use CODE/KIND/YEAR/NNN
+const makeRef = (kind, seq) => bizCode() === 'WS'
+  ? `WS/${kind}/${new Date().getFullYear()}/AI-FS/${seq}`
+  : `${bizCode()}/${kind}/${new Date().getFullYear()}/${seq}`;
+const defaultBizCode = () => (businessesList.find(b => !b.parentId) || {}).code || 'WS';
 
 export async function initGeneratePage(mainEl, token) {
   adminToken = token;
@@ -216,6 +226,7 @@ export async function initGeneratePage(mainEl, token) {
     existingCerts = [];
     existingEmployees = [];
   }
+  try { businessesList = (await adminGetBusinesses(token)).businesses || []; } catch { businessesList = []; }
   renderDocGrid('all');
 }
 
@@ -276,6 +287,16 @@ window.wsOpenGenForm = async function(typeId) {
   overlay.className = 'modal-overlay';
   overlay.id = 'gen-modal';
 
+  currentBizCode = defaultBizCode();
+  const activeBiz = businessesList.filter(b => b.active);
+  const bizSelectHTML = activeBiz.length > 1 ? `
+    <div style="background:rgba(201,162,39,0.08);border:1px solid rgba(201,162,39,0.35);border-radius:8px;padding:12px 14px;margin-bottom:12px;">
+      <label class="form-label" style="font-weight:700;color:var(--navy);text-transform:uppercase;font-size:0.7rem;letter-spacing:0.5px;">🏢 Issuing business (letterhead, signatory &amp; ID prefix)</label>
+      <select id="gen-business" class="form-select">
+        ${activeBiz.map(b => `<option value="${esc(b.code)}" ${b.code === currentBizCode ? 'selected' : ''}>${esc(b.displayName)} (${esc(b.code)})</option>`).join('')}
+      </select>
+    </div>` : '';
+
   // Load from dropdown selectors
   const hasCertLoad = existingCerts.length > 0 && docType.fields.some(f => ['holderName','recipientName'].includes(f));
   const hasEmpLoad = existingEmployees.length > 0 && docType.fields.some(f => ['holderName','recipientName'].includes(f));
@@ -296,6 +317,7 @@ window.wsOpenGenForm = async function(typeId) {
   </div>
   <div class="modal-body">
     
+    ${bizSelectHTML}
     ${hasEmpLoad ? `
     <div style="background:rgba(13,27,62,0.04);border:1px solid rgba(13,27,62,0.12);border-radius:8px;padding:12px 14px;margin-bottom:12px;display:flex;flex-direction:column;gap:6px;">
       <label class="form-label" style="font-weight:700;color:var(--navy);text-transform:uppercase;font-size:0.7rem;letter-spacing:0.5px;">👤 Autofill from Employee Directory</label>
@@ -362,6 +384,21 @@ window.wsOpenGenForm = async function(typeId) {
 </div>`;
 
   document.body.appendChild(overlay);
+
+  document.getElementById('gen-business')?.addEventListener('change', async (ev) => {
+    currentBizCode = ev.target.value;
+    const certEl = document.getElementById('f-certId');
+    const refEl = document.getElementById('f-refNum');
+    if (!certEl && !refEl) return;
+    try {
+      const next = await adminGetNextIds(adminToken, bizCode());
+      const seq = next.nextCertId.split('-').pop();
+      const refSeq = next.nextRefNum.split('/').pop();
+      const isEmp = typeId.includes('employment') || typeId.includes('salary') || typeId.includes('promotion');
+      if (certEl) certEl.value = `${idPrefix(getPrefixForType(typeId))}-${new Date().getFullYear()}-${seq}`;
+      if (refEl) refEl.value = makeRef(isEmp ? 'EMP' : 'INT', refSeq);
+    } catch { /* leave fields as they are */ }
+  });
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   attachPayslipTotals();
 
@@ -403,18 +440,17 @@ window.wsOpenGenForm = async function(typeId) {
       const certEl = document.getElementById('f-certId');
       const refEl = document.getElementById('f-refNum');
       if (certEl || refEl) {
-        const nextIds = await adminGetNextIds(adminToken);
+        const nextIds = await adminGetNextIds(adminToken, bizCode());
         const seqPart = nextIds.nextCertId.split('-').pop() || '0043';
         const refSeqPart = nextIds.nextRefNum.split('/').pop() || '043';
         
         if (certEl && !certEl.value) {
           const prefix = getPrefixForType(typeId);
-          certEl.value = `${prefix}-2026-${seqPart}`;
+          certEl.value = `${idPrefix(prefix)}-${new Date().getFullYear()}-${seqPart}`;
         }
         if (refEl && !refEl.value) {
           const isEmp = typeId.includes('employment') || typeId.includes('salary') || typeId.includes('promotion');
-          const refPrefix = isEmp ? 'WS/EMP' : 'WS/INT';
-          refEl.value = `${refPrefix}/2026/AI-FS/${refSeqPart}`;
+          refEl.value = makeRef(isEmp ? 'EMP' : 'INT', refSeqPart);
         }
       }
     } catch (e) {
@@ -430,6 +466,12 @@ window.wsOpenGenForm = async function(typeId) {
       if (!val) return;
       const emp = existingEmployees.find(e => e._id === val);
       if (!emp) return;
+      const empBiz = businessesList.find(b => b.id === emp.businessId);
+      if (empBiz) {
+        currentBizCode = empBiz.code;
+        const bizSel = document.getElementById('gen-business');
+        if (bizSel) bizSel.value = empBiz.code;
+      }
 
       let empDob = '';
       try {
@@ -456,6 +498,7 @@ window.wsOpenGenForm = async function(typeId) {
         'f-joiningDate':      emp.startDate,
         'f-department':       emp.department,
         'f-holderDob':        empDob,
+        'f-employeeCode':     emp.empCode,
       };
 
       for (const [id, value] of Object.entries(map)) {
@@ -470,17 +513,16 @@ window.wsOpenGenForm = async function(typeId) {
       const refEl = document.getElementById('f-refNum');
       if (certEl || refEl) {
         try {
-          const nextIds = await adminGetNextIds(adminToken);
+          const nextIds = await adminGetNextIds(adminToken, bizCode());
           const seqPart = nextIds.nextCertId.split('-').pop() || '0043';
           
           if (certEl) {
             const prefix = getPrefixForType(typeId, emp.employeeType);
-            certEl.value = `${prefix}-2026-${seqPart}`;
+            certEl.value = `${idPrefix(prefix)}-${new Date().getFullYear()}-${seqPart}`;
           }
           if (refEl) {
-            const refPrefix = emp.employeeType === 'intern' ? 'WS/INT' : 'WS/EMP';
             const refSeqPart = nextIds.nextRefNum.split('/').pop() || '043';
-            refEl.value = `${refPrefix}/2026/AI-FS/${refSeqPart}`;
+            refEl.value = makeRef(emp.employeeType === 'intern' ? 'INT' : 'EMP', refSeqPart);
           }
         } catch { }
       }
@@ -535,6 +577,8 @@ window.wsGenerate = async function(typeId) {
 
   // Collect all field values
   const data = collectFormData(docType);
+  const issuingBiz = businessesList.find(b => b.code === bizCode());
+  data.brand = brandSnapshot(issuingBiz);   // stored with the document so it re-renders exactly as issued
 
   // Validate required fields
   const missing = docType.fields.filter(fid => {
@@ -580,6 +624,7 @@ window.wsGenerate = async function(typeId) {
       nameFont:          data.nameFont || 'cursive',
       templateData:      JSON.stringify(data),  // store ALL fields for future re-rendering
       employeeId:        document.getElementById('gen-emp-autofill')?.value || undefined,
+      businessId:        issuingBiz?.id,
     });
 
     // Refresh existing certs list

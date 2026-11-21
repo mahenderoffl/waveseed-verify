@@ -271,7 +271,8 @@ export const setImage = internalMutation({
     const biz = await ctx.db.get(args.id);
     if (!biz) throw new Error("Business not found");
     const old = (biz as any)[field] as string | undefined;
-    if (old && old !== args.storageId) { try { await ctx.storage.delete(old as any); } catch {} }
+    // The previous file is deliberately kept: documents already issued reference it by URL
+    // (logo / seal / signature snapshot), so deleting it would break old letters.
     await ctx.db.patch(args.id, { [field]: args.storageId, updatedAt: Date.now() } as any);
     await ctx.db.insert("businessAuditLogs", {
       businessId: args.id, action: args.storageId ? "image_set" : "image_clear", fields: [args.kind], role: args.role, at: Date.now(),

@@ -657,7 +657,8 @@ http.route({
     const rows = await ctx.runQuery(internal.businesses.listResolved, {});
     if (role === "admin" || role === "hr") return json({ businesses: rows, canEdit: true });
     return json({
-      businesses: rows.map((b) => ({ id: b.id, code: b.code, slug: b.slug, parentId: b.parentId, displayName: b.displayName, active: b.active })),
+      // Other roles (e.g. operations generating letters) need the resolved branding, not the raw editable fields.
+      businesses: rows.map((b) => ({ id: b.id, code: b.code, slug: b.slug, parentId: b.parentId, displayName: b.displayName, active: b.active, effective: b.effective })),
       canEdit: false,
     });
   }),

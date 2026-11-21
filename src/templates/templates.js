@@ -1,26 +1,108 @@
 // ─── templates.js — All printable document HTML generators ────────────────────
 import { LOGO_BASE64, SIG_BASE64, STAMP_BASE64 } from './assets.js';
 
+// ─── Brand (issuer identity) ──────────────────────────────────────────────────
+// Documents store a snapshot of the issuing business's branding in data.brand, so
+// letters re-render exactly as issued even if Settings change later. No snapshot
+// (legacy documents) = the original WaveSeed look.
+const DEFAULT_BRAND = {
+  code: 'WS', name: 'WaveSeed Co.', legal: 'WaveSeed Co.',
+  tagline: "Building Tomorrow's Wave, Today",
+  website: 'www.waveseed.app', email: 'careers@waveseed.app', address: '',
+  color: '#0d1b3e',
+  logo: LOGO_BASE64, seal: STAMP_BASE64, sigImage: SIG_BASE64,
+  sigName: 'Mahender Banoth', sigTitle: 'Founder, CEO',
+  sigAffil: 'Indian Institute of Technology Patna',
+};
+
+const okImg = u => (typeof u === 'string' && (/^https:\/\//.test(u) || /^data:image\/(png|jpeg|webp);base64,/.test(u))) ? u.replace(/"/g, '%22') : '';
+const okHex = c => /^#[0-9a-f]{6}$/i.test(c || '');
+
+function lighten(hex, amt = 0.14) {
+  const n = parseInt(hex.slice(1), 16);
+  const mix = v => Math.round(v + (255 - v) * amt);
+  const r = mix((n >> 16) & 255), g = mix((n >> 8) & 255), b = mix(n & 255);
+  return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+function buildBrand(snap) {
+  const D = DEFAULT_BRAND;
+  const s = snap && typeof snap === 'object' ? snap : null;
+  const e = x => (x === null || x === undefined ? '' : String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;'));
+  const name = (s && s.name) || D.name;
+  const sigName = (s && s.sigName) || D.sigName;
+  const isFounder = sigName === D.sigName;
+  const website = ((s && s.website) || D.website).replace(/^https?:\/\//i, '');
+  const color = s && okHex(s.color) ? s.color.toLowerCase() : D.color;
+  return {
+    code: e((s && s.code) || D.code),
+    name: e(name),
+    short: e(name.replace(/\s+(Co\.?|Inc\.?|Ltd\.?|Pvt\.? Ltd\.?)$/i, '')),   // "WaveSeed Co." -> "WaveSeed"
+    legal: e((s && s.legal) || name),
+    tagline: e(s ? (s.tagline || '') : D.tagline),
+    website: e(website),
+    siteUrl: 'https://' + encodeURI(website).replace(/"/g, ''),
+    email: e((s && s.email) || D.email),
+    address: e((s && s.address) || D.address).replace(/\n/g, '<br/>'),
+    color,
+    colorLight: color === D.color ? '#1e3264' : lighten(color),   // default keeps the original navy gradient
+    logo: (s && okImg(s.logo)) || D.logo,
+    seal: (s && okImg(s.seal)) || D.seal,
+    sigName: e(sigName),
+    sigTitle: e((s && s.sigTitle) || D.sigTitle),
+    sigImage: s && s.sigImage ? okImg(s.sigImage) : (isFounder ? D.sigImage : ''),
+    sigAffil: isFounder ? e(D.sigAffil) : '',
+  };
+}
+
+let B = buildBrand(null);
+function setBrand(snap) { B = buildBrand(snap); }
+
+/**
+ * Build the snapshot to store with a document from a business record returned by
+ * the admin businesses API (uses its resolved, inherited values).
+ */
+export function brandSnapshot(business) {
+  if (!business || !business.effective) return undefined;
+  const ef = business.effective;
+  return {
+    code: business.code,
+    name: business.displayName,
+    legal: ef.legalName.value || business.displayName,
+    tagline: ef.tagline.value || '',
+    website: ef.website.value || '',
+    email: ef.email.value || '',
+    address: ef.address.value || '',
+    color: ef.brandColor.value || '',
+    logo: ef.logo.value || '',
+    seal: ef.seal.value || '',
+    sigName: ef.signatory.name || '',
+    sigTitle: ef.signatory.title || '',
+    sigImage: ef.signatory.signature || '',
+  };
+}
+
+
 // ─── Shared Assets ─────────────────────────────────────────────────────────────
 const GF = `https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800&family=Great+Vibes&family=Montserrat:wght@400;500;600;700;800&family=Dancing+Script:wght@600;700&family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap`;
 
 // Header logo in black
-const LOGO_HTML = `
+const LOGO_HTML = () => `
 <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-  <img src="${LOGO_BASE64}" alt="WaveSeed Logo" style="height:56px;object-fit:contain;" />
-  <div style="font-family:'Playfair Display',serif;font-size:19px;font-weight:800;color:#0d1b3e;letter-spacing:0.5px;line-height:1;margin-top:2px;">WaveSeed Co.</div>
-  <div style="font-family:'Inter',sans-serif;font-size:8px;color:#666;letter-spacing:2px;text-transform:uppercase;line-height:1;margin-top:2px;">Building Tomorrow's Wave, Today</div>
+  <img src="${B.logo}" alt="${B.name} logo" style="height:56px;object-fit:contain;" />
+  <div style="font-family:'Playfair Display',serif;font-size:19px;font-weight:800;color:${B.color};letter-spacing:0.5px;line-height:1;margin-top:2px;">${B.name}</div>
+  <div style="font-family:'Inter',sans-serif;font-size:8px;color:#666;letter-spacing:2px;text-transform:uppercase;line-height:1;margin-top:2px;">${B.tagline}</div>
 </div>`;
 
 // Letterhead logo with white contrast backplate
-const LETTERHEAD_LOGO = `
+const LETTERHEAD_LOGO = () => `
 <div style="display:flex;align-items:center;gap:12px;">
   <div style="background:white;padding:6px;border-radius:6px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
-    <img src="${LOGO_BASE64}" alt="WaveSeed Logo" style="height:32px;object-fit:contain;" />
+    <img src="${B.logo}" alt="${B.name} logo" style="height:32px;object-fit:contain;" />
   </div>
   <div>
-    <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:800;color:white;line-height:1.1;letter-spacing:0.3px;">WaveSeed Co.</div>
-    <div style="font-size:8px;color:rgba(255,255,255,0.75);letter-spacing:2px;text-transform:uppercase;margin-top:2px;">Building Tomorrow's Wave, Today</div>
+    <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:800;color:white;line-height:1.1;letter-spacing:0.3px;">${B.name}</div>
+    <div style="font-size:8px;color:rgba(255,255,255,0.75);letter-spacing:2px;text-transform:uppercase;margin-top:2px;">${B.tagline}</div>
   </div>
 </div>`;
 
@@ -41,9 +123,9 @@ function sealSVG(type) {
   <!-- Glowing gold background -->
   <circle cx="55" cy="55" r="50" fill="url(#goldGradient)" stroke="#c9a227" stroke-width="1.5"/>
   <circle cx="55" cy="55" r="44" fill="none" stroke="#ffffff" stroke-width="1" stroke-dasharray="3,2" opacity="0.6"/>
-  <circle cx="55" cy="55" r="39" fill="none" stroke="#0d1b3e" stroke-width="1" opacity="0.15"/>
+  <circle cx="55" cy="55" r="39" fill="none" stroke="${B.color}" stroke-width="1" opacity="0.15"/>
   <!-- Laurel leaves -->
-  <g fill="#0d1b3e" opacity="0.75">
+  <g fill="${B.color}" opacity="0.75">
     ${Array.from({length:18},(_,i)=>{
       const a=(i/18)*2*Math.PI-Math.PI/2;
       const r=46;
@@ -53,10 +135,10 @@ function sealSVG(type) {
     }).join('')}
   </g>
   <!-- Center elements -->
-  <polygon points="55,20 57.5,27.5 65,27.5 59,32 61.5,39.5 55,35 48.5,39.5 51,32 45,27.5 52.5,27.5" fill="#0d1b3e"/>
-  <text x="55" y="55" text-anchor="middle" font-family="Inter,sans-serif" font-size="8" font-weight="900" fill="#0d1b3e" letter-spacing="1">${l1}</text>
-  <text x="55" y="66" text-anchor="middle" font-family="Inter,sans-serif" font-size="8" font-weight="900" fill="#0d1b3e" letter-spacing="1">${l2}</text>
-  <polygon points="55,82 56.5,87 61,87 57.5,89.5 59,95 55,92 51,95 52.5,89.5 49,87 53.5,87" fill="#0d1b3e"/>
+  <polygon points="55,20 57.5,27.5 65,27.5 59,32 61.5,39.5 55,35 48.5,39.5 51,32 45,27.5 52.5,27.5" fill="${B.color}"/>
+  <text x="55" y="55" text-anchor="middle" font-family="Inter,sans-serif" font-size="8" font-weight="900" fill="${B.color}" letter-spacing="1">${l1}</text>
+  <text x="55" y="66" text-anchor="middle" font-family="Inter,sans-serif" font-size="8" font-weight="900" fill="${B.color}" letter-spacing="1">${l2}</text>
+  <polygon points="55,82 56.5,87 61,87 57.5,89.5 59,95 55,92 51,95 52.5,89.5 49,87 53.5,87" fill="${B.color}"/>
   
   <defs>
     <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -107,8 +189,8 @@ export function certificateTemplate(data) {
   const {
     certId='', refNum='', holderName='', holderInstitution='', holderDepartment='',
     certType='internship', role='', product='WaveBase AI', workMode='', reportingTo='',
-    startDate='', endDate='', issuedDate='', issuerName='Mahender',
-    issuerTitle='Founder, WaveSeed Co.', customMessage='', nameFont='cursive',
+    startDate='', endDate='', issuedDate='', issuerName=B.sigName,
+    issuerTitle=`${B.sigTitle}, ${B.legal}`, customMessage='', nameFont='cursive',
   } = data;
 
   const nameLen = holderName.length;
@@ -169,7 +251,7 @@ export function certificateTemplate(data) {
     ? ` since <strong>${fmtDate(startDate)}</strong> and continues to serve with the organisation as on <strong>${fmtDate(issuedDate)}</strong>`
     : (startDate && endDate) ? ` during the period of <strong>${fmtDate(startDate)} to ${fmtDate(endDate)}</strong>` : '';
   const bodyText = (customMessage ? esc(customMessage).replace(/\n/g, '<br>') : '') ||
-    `has successfully ${t.verb} as <strong>${esc(role)}</strong>${product ? ` at <strong>WaveSeed Co.</strong> on the <em>${esc(product)}</em> project` : ` at <strong>WaveSeed Co.</strong>`}${period}.`;
+    `has successfully ${t.verb} as <strong>${esc(role)}</strong>${product ? ` at <strong>${B.legal}</strong> on the <em>${esc(product)}</em> project` : ` at <strong>${B.legal}</strong>`}${period}.`;
 
   const verificationUrl = `https://verify.waveseed.app/?id=${certId}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(verificationUrl)}`;
@@ -207,7 +289,7 @@ export function certificateTemplate(data) {
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<title>Certificate — ${esc(holderName)} — WaveSeed Co.</title>
+<title>Certificate — ${esc(holderName)} — ${B.name}</title>
 <link href="${GF}" rel="stylesheet"/>
 <style>
   @page { size: A4 landscape; margin: 0; }
@@ -294,7 +376,7 @@ export function certificateTemplate(data) {
     top:50%; left:50%; 
     transform:translate(-50%,-50%) rotate(-12deg); 
     width: 250px; height: 250px;
-    background-image: url("${LOGO_BASE64}");
+    background-image: url("${B.logo}");
     background-repeat: no-repeat;
     background-position: center;
     background-size: contain;
@@ -310,7 +392,7 @@ export function certificateTemplate(data) {
   }
 
   .print-btn { position:fixed; top:16px; right:16px; padding:10px 22px; background:#0B1F3A; color:white; border:none; border-radius:6px; font-size:13px; font-weight:800; cursor:pointer; z-index:9999; box-shadow:0 4px 16px rgba(0,0,0,0.3); transition:background 0.2s; }
-  .print-btn:hover { background:#1e3264; }
+  .print-btn:hover { background:${B.colorLight}; }
 </style>
 </head>
 <body>
@@ -350,15 +432,15 @@ export function certificateTemplate(data) {
     <!-- Centered Side-by-Side Logo block -->
     <div style="display:flex; align-items:center; gap:20px;">
       <!-- Left: Logo Icon -->
-      <img src="${LOGO_BASE64}" alt="WaveSeed Logo" style="height:76px; object-fit:contain;" />
+      <img src="${B.logo}" alt="${B.name} logo" style="height:76px; object-fit:contain;" />
       
       <!-- Middle: Little vertical line -->
       <div style="width:2px; height:56px; background:#C9A34A; opacity:0.85;"></div>
       
       <!-- Right: Company Name & Tagline -->
       <div style="display:flex; flex-direction:column; align-items:flex-start; justify-content:center;">
-        <div style="font-family:'Montserrat',sans-serif; font-size:32px; font-weight:800; color:#0B1F3A; line-height:1.05; letter-spacing:0.5px;">WaveSeed Co.</div>
-        <div style="font-family:'Montserrat',sans-serif; font-size:9px; font-weight:650; color:#888; letter-spacing:1.8px; text-transform:uppercase; margin-top:5px; line-height:1;">Building Tomorrow's Wave, Today</div>
+        <div style="font-family:'Montserrat',sans-serif; font-size:32px; font-weight:800; color:#0B1F3A; line-height:1.05; letter-spacing:0.5px;">${B.name}</div>
+        <div style="font-family:'Montserrat',sans-serif; font-size:9px; font-weight:650; color:#888; letter-spacing:1.8px; text-transform:uppercase; margin-top:5px; line-height:1;">${B.tagline}</div>
       </div>
     </div>
     
@@ -395,7 +477,7 @@ export function certificateTemplate(data) {
 
     <!-- Right: Heavily Enlarged Company Stamp -->
     <div style="width: 130px; display: flex; justify-content: center; align-items: center;">
-      <img src="${STAMP_BASE64}" alt="Company Stamp" style="height:120px; width:120px; object-fit:contain; transform:rotate(-8deg); opacity:0.95; pointer-events:none;" />
+      <img src="${B.seal}" alt="Company Stamp" style="height:120px; width:120px; object-fit:contain; transform:rotate(-8deg); opacity:0.95; pointer-events:none;" />
     </div>
   </div>
 
@@ -419,11 +501,11 @@ export function certificateTemplate(data) {
     <div class="sig-area" style="position:relative; min-width:180px; min-height:65px; margin-bottom:-4px;">
       <div style="position:relative; display:inline-block; margin-bottom: 2px;">
         <!-- Transparent Signature Image -->
-        ${SIG_BASE64 ? `<img src="${SIG_BASE64}" alt="Founder Signature" style="height:36px; object-fit:contain; position:relative; z-index:2;" />` : ''}
+        ${B.sigImage ? `<img src="${B.sigImage}" alt="Founder Signature" style="height:36px; object-fit:contain; position:relative; z-index:2;" />` : ''}
       </div>
       <div class="sig-line"></div>
-      <div class="sig-name">Mahender Banoth</div>
-      <div class="sig-role">Founder, CEO &nbsp;|&nbsp; WaveSeed Co.</div>
+      <div class="sig-name">${B.sigName}</div>
+      <div class="sig-role">${B.sigTitle} &nbsp;|&nbsp; ${B.legal}</div>
     </div>
     
     <!-- QR Code Area (Bottom Right) -->
@@ -436,9 +518,9 @@ export function certificateTemplate(data) {
   <!-- Footer Links (Globe and Email) -->
   <div style="display:flex; align-items:center; justify-content:center; gap:16px; font-size:9.5px; color:#0B1F3A; font-weight:600; margin-top:2px;">
     <div style="width:50px; height:1px; background:#C9A34A; opacity:0.4;"></div>
-    <span>www.waveseed.app</span>
+    <span>${B.website}</span>
     <span style="color:#C9A34A; opacity:0.4;">|</span>
-    <span>careers@waveseed.app</span>
+    <span>${B.email}</span>
     <div style="width:50px; height:1px; background:#C9A34A; opacity:0.4;"></div>
   </div>
 </div>
@@ -446,24 +528,24 @@ export function certificateTemplate(data) {
 </html>`;
 }
 
-const COMPANY_STAMP_HTML = `
+const COMPANY_STAMP_HTML = () => `
 <div style="position:absolute; bottom:-16px; left:125px; z-index:1; transform:rotate(-10deg); opacity:0.85; pointer-events:none;">
-  <img src="${STAMP_BASE64}" alt="Company Stamp" style="height:105px; width:105px; object-fit:contain;" />
+  <img src="${B.seal}" alt="Company Stamp" style="height:105px; width:105px; object-fit:contain;" />
 </div>`;
 
 export function signatureBlockHTML() {
   return `
 <div class="sig-block" style="position:relative; display:inline-block; min-height:115px; margin-top:36px; text-align:left; width:100%;">
-  <p class="closing" style="font-size:11px;color:#333;margin-bottom:34px;">For <strong>WaveSeed Co.</strong>,</p>
+  <p class="closing" style="font-size:11px;color:#333;margin-bottom:34px;">For <strong>${B.legal}</strong>,</p>
   <div style="position:relative; z-index:2; padding-left:4px;">
-    ${SIG_BASE64 ? `<img src="${SIG_BASE64}" alt="Signature" style="height:48px; max-width:130px; object-fit:contain; position:absolute; top:-38px; left:12px; mix-blend-mode:multiply; filter:contrast(1.25); pointer-events:none;" />` : ''}
+    ${B.sigImage ? `<img src="${B.sigImage}" alt="Signature" style="height:48px; max-width:130px; object-fit:contain; position:absolute; top:-38px; left:12px; mix-blend-mode:multiply; filter:contrast(1.25); pointer-events:none;" />` : ''}
     <div class="sig-line" style="width:160px; height:1px; background:#cbd5e1; margin-bottom:5px;"></div>
-    <div class="sig-name" style="font-family:'Inter', sans-serif; font-size:11px; font-weight:700; color:#0d1b3e; line-height:1.2; margin-bottom:1px;">Mahender Banoth</div>
-    <div style="font-size:7px; color:#64748b; font-style:italic; margin-bottom:2px; font-weight:600;">Indian Institute of Technology Patna</div>
-    <div class="sig-designation" style="font-size:8px; font-weight:700; color:#c9a227; text-transform:uppercase; letter-spacing:0.5px;">Founder &amp; CEO</div>
-    <div style="font-size:7px; color:#94a3b8; font-weight:500; margin-top:1px;">Building WaveSeed Co.</div>
+    <div class="sig-name" style="font-family:'Inter', sans-serif; font-size:11px; font-weight:700; color:${B.color}; line-height:1.2; margin-bottom:1px;">${B.sigName}</div>
+    ${B.sigAffil ? `<div style="font-size:7px; color:#64748b; font-style:italic; margin-bottom:2px; font-weight:600;">${B.sigAffil}</div>` : ''}
+    <div class="sig-designation" style="font-size:8px; font-weight:700; color:#c9a227; text-transform:uppercase; letter-spacing:0.5px;">${B.sigTitle === 'Founder, CEO' ? 'Founder &amp; CEO' : B.sigTitle}</div>
+    <div style="font-size:7px; color:#94a3b8; font-weight:500; margin-top:1px;">Building ${B.legal}</div>
   </div>
-  ${COMPANY_STAMP_HTML}
+  ${COMPANY_STAMP_HTML()}
 </div>`;
 }
 
@@ -472,7 +554,7 @@ function letterWrapper({ title, refNum='', date='', body='', confidential=true, 
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<title>${esc(title)} — WaveSeed Co.</title>
+<title>${esc(title)} — ${B.name}</title>
 <link href="${GF}" rel="stylesheet"/>
 <style>
   @page{ size:A4 portrait; margin:0; }
@@ -480,7 +562,7 @@ function letterWrapper({ title, refNum='', date='', body='', confidential=true, 
   html{ background:#f8fafc; min-height:100vh; display:flex; justify-content:center; align-items:flex-start; padding:24px 0; overflow-y:auto; overflow-x:hidden; }
   body{ width:210mm; min-height:297mm; height:auto; background:#ffffff; font-family:'Inter',Arial,sans-serif; -webkit-print-color-adjust:exact; print-color-adjust:exact; display:flex; flex-direction:column; position:relative; box-shadow:0 10px 30px rgba(0,0,0,0.08); overflow:visible; flex-shrink:0; }
   /* Letterhead */
-  .lh{ background:linear-gradient(135deg,#0d1b3e 0%,#1e3264 100%);padding:24px 40px 20px;display:flex;justify-content:space-between;align-items:flex-end; }
+  .lh{ background:linear-gradient(135deg,${B.color} 0%,${B.colorLight} 100%);padding:24px 40px 20px;display:flex;justify-content:space-between;align-items:flex-end; }
   .lh-contact{ text-align:right;font-size:8px;color:rgba(255,255,255,0.7);line-height:1.8; }
   .lh-contact a{ color:rgba(255,255,255,0.85); }
   /* Gold strip */
@@ -529,7 +611,7 @@ function letterWrapper({ title, refNum='', date='', body='', confidential=true, 
     top:48%; left:50%; 
     transform:translate(-50%,-50%) rotate(-12deg); 
     width: 320px; height: 320px;
-    background-image: url("${LOGO_BASE64}");
+    background-image: url("${B.logo}");
     background-repeat: no-repeat;
     background-position: center;
     background-size: contain;
@@ -542,28 +624,28 @@ function letterWrapper({ title, refNum='', date='', body='', confidential=true, 
   .confidential{ text-align:right;font-size:8.5px;font-weight:750;letter-spacing:2px;text-transform:uppercase;color:#dc2626;margin-bottom:16px; }
   .recipient-block{ margin-bottom:22px;font-size:11.5px;color:#1e293b;line-height:1.75; }
   .subject-line{ margin-bottom:22px; }
-  .subject-label{ font-size:11px;font-weight:700;color:#0d1b3e; }
-  .subject-text{ font-size:11px;font-weight:800;color:#0d1b3e;text-decoration:underline;text-transform:uppercase;letter-spacing:0.3px; }
+  .subject-label{ font-size:11px;font-weight:700;color:${B.color}; }
+  .subject-text{ font-size:11px;font-weight:800;color:${B.color};text-decoration:underline;text-transform:uppercase;letter-spacing:0.3px; }
   .salutation{ font-size:12px;margin-bottom:16px;color:#0f172a;font-weight:600; }
   .para{ font-size:11.5px;color:#1e293b;line-height:1.8;margin-bottom:16px;text-align:justify; }
   .highlight-table{ width:100%;border-collapse:collapse;margin:20px 0;font-size:11px; }
-  .highlight-table th{ background:#0d1b3e;color:white;padding:10px 14px;text-align:left;font-size:9.5px;letter-spacing:1px;text-transform:uppercase; }
+  .highlight-table th{ background:${B.color};color:white;padding:10px 14px;text-align:left;font-size:9.5px;letter-spacing:1px;text-transform:uppercase; }
   .highlight-table td{ padding:9px 14px;border-bottom:1px solid #e2e8f0;color:#334155; }
   .highlight-table tr:nth-child(even) td{ background:#f8fafc; }
-  .highlight-table td:first-child{ font-weight:600;color:#0d1b3e;white-space:nowrap; }
-  .section-title{ font-size:10.5px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#0d1b3e;margin:22px 0 10px;padding-bottom:4px;border-bottom:2px solid #c9a227;display:inline-block; }
+  .highlight-table td:first-child{ font-weight:600;color:${B.color};white-space:nowrap; }
+  .section-title{ font-size:10.5px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:${B.color};margin:22px 0 10px;padding-bottom:4px;border-bottom:2px solid #c9a227;display:inline-block; }
   .bullet-list{ list-style:none;padding:0;margin:0 0 16px; }
   .bullet-list li{ font-size:11.5px;color:#1e293b;line-height:1.75;padding-left:16px;position:relative;margin-bottom:6px; }
   .bullet-list li::before{ content:'›';position:absolute;left:0;color:#c9a227;font-weight:700;font-size:13px; }
   /* Signature */
   .sig-block{ margin-top:28px; }
   .closing{ font-size:11.5px;color:#333;margin-bottom:20px; }
-  .sig-name{ font-family:'Dancing Script',cursive;font-size:28px;color:#0d1b3e;font-weight:700;line-height:1; }
+  .sig-name{ font-family:'Dancing Script',cursive;font-size:28px;color:${B.color};font-weight:700;line-height:1; }
   .sig-line{ width:150px;height:1px;background:#ccc;margin:2px 0 4px; }
-  .sig-designation{ font-size:10px;font-weight:700;color:#0d1b3e; }
+  .sig-designation{ font-size:10px;font-weight:700;color:${B.color}; }
   .sig-org{ font-size:9px;color:#666; }
   /* Footer */
-  .lh-footer{ background:#0d1b3e;padding:10px 40px;display:flex;justify-content:space-between;align-items:center; }
+  .lh-footer{ background:${B.color};padding:10px 40px;display:flex;justify-content:space-between;align-items:center; }
   .lh-footer span{ font-size:8px;color:rgba(255,255,255,0.6); }
   .lh-footer a{ color:rgba(255,255,255,0.8); }
   .gold-strip-bottom{ height:3px;background:linear-gradient(90deg,#c9a227,#f0d078,#c9a227); }
@@ -573,19 +655,19 @@ function letterWrapper({ title, refNum='', date='', body='', confidential=true, 
     .no-print{ display:none!important; }
     .page-break{ page-break-before:always; break-before:page; }
   }
-  .print-btn{ position:fixed;top:16px;right:16px;padding:10px 22px;background:#0d1b3e;color:white;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.3); }
-  .print-btn:hover{ background:#1e3264; }
+  .print-btn{ position:fixed;top:16px;right:16px;padding:10px 22px;background:${B.color};color:white;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.3); }
+  .print-btn:hover{ background:${B.colorLight}; }
 </style>
 </head>
 <body class="${docType}">
 <button class="print-btn no-print" onclick="window.print()">PRINT / SAVE PDF</button>
 <!-- Letterhead -->
 <div class="lh">
-  ${LETTERHEAD_LOGO}
+  ${LETTERHEAD_LOGO()}
   <div class="lh-contact">
-    www.waveseed.app &nbsp;|&nbsp; waveseed.app<br/>
-    careers@waveseed.app<br/>
-    verify.waveseed.app
+    ${B.website}<br/>
+    ${B.email}<br/>
+    ${B.address ? B.address + '<br/>' : ''}verify.waveseed.app
   </div>
 </div>
 <div class="gold-strip"></div>
@@ -610,7 +692,7 @@ ${verificationId ? `
 <div style="position:absolute; bottom:52px; right:48px; display:flex; align-items:center; gap:8px; z-index:100; pointer-events:auto; font-family:'Inter', sans-serif; background:#fff; padding:6px 10px; border-radius:6px; border:1px solid #cbd5e1; box-shadow:0 4px 12px rgba(0,0,0,0.04);">
   <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`https://verify.waveseed.app/?id=${verificationId}`)}" alt="Verification QR Code" style="height:44px; width:44px; object-fit:contain; border:1px solid #cbd5e1; padding:2px; background:#fff; border-radius:4px;" />
   <div style="text-align:left; line-height:1.2;">
-    <div style="font-size:6.5px; font-weight:700; color:#0d1b3e; text-transform:uppercase; letter-spacing:0.3px;">Document Verified</div>
+    <div style="font-size:6.5px; font-weight:700; color:${B.color}; text-transform:uppercase; letter-spacing:0.3px;">Document Verified</div>
     <div style="font-size:7px; font-weight:800; color:#c9a227; font-family:monospace; margin:1px 0;">${esc(verificationId)}</div>
     <div style="font-size:6px; color:#64748b;">verify.waveseed.app</div>
   </div>
@@ -619,8 +701,8 @@ ${verificationId ? `
 <div style="margin-top:auto;">
   <div class="gold-strip-bottom"></div>
   <div class="lh-footer">
-    <span>WaveSeed Co. &nbsp;|&nbsp; Building Tomorrow's Wave, Today</span>
-    <span>This document is strictly private and confidential. &nbsp;<a href="https://waveseed.app">waveseed.app</a></span>
+    <span>${B.name} &nbsp;|&nbsp; ${B.tagline}</span>
+    <span>This document is strictly private and confidential. &nbsp;<a href="${B.siteUrl}">${B.website}</a></span>
   </div>
 </div>
 </body>
@@ -633,7 +715,7 @@ ${verificationId ? `
 export function internshipOfferTemplate(data) {
   const {
     refNum='', date='', recipientName='', recipientCollege='', recipientDept='',
-    recipientEmail='', role='', product='WaveBase AI', reportingTo='Chief Developer, WaveSeed Co.',
+    recipientEmail='', role='', product='WaveBase AI', reportingTo=`Chief Developer, ${B.legal}`,
     startDate='', endDate='', duration='2 Months', workHours='4–5 Hours per Day',
     workMode='Remote (Work From Home)', stipend='Unpaid Internship',
     certId='',
@@ -651,7 +733,7 @@ export function internshipOfferTemplate(data) {
   <span class="subject-text">Internship Offer Letter — ${esc(role)} | ${esc(product)}</span>
 </div>
 <p class="salutation">Dear ${esc(recipientName)},</p>
-<p class="para">We are thrilled to extend this <strong>Internship Offer</strong> to you at <strong>WaveSeed Co.</strong>, welcoming you as a <strong>${esc(role)}</strong>. At WaveSeed, we firmly believe our people are our greatest asset. We are highly selective in extending internship opportunities, and you have distinguished yourself as one of the best and brightest. We are confident you will play an integral role in shaping the future of <strong>${esc(product)}</strong> — our flagship SaaS product — and we look forward to a productive, impactful, and enriching journey together.</p>
+<p class="para">We are thrilled to extend this <strong>Internship Offer</strong> to you at <strong>${B.legal}</strong>, welcoming you as a <strong>${esc(role)}</strong>. At ${B.short}, we firmly believe our people are our greatest asset. We are highly selective in extending internship opportunities, and you have distinguished yourself as one of the best and brightest. We are confident you will play an integral role in shaping the future of <strong>${esc(product)}</strong> — our flagship SaaS product — and we look forward to a productive, impactful, and enriching journey together.</p>
 
 <div class="section-title">Internship at a Glance</div>
 <table class="highlight-table">
@@ -678,12 +760,12 @@ export function internshipOfferTemplate(data) {
 
 <div class="section-title">Standard Terms &amp; Conditions</div>
 <ul class="bullet-list">
-  <li><strong>Intellectual Property:</strong> All software, code, algorithms, designs, documents, and inventions developed during the internship belong exclusively to WaveSeed Co.</li>
+  <li><strong>Intellectual Property:</strong> All software, code, algorithms, designs, documents, and inventions developed during the internship belong exclusively to ${B.legal}</li>
   <li><strong>Non-Disclosure (NDA):</strong> You shall maintain strict confidentiality regarding all proprietary information, source code, designs, and company communications.</li>
-  <li><strong>Termination:</strong> Either party may terminate the association with 15 days written notice. WaveSeed Co. reserves the right to terminate immediately for cause.</li>
+  <li><strong>Termination:</strong> Either party may terminate the association with 15 days written notice. ${B.legal} reserves the right to terminate immediately for cause.</li>
 </ul>
 
-<p class="para">Please confirm your acceptance of this offer by signing below and returning a scanned copy to: <strong>careers@waveseed.app</strong></p>
+<p class="para">Please confirm your acceptance of this offer by signing below and returning a scanned copy to: <strong>${B.email}</strong></p>
 
 ${signatureBlockHTML()}
 
@@ -696,37 +778,37 @@ ${signatureBlockHTML()}
 
 <div class="page-break no-print" style="margin-top: 50px; border-top: 1px dashed #cbd5e1; padding-top: 40px; margin-bottom: 20px;"></div>
 <div class="annexure-section" style="position: relative; font-family: 'Inter', sans-serif;">
-  <div class="section-title" style="margin-top: 0; margin-bottom: 12px; font-size: 11px; font-weight: 800; border-bottom: 2px solid #c9a227; display: inline-block; text-transform: uppercase; letter-spacing: 1.5px; color: #0d1b3e;">TERMS AND CONDITIONS — ANNEXURE A</div>
+  <div class="section-title" style="margin-top: 0; margin-bottom: 12px; font-size: 11px; font-weight: 800; border-bottom: 2px solid #c9a227; display: inline-block; text-transform: uppercase; letter-spacing: 1.5px; color: ${B.color};">TERMS AND CONDITIONS — ANNEXURE A</div>
   <p class="para" style="font-size: 10px; color: #475569; margin-bottom: 14px; line-height: 1.6; text-align: justify;">
-    The following terms govern your internship with WaveSeed Co. (referred to as 'the Company' hereinafter), and may be amended from time to time at the Company's discretion.
+    The following terms govern your internship with ${B.legal} (referred to as 'the Company' hereinafter), and may be amended from time to time at the Company's discretion.
   </p>
   
   <ol class="terms-list" style="padding-left: 18px; margin: 0 0 24px; font-size: 9px; color: #334155; line-height: 1.6; display: flex; flex-direction: column; gap: 6px; list-style-type: decimal;">
     <li>The roles, responsibilities, and duties appropriate to your designation will be specified by the Company from time to time and may be modified at its sole discretion. You may also be required to provide services to the Company's affiliates, contractors, and clients as necessary.</li>
-    <li>The duration of the internship is 2 (two) months with 4–5 working hours each day, commencing ${startDate ? fmtDate(startDate) : '13 May 2026'} and concluding ${endDate ? fmtDate(endDate) : '12 July 2026'}. You are required to devote your time and efforts solely to WaveSeed Co. work during this period. Please inform your mentor in advance of any upcoming commitments so that work can be planned accordingly.</li>
+    <li>The duration of the internship is 2 (two) months with 4–5 working hours each day, commencing ${startDate ? fmtDate(startDate) : '13 May 2026'} and concluding ${endDate ? fmtDate(endDate) : '12 July 2026'}. You are required to devote your time and efforts solely to ${B.legal} work during this period. Please inform your mentor in advance of any upcoming commitments so that work can be planned accordingly.</li>
     <li>You will work remotely for the entire duration. Regular catch-up calls will be scheduled with the Chief Developer to review progress and overall internship experience.</li>
     <li>You will be on probation for the first 15 days. Confirmation of continued internship will be based on your mentor's assessment of your performance.</li>
-    <li>All work produced during or in relation to WaveSeed Co. shall be the exclusive intellectual property of WaveSeed Co. You are prohibited from storing, copying, selling, sharing, or distributing any such work to third parties. You shall refrain from discussing your work publicly — online (blogs, social media) or offline — without prior written approval from your mentor.</li>
-    <li>Data privacy and security are paramount. All student, customer, client, and company data accessed during your internship must be kept strictly confidential. WaveSeed Co. operates on a zero-tolerance policy toward any breach of data security. Upon completion of your internship, all Company data stored on your devices must be handed over to your mentor and permanently deleted from your systems.</li>
+    <li>All work produced during or in relation to ${B.legal} shall be the exclusive intellectual property of ${B.legal} You are prohibited from storing, copying, selling, sharing, or distributing any such work to third parties. You shall refrain from discussing your work publicly — online (blogs, social media) or offline — without prior written approval from your mentor.</li>
+    <li>Data privacy and security are paramount. All student, customer, client, and company data accessed during your internship must be kept strictly confidential. ${B.legal} operates on a zero-tolerance policy toward any breach of data security. Upon completion of your internship, all Company data stored on your devices must be handed over to your mentor and permanently deleted from your systems.</li>
     <li>During the internship, you shall not directly or indirectly engage with any other organization (other than your college) in any capacity. Breach of this condition may result in immediate termination and liability for liquidated damages as estimated by the Company.</li>
     <li>Either party may terminate this internship with 30 days' written notice without assigning any reason. The Company reserves the right to terminate immediately in cases of indiscipline, misconduct, data breach, or any violation of these terms.</li>
     <li>You are expected to conduct yourself with utmost professionalism in all interactions with your mentor, colleagues, clients, and customers.</li>
-    <li>You shall receive continuous objective feedback from your mentor and are encouraged to seek and provide feedback at every opportunity. Constructive feedback is central to the WaveSeed culture.</li>
+    <li>You shall receive continuous objective feedback from your mentor and are encouraged to seek and provide feedback at every opportunity. Constructive feedback is central to the ${B.short} culture.</li>
     <li>This is an unpaid internship.</li>
     <li>A Certificate of Internship Completion will be issued upon successful completion of the internship period.</li>
     <li>Subject to your overall performance and at the management's discretion, you may receive a Letter of Recommendation.</li>
     <li>A Pre-Placement Offer (PPO) may be extended based on outstanding performance and management's discretion.</li>
-    <li>WaveSeed Co. reserves the right to amend any policy or term at any time. Such changes will be communicated and shall be binding upon you.</li>
-    <li>The tenure of the internship may be extended or reduced upon mutual consent of both the intern and WaveSeed Co. management.</li>
-    <li>You shall at all times abide by WaveSeed Co.'s policies and code of conduct throughout your internship.</li>
-    <li>You acknowledge that this offer is based on information provided by you. If any discrepancy is discovered, WaveSeed Co. reserves the right to terminate the internship immediately.</li>
-    <li>You shall maintain strict confidentiality regarding all entities related to WaveSeed Co. during and after your internship. Upon termination or expiry, you shall update all professional and social profiles to reflect that you are no longer associated with the Company.</li>
-    <li>All intellectual property, work product, inventions, designs, software, documentation, or other materials created during or as a consequence of your internship — whether alone or with others, during or outside working hours — shall belong exclusively to WaveSeed Co. You hereby assign all such rights to the Company and waive any moral rights thereto.</li>
+    <li>${B.legal} reserves the right to amend any policy or term at any time. Such changes will be communicated and shall be binding upon you.</li>
+    <li>The tenure of the internship may be extended or reduced upon mutual consent of both the intern and ${B.legal} management.</li>
+    <li>You shall at all times abide by ${B.legal}'s policies and code of conduct throughout your internship.</li>
+    <li>You acknowledge that this offer is based on information provided by you. If any discrepancy is discovered, ${B.legal} reserves the right to terminate the internship immediately.</li>
+    <li>You shall maintain strict confidentiality regarding all entities related to ${B.legal} during and after your internship. Upon termination or expiry, you shall update all professional and social profiles to reflect that you are no longer associated with the Company.</li>
+    <li>All intellectual property, work product, inventions, designs, software, documentation, or other materials created during or as a consequence of your internship — whether alone or with others, during or outside working hours — shall belong exclusively to ${B.legal} You hereby assign all such rights to the Company and waive any moral rights thereto.</li>
     <li>You agree not to violate or attempt to violate the intellectual property rights of any third party during your internship.</li>
     <li>These Terms of Internship shall be governed by and construed in accordance with the Laws of India. This offer letter, together with Annexure A, constitutes the entire agreement between the parties and supersedes all prior discussions and representations.</li>
   </ol>
 
-  <div class="section-title" style="margin-top: 10px; margin-bottom: 10px; font-size: 11px; font-weight: 800; border-bottom: 2px solid #c9a227; display: inline-block; text-transform: uppercase; letter-spacing: 1.5px; color: #0d1b3e;">ACKNOWLEDGEMENT</div>
+  <div class="section-title" style="margin-top: 10px; margin-bottom: 10px; font-size: 11px; font-weight: 800; border-bottom: 2px solid #c9a227; display: inline-block; text-transform: uppercase; letter-spacing: 1.5px; color: ${B.color};">ACKNOWLEDGEMENT</div>
   <p class="para" style="font-size: 10px; color: #1e293b; line-height: 1.6; margin-bottom: 24px; text-align: justify;">
     I, <strong>${esc(recipientName)}</strong>, confirm that I have read, understood, and agree to all the terms and conditions contained in this Internship Offer Letter and Annexure A. I accept this offer and commit to fulfilling my responsibilities with dedication, professionalism, and integrity.
   </p>
@@ -760,7 +842,7 @@ export function employmentOfferTemplate(data) {
   <span class="subject-text">Employment Offer Letter — ${esc(role)}</span>
 </div>
 <p class="salutation">Dear ${esc(recipientName)},</p>
-<p class="para">We are pleased to offer you the position of <strong>${esc(role)}</strong> at <strong>WaveSeed Co.</strong> Following our interview process, we are confident that your skills and experience will be a great addition to our team. We look forward to you joining us and contributing to our mission of <em>Building Tomorrow's Wave, Today</em>.</p>
+<p class="para">We are pleased to offer you the position of <strong>${esc(role)}</strong> at <strong>${B.legal}</strong> Following our interview process, we are confident that your skills and experience will be a great addition to our team. We look forward to you joining us and contributing to our mission of <em>${B.tagline}</em>.</p>
 
 <div class="section-title">Offer at a Glance</div>
 <table class="highlight-table">
@@ -776,12 +858,12 @@ export function employmentOfferTemplate(data) {
 <div class="section-title">Standard Terms &amp; Conditions</div>
 <ul class="bullet-list">
   <li><strong>Probation:</strong> A probation period of ${esc(probation)} during which performance will be evaluated. Notice during probation is 30 days.</li>
-  <li><strong>Intellectual Property Assignment:</strong> All intellectual property, code, patents, and work products created during your employment belong exclusively to WaveSeed Co.</li>
+  <li><strong>Intellectual Property Assignment:</strong> All intellectual property, code, patents, and work products created during your employment belong exclusively to ${B.legal}</li>
   <li><strong>Confidentiality &amp; NDA:</strong> Strict compliance with non-disclosure of proprietary software systems, client logs, and internal algorithms.</li>
   <li><strong>Termination notice:</strong> Post-confirmation, the notice period required by either party shall be 60 days in writing.</li>
 </ul>
 
-<p class="para">Please confirm your acceptance of this offer by signing below and returning a copy to: <strong>careers@waveseed.app</strong></p>
+<p class="para">Please confirm your acceptance of this offer by signing below and returning a copy to: <strong>${B.email}</strong></p>
 
 ${signatureBlockHTML()}
 
@@ -794,37 +876,37 @@ ${signatureBlockHTML()}
 
 <div class="page-break no-print" style="margin-top: 50px; border-top: 1px dashed #cbd5e1; padding-top: 40px; margin-bottom: 20px;"></div>
 <div class="annexure-section" style="position: relative; font-family: 'Inter', sans-serif;">
-  <div class="section-title" style="margin-top: 0; margin-bottom: 12px; font-size: 11px; font-weight: 800; border-bottom: 2px solid #c9a227; display: inline-block; text-transform: uppercase; letter-spacing: 1.5px; color: #0d1b3e;">TERMS AND CONDITIONS — ANNEXURE A</div>
+  <div class="section-title" style="margin-top: 0; margin-bottom: 12px; font-size: 11px; font-weight: 800; border-bottom: 2px solid #c9a227; display: inline-block; text-transform: uppercase; letter-spacing: 1.5px; color: ${B.color};">TERMS AND CONDITIONS — ANNEXURE A</div>
   <p class="para" style="font-size: 10px; color: #475569; margin-bottom: 14px; line-height: 1.6; text-align: justify;">
-    The following terms govern your employment with WaveSeed Co. (referred to as 'the Company' hereinafter), and may be amended from time to time at the Company's discretion.
+    The following terms govern your employment with ${B.legal} (referred to as 'the Company' hereinafter), and may be amended from time to time at the Company's discretion.
   </p>
   
   <ol class="terms-list" style="padding-left: 18px; margin: 0 0 24px; font-size: 9px; color: #334155; line-height: 1.6; display: flex; flex-direction: column; gap: 6px; list-style-type: decimal;">
     <li>The roles, responsibilities, and duties appropriate to your designation will be specified by the Company from time to time and may be modified at its sole discretion. You may also be required to provide services to the Company's affiliates, contractors, and clients as necessary.</li>
-    <li>The duration of your employment is permanent and indefinite, commencing ${joiningDate ? fmtDate(joiningDate) : 'upon joining'}, subject to successful completion of the probation period. You are required to devote your full time, attention, and efforts solely to the business of WaveSeed Co. during this association.</li>
+    <li>The duration of your employment is permanent and indefinite, commencing ${joiningDate ? fmtDate(joiningDate) : 'upon joining'}, subject to successful completion of the probation period. You are required to devote your full time, attention, and efforts solely to the business of ${B.legal} during this association.</li>
     <li>You may work remotely or from the office as specified in your offer details. Regular catch-up calls and status syncs will be scheduled to review progress and performance.</li>
     <li>You will be on probation for a period of ${esc(probation) || '3 Months'}. Confirmation of employment is based on the management's assessment of your performance and conduct during probation.</li>
-    <li>All software, designs, algorithms, code, documentation, and work product produced during or in relation to WaveSeed Co. shall be the exclusive intellectual property of WaveSeed Co. You are prohibited from storing, copying, selling, sharing, or distributing any such work to third parties.</li>
-    <li>Data privacy and security are paramount. All customer, client, user, and company data accessed during your employment must be kept strictly confidential. WaveSeed Co. operates on a zero-tolerance policy toward any breach of data security.</li>
+    <li>All software, designs, algorithms, code, documentation, and work product produced during or in relation to ${B.legal} shall be the exclusive intellectual property of ${B.legal} You are prohibited from storing, copying, selling, sharing, or distributing any such work to third parties.</li>
+    <li>Data privacy and security are paramount. All customer, client, user, and company data accessed during your employment must be kept strictly confidential. ${B.legal} operates on a zero-tolerance policy toward any breach of data security.</li>
     <li>During your employment, you shall not directly or indirectly engage with any other organization or business in any capacity (including freelance, advisory, or part-time work) without prior written permission from the Company.</li>
     <li>Post-confirmation, either party may terminate employment with 60 days' written notice (or 30 days during probation) without assigning any reason. The Company reserves the right to terminate immediately for cause, misconduct, or data breach.</li>
     <li>You are expected to conduct yourself with utmost professionalism in all interactions with colleagues, mentors, clients, and customers.</li>
     <li>You shall receive continuous feedback from your reporting manager and are encouraged to seek and provide constructive feedback to foster a transparent growth environment.</li>
     <li>You shall receive compensation (CTC) as specified in your offer letter, subject to standard tax and statutory deductions in accordance with local regulations.</li>
     <li>Your performance and package will be reviewed annually in accordance with Company policies and discretionary management reviews.</li>
-    <li>Leave allocation, holidays, working hours, and standard employee benefits shall be governed by the WaveSeed Co. Employee Handbook.</li>
+    <li>Leave allocation, holidays, working hours, and standard employee benefits shall be governed by the ${B.legal} Employee Handbook.</li>
     <li>The Company may provide performance bonuses or incentives based on company discretion and outstanding individual contributions.</li>
-    <li>WaveSeed Co. reserves the right to amend any policy or term at any time. Such changes will be communicated and shall be binding upon you.</li>
+    <li>${B.legal} reserves the right to amend any policy or term at any time. Such changes will be communicated and shall be binding upon you.</li>
     <li>Any modification or amendment to your roles, package, designation, or terms must be in writing and signed by both parties.</li>
-    <li>You shall at all times abide by WaveSeed Co.'s policies and code of conduct throughout your employment.</li>
-    <li>You acknowledge that this offer is based on information provided by you. If any discrepancy is discovered, WaveSeed Co. reserves the right to terminate the employment immediately.</li>
-    <li>You shall maintain strict confidentiality regarding all entities related to WaveSeed Co. during and after your employment. Upon termination, you shall update all professional and social profiles to reflect that you are no longer associated with the Company.</li>
-    <li>All intellectual property, work product, inventions, designs, software, documentation, or other materials created during or as a consequence of your employment — whether alone or with others, during or outside working hours — shall belong exclusively to WaveSeed Co. You hereby assign all such rights to the Company.</li>
+    <li>You shall at all times abide by ${B.legal}'s policies and code of conduct throughout your employment.</li>
+    <li>You acknowledge that this offer is based on information provided by you. If any discrepancy is discovered, ${B.legal} reserves the right to terminate the employment immediately.</li>
+    <li>You shall maintain strict confidentiality regarding all entities related to ${B.legal} during and after your employment. Upon termination, you shall update all professional and social profiles to reflect that you are no longer associated with the Company.</li>
+    <li>All intellectual property, work product, inventions, designs, software, documentation, or other materials created during or as a consequence of your employment — whether alone or with others, during or outside working hours — shall belong exclusively to ${B.legal} You hereby assign all such rights to the Company.</li>
     <li>You agree not to violate or attempt to violate the intellectual property rights of any third party during your employment.</li>
     <li>These Terms of Employment shall be governed by and construed in accordance with the Laws of India. This offer letter, together with Annexure A, constitutes the entire agreement between the parties.</li>
   </ol>
 
-  <div class="section-title" style="margin-top: 10px; margin-bottom: 10px; font-size: 11px; font-weight: 800; border-bottom: 2px solid #c9a227; display: inline-block; text-transform: uppercase; letter-spacing: 1.5px; color: #0d1b3e;">ACKNOWLEDGEMENT</div>
+  <div class="section-title" style="margin-top: 10px; margin-bottom: 10px; font-size: 11px; font-weight: 800; border-bottom: 2px solid #c9a227; display: inline-block; text-transform: uppercase; letter-spacing: 1.5px; color: ${B.color};">ACKNOWLEDGEMENT</div>
   <p class="para" style="font-size: 10px; color: #1e293b; line-height: 1.6; margin-bottom: 24px; text-align: justify;">
     I, <strong>${esc(recipientName)}</strong>, confirm that I have read, understood, and agree to all the terms and conditions contained in this Employment Offer Letter and Annexure A. I accept this offer and commit to fulfilling my responsibilities with dedication, professionalism, and integrity.
   </p>
@@ -862,19 +944,19 @@ export function experienceLetterTemplate(data) {
   <span class="subject-text">Experience / Service Certificate — ${name}</span>
 </div>
 <p class="salutation">To Whomsoever It May Concern,</p>
-<p class="para">This is to certify that <strong>${name}</strong> has been associated with <strong>WaveSeed Co.</strong> as a <strong>${esc(role)}</strong> since <strong>${fmtDate(startDate)}</strong> and continues to be associated with the organisation in the same capacity as on the date of this letter, <strong>${fmtDate(date)}</strong>. Throughout their tenure of service, they have demonstrated high diligence, technical competency, and professional responsibility.</p>
+<p class="para">This is to certify that <strong>${name}</strong> has been associated with <strong>${B.legal}</strong> as a <strong>${esc(role)}</strong> since <strong>${fmtDate(startDate)}</strong> and continues to be associated with the organisation in the same capacity as on the date of this letter, <strong>${fmtDate(date)}</strong>. Throughout their tenure of service, they have demonstrated high diligence, technical competency, and professional responsibility.</p>
 
-<p class="para">During their association with WaveSeed Co., ${name} has made valuable contributions to our engineering and product teams. They are actively involved in code deployment, design optimization, and full-stack development. Their dedication to maintaining clean architecture, resolving complex defects, and collaborating across teams is exemplary.</p>
+<p class="para">During their association with ${B.legal}, ${name} has made valuable contributions to our engineering and product teams. They are actively involved in code deployment, design optimization, and full-stack development. Their dedication to maintaining clean architecture, resolving complex defects, and collaborating across teams is exemplary.</p>
 
 ${responsibilities ? `<p class="para"><strong>Core Responsibilities &amp; Areas of Focus:</strong> ${esc(responsibilities)}</p>` : `
 <p class="para">As a part of their core responsibilities, ${name} works on refining application logic, integrating robust API endpoints, and enhancing UI components, ensuring that all development follows best practices, security protocols, and rigorous quality assurance guidelines.</p>
 `}
 
-<p class="para">During their service with WaveSeed Co. to date, <strong>${name}</strong> has demonstrated <strong>${esc(conduct)}</strong> conduct, maintained a high level of integrity, and exhibited positive interpersonal relationships with peers and management.</p>
+<p class="para">During their service with ${B.legal} to date, <strong>${name}</strong> has demonstrated <strong>${esc(conduct)}</strong> conduct, maintained a high level of integrity, and exhibited positive interpersonal relationships with peers and management.</p>
 
 <p class="para">We appreciate their continued efforts, dedication, and contribution to the organization, and wish them continued success in their role and professional endeavours with us.</p>
 
-<p class="para" style="margin-bottom:24px;">This certificate is issued upon their request ${purposeHTML}. It confirms their service up to the date of issue and does not constitute a relieving letter or a release from their current employment.${isEducationPurpose(letterPurpose) ? ` Any leave, sabbatical, or release from duties required to pursue the same shall be subject to the company's policies and separate written approval from WaveSeed Co.` : ''}</p>
+<p class="para" style="margin-bottom:24px;">This certificate is issued upon their request ${purposeHTML}. It confirms their service up to the date of issue and does not constitute a relieving letter or a release from their current employment.${isEducationPurpose(letterPurpose) ? ` Any leave, sabbatical, or release from duties required to pursue the same shall be subject to the company's policies and separate written approval from ${B.legal}` : ''}</p>
 
 ${signatureBlockHTML()}`;
     return letterWrapper({ title:`Experience Letter — ${recipientName}`, refNum, date, body, verificationId: certId });
@@ -886,17 +968,17 @@ ${signatureBlockHTML()}`;
   <span class="subject-text">Experience / Service Certificate — ${esc(recipientName)}</span>
 </div>
 <p class="salutation">To Whomsoever It May Concern,</p>
-<p class="para">This is to certify that <strong>${esc(recipientName)}</strong> was associated with <strong>WaveSeed Co.</strong> as a <strong>${esc(role)}</strong>${(startDate && endDate) ? ` from <strong>${fmtDate(startDate)}</strong> to <strong>${fmtDate(endDate)}</strong>` : ''}. Throughout their tenure of service, they demonstrated high diligence, technical competency, and professional responsibility.</p>
+<p class="para">This is to certify that <strong>${esc(recipientName)}</strong> was associated with <strong>${B.legal}</strong> as a <strong>${esc(role)}</strong>${(startDate && endDate) ? ` from <strong>${fmtDate(startDate)}</strong> to <strong>${fmtDate(endDate)}</strong>` : ''}. Throughout their tenure of service, they demonstrated high diligence, technical competency, and professional responsibility.</p>
 
-<p class="para">During their association with WaveSeed Co., ${esc(recipientName)} made valuable contributions to our engineering and product teams. They were actively involved in code deployment, design optimization, and full-stack development. Their dedication to maintaining clean architecture, resolving complex defects, and collaborating across teams was exemplary.</p>
+<p class="para">During their association with ${B.legal}, ${esc(recipientName)} made valuable contributions to our engineering and product teams. They were actively involved in code deployment, design optimization, and full-stack development. Their dedication to maintaining clean architecture, resolving complex defects, and collaborating across teams was exemplary.</p>
 
 ${responsibilities ? `<p class="para"><strong>Core Responsibilities &amp; Areas of Focus:</strong> ${esc(responsibilities)}</p>` : `
 <p class="para">As a part of their core responsibilities, ${esc(recipientName)} worked on refining application logic, integrating robust API endpoints, and enhancing UI components. They ensured that all development followed best practices, security protocols, and rigorous quality assurance guidelines.</p>
 `}
 
-<p class="para">During the tenure of their service with WaveSeed Co., <strong>${esc(recipientName)}</strong> demonstrated <strong>${esc(conduct)}</strong> conduct, maintained a high level of integrity, and exhibited positive interpersonal relationships with peers and management. They completed all their designated handovers, documentation, and asset returns in accordance with company transition policies.</p>
+<p class="para">During the tenure of their service with ${B.legal}, <strong>${esc(recipientName)}</strong> demonstrated <strong>${esc(conduct)}</strong> conduct, maintained a high level of integrity, and exhibited positive interpersonal relationships with peers and management. They completed all their designated handovers, documentation, and asset returns in accordance with company transition policies.</p>
 
-<p class="para">We appreciate their valuable efforts, dedication, and contribution to the organization during their service period. On behalf of the management at WaveSeed Co., we wish them the absolute best in all their future career steps and professional endeavours.</p>
+<p class="para">We appreciate their valuable efforts, dedication, and contribution to the organization during their service period. On behalf of the management at ${B.legal}, we wish them the absolute best in all their future career steps and professional endeavours.</p>
 
 <p class="para" style="margin-bottom:24px;">This certificate is issued upon their request ${purposeHTML}.</p>
 
@@ -917,15 +999,15 @@ export function relievingLetterTemplate(data) {
   <span class="subject-text">Relieving Letter — ${esc(recipientName)}</span>
 </div>
 <p class="salutation">Dear ${esc(recipientName)},</p>
-<p class="para">We acknowledge the receipt and acceptance of your resignation from the position of <strong>${esc(role)}</strong> at <strong>WaveSeed Co.</strong> This letter serves as formal confirmation that you have been officially relieved from your employment and duties with the company, effective as of the close of business hours on <strong>${fmtDate(relievingDate)}</strong>.</p>
+<p class="para">We acknowledge the receipt and acceptance of your resignation from the position of <strong>${esc(role)}</strong> at <strong>${B.legal}</strong> This letter serves as formal confirmation that you have been officially relieved from your employment and duties with the company, effective as of the close of business hours on <strong>${fmtDate(relievingDate)}</strong>.</p>
 
 <p class="para">We confirm that all exit formalities, full and final settlement of accounts, transition of key duties, and handover reports have been completed to the satisfaction of the management. All company assets, including hardware, intellectual property access, database keys, and email accounts in your possession, have been returned and deactivated as per the company's security policy.</p>
 
 <p class="para">Please be reminded that your post-employment obligations, including confidentiality clauses, intellectual property rights covenants, and non-disclosure agreements signed during your onboarding, continue to remain in full force and effect. You are expected to respect and uphold these guidelines as you move forward.</p>
 
-<p class="para">We sincerely appreciate the efforts, dedication, and service you rendered during your tenure with WaveSeed Co. We wish you great success in all your future professional pursuits and personal endeavors.</p>
+<p class="para">We sincerely appreciate the efforts, dedication, and service you rendered during your tenure with ${B.legal} We wish you great success in all your future professional pursuits and personal endeavors.</p>
 
-<p class="para" style="margin-bottom:24px;">For any future verifications or reference checks, please refer to our registry database at <strong>verify.waveseed.app</strong> using your Verification ID, or contact our HR department directly at <strong>careers@waveseed.app</strong>.</p>
+<p class="para" style="margin-bottom:24px;">For any future verifications or reference checks, please refer to our registry database at <strong>verify.waveseed.app</strong> using your Verification ID, or contact our HR department directly at <strong>${B.email}</strong>.</p>
 
 ${signatureBlockHTML()}`;
 
@@ -944,21 +1026,21 @@ export function terminationLetterTemplate(data) {
   <span class="subject-text">Notice of Termination of Association</span>
 </div>
 <p class="salutation">Dear ${esc(recipientName)},</p>
-<p class="para">This letter serves as formal notification that your association with <strong>WaveSeed Co.</strong> as a <strong>${esc(role)}</strong> is being terminated, with the effective date of release being <strong>${fmtDate(terminationDate)}</strong>. From this date onwards, you will no longer be authorized to represent or perform any duties on behalf of WaveSeed Co.</p>
+<p class="para">This letter serves as formal notification that your association with <strong>${B.legal}</strong> as a <strong>${esc(role)}</strong> is being terminated, with the effective date of release being <strong>${fmtDate(terminationDate)}</strong>. From this date onwards, you will no longer be authorized to represent or perform any duties on behalf of ${B.legal}</p>
 
 ${reason ? `<p class="para"><strong>Reason for Termination / Separation:</strong> ${esc(reason)}</p>` : `
 <p class="para">This decision has been reached after a thorough review of organizational alignment and operational requirements. We appreciate the efforts you put into your work during your time with us and wish you the best in finding opportunities that align with your skillset.</p>
 `}
 
-<p class="para">You are required to immediately return all Company-owned assets, including but not limited to laptops, access cards, key tokens, proprietary documents, codebases, and any other physical or digital property in your possession. Your access to all WaveSeed servers, slack channels, email accounts, and repository hosting services will be formally revoked as of the separation date.</p>
+<p class="para">You are required to immediately return all Company-owned assets, including but not limited to laptops, access cards, key tokens, proprietary documents, codebases, and any other physical or digital property in your possession. Your access to all ${B.short} servers, slack channels, email accounts, and repository hosting services will be formally revoked as of the separation date.</p>
 
 ${finalSettlement ? `<p class="para"><strong>Final Settlement Terms:</strong> ${esc(finalSettlement)}</p>` : `
 <p class="para">The finance team will process your full and final settlement, including any outstanding stipends, salary payouts, or expenses, within the standard corporate cycle, subject to a completed clearance certificate from your team lead.</p>
 `}
 
-<p class="para">Please remember that your post-separation obligations regarding intellectual property ownership, confidentiality, and non-disclosure remain fully binding. You must not disclose or use any proprietary data or code belonging to WaveSeed Co. at any point in the future.</p>
+<p class="para">Please remember that your post-separation obligations regarding intellectual property ownership, confidentiality, and non-disclosure remain fully binding. You must not disclose or use any proprietary data or code belonging to ${B.legal} at any point in the future.</p>
 
-<p class="para" style="margin-bottom:24px;">Please acknowledge receipt of this letter by signing below. For queries related to clearance or settlement, you can contact the HR department at <strong>careers@waveseed.app</strong>.</p>
+<p class="para" style="margin-bottom:24px;">Please acknowledge receipt of this letter by signing below. For queries related to clearance or settlement, you can contact the HR department at <strong>${B.email}</strong>.</p>
 
 ${signatureBlockHTML()}`;
 
@@ -972,15 +1054,15 @@ export function lorTemplate(data) {
   const {
     refNum='', date='', recipientName='', role='', startDate='', endDate='',
     strengths='', achievements='', recommendation='',
-    issuerName='Mahender', issuerTitle='Founder, WaveSeed Co.',
+    issuerName='Mahender', issuerTitle='Founder, ${B.legal}',
     certId='',
   } = data;
 
   const body = `
 <p class="salutation" style="margin-bottom:16px;">To Whomsoever It May Concern,</p>
-<p class="para">It is with great pleasure and without reservation that I write this Letter of Recommendation for <strong>${esc(recipientName)}</strong>, ${isOngoing(data) ? `who has been serving as a <strong>${esc(role)}</strong> at <strong>WaveSeed Co.</strong> since <strong>${fmtDate(startDate)}</strong>` : `who served as a <strong>${esc(role)}</strong> at <strong>WaveSeed Co.</strong>${(startDate && endDate) ? ` during the period from <strong>${fmtDate(startDate)}</strong> to <strong>${fmtDate(endDate)}</strong>` : ''}`}. Throughout their tenure with us, they have consistently demonstrated an outstanding work ethic, technical proficiency, and a proactive attitude toward solving complex software challenges.</p>
+<p class="para">It is with great pleasure and without reservation that I write this Letter of Recommendation for <strong>${esc(recipientName)}</strong>, ${isOngoing(data) ? `who has been serving as a <strong>${esc(role)}</strong> at <strong>${B.legal}</strong> since <strong>${fmtDate(startDate)}</strong>` : `who served as a <strong>${esc(role)}</strong> at <strong>${B.legal}</strong>${(startDate && endDate) ? ` during the period from <strong>${fmtDate(startDate)}</strong> to <strong>${fmtDate(endDate)}</strong>` : ''}`}. Throughout their tenure with us, they have consistently demonstrated an outstanding work ethic, technical proficiency, and a proactive attitude toward solving complex software challenges.</p>
 
-<p class="para">During their association with WaveSeed Co., ${esc(recipientName)} was primarily involved in the design, development, and scaling of our core SaaS applications. They demonstrated high capability in working with modern web technologies, AI integrations, and responsive user interfaces. They did not just write code; they actively participated in sprint planning, architectural design discussions, and code reviews, showing a level of mature thinking and engineering discipline that is rare in a professional cohort.</p>
+<p class="para">During their association with ${B.legal}, ${esc(recipientName)} was primarily involved in the design, development, and scaling of our core SaaS applications. They demonstrated high capability in working with modern web technologies, AI integrations, and responsive user interfaces. They did not just write code; they actively participated in sprint planning, architectural design discussions, and code reviews, showing a level of mature thinking and engineering discipline that is rare in a professional cohort.</p>
 
 ${strengths ? `<p class="para"><strong>Key Strengths &amp; Technical Capabilities:</strong> ${esc(strengths)}</p>` : `
 <p class="para">In terms of technical strengths, ${esc(recipientName)} exhibits exceptional analytical and problem-solving skills. They possess a deep understanding of data structures, algorithms, and modular design. They are quick to grasp complex system architectures and are highly self-driven when it comes to researching, prototyping, and implementing state-of-the-art AI-driven modules.</p>
@@ -996,7 +1078,7 @@ ${recommendation ? `<p class="para">${esc(recommendation)}</p>` : `
 <p class="para">I highly recommend <strong>${esc(recipientName)}</strong> for any technical role, academic endeavor, or research project that requires intellectual curiosity, rigorous problem-solving, and dedication. I am confident they will bring the same excellence, energy, and value to your organization as they ${isOngoing(data) ? 'do' : 'did'} to ours. We wish them the absolute best in all their future professional pursuits.</p>
 `}
 
-<p class="para" style="margin-bottom:24px;">Please feel free to contact me at <strong>careers@waveseed.app</strong> if you require any additional information or verification regarding their tenure and contributions.</p>
+<p class="para" style="margin-bottom:24px;">Please feel free to contact me at <strong>${B.email}</strong> if you require any additional information or verification regarding their tenure and contributions.</p>
 
 ${signatureBlockHTML()}`;
 
@@ -1016,8 +1098,8 @@ export function nocTemplate(data) {
 </div>
 <p class="salutation">To Whomsoever It May Concern,</p>
 <p class="para">This is to certify that <strong>${esc(recipientName)}</strong> ${isOngoing(data)
-  ? `has been associated with <strong>WaveSeed Co.</strong> as a <strong>${esc(role)}</strong> since <strong>${fmtDate(startDate)}</strong> and continues to be associated with the company as on <strong>${fmtDate(date)}</strong>`
-  : `is${(startDate && endDate) ? `/was` : ''} associated with <strong>WaveSeed Co.</strong> as a <strong>${esc(role)}</strong>${(startDate && endDate) ? ` during the period from <strong>${fmtDate(startDate)}</strong> to <strong>${fmtDate(endDate)}</strong>` : ''}`}. Throughout their tenure with the company, they have maintained a clean record of service and adhered to all corporate codes of conduct.</p>
+  ? `has been associated with <strong>${B.legal}</strong> as a <strong>${esc(role)}</strong> since <strong>${fmtDate(startDate)}</strong> and continues to be associated with the company as on <strong>${fmtDate(date)}</strong>`
+  : `is${(startDate && endDate) ? `/was` : ''} associated with <strong>${B.legal}</strong> as a <strong>${esc(role)}</strong>${(startDate && endDate) ? ` during the period from <strong>${fmtDate(startDate)}</strong> to <strong>${fmtDate(endDate)}</strong>` : ''}`}. Throughout their tenure with the company, they have maintained a clean record of service and adhered to all corporate codes of conduct.</p>
 
 <p class="para">During their association, ${esc(recipientName)} has been an integral part of our software engineering workflows. They have consistently demonstrated professional discipline, integrity, and dedication in executing their responsibilities. All their projects and handovers have been documented and handled with high standard compliance.</p>
 
@@ -1025,9 +1107,9 @@ ${purpose ? `<p class="para">This No Objection Certificate is issued specificall
 <p class="para">This No Objection Certificate is being issued upon their request to facilitate their application for higher studies, external employment opportunities, passport/visa documentation, or other formal verification procedures.</p>
 `}
 
-<p class="para">WaveSeed Co. confirms that there are no outstanding dues, liabilities, or conflicts of interest associated with ${esc(recipientName)}. We have <strong>no objection</strong> to them pursuing any of the aforementioned activities, career advancements, or academic applications. We support their aspirations and believe they will continue to excel in their future goals.</p>
+<p class="para">${B.legal} confirms that there are no outstanding dues, liabilities, or conflicts of interest associated with ${esc(recipientName)}. We have <strong>no objection</strong> to them pursuing any of the aforementioned activities, career advancements, or academic applications. We support their aspirations and believe they will continue to excel in their future goals.</p>
 
-<p class="para" style="margin-bottom:24px;">For any additional queries or formal verification of this document, feel free to visit <strong>verify.waveseed.app</strong> or reach out to our human resources team at <strong>careers@waveseed.app</strong>.</p>
+<p class="para" style="margin-bottom:24px;">For any additional queries or formal verification of this document, feel free to visit <strong>verify.waveseed.app</strong> or reach out to our human resources team at <strong>${B.email}</strong>.</p>
 
 ${signatureBlockHTML()}`;
 
@@ -1041,7 +1123,7 @@ export function promotionLetterTemplate(data) {
   const {
     refNum='', date='', recipientName='', oldRole='', newRole='',
     effectiveDate='', newCtc='', reportingTo='',
-    issuerName='Mahender', issuerTitle='Founder, WaveSeed Co.',
+    issuerName='Mahender', issuerTitle='Founder, ${B.legal}',
     certId='',
   } = data;
 
@@ -1051,7 +1133,7 @@ export function promotionLetterTemplate(data) {
   <span class="subject-text">Promotion Letter — ${esc(recipientName)}</span>
 </div>
 <p class="salutation">Dear ${esc(recipientName)},</p>
-<p class="para">On behalf of the management at <strong>WaveSeed Co.</strong>, it gives us immense pleasure to inform you that, in recognition of your exemplary performance, high dedication, leadership capabilities, and valuable contributions, you have been <strong>promoted</strong> to the position of <strong>${esc(newRole)}</strong>.</p>
+<p class="para">On behalf of the management at <strong>${B.legal}</strong>, it gives us immense pleasure to inform you that, in recognition of your exemplary performance, high dedication, leadership capabilities, and valuable contributions, you have been <strong>promoted</strong> to the position of <strong>${esc(newRole)}</strong>.</p>
 
 <p class="para">In your new capacity, you will take on broader responsibilities that are critical to the growth and execution of our technology products and operational deliverables. We are confident that you will bring the same dedication, technical insight, and initiative to this role that you have displayed throughout your tenure with us.</p>
 
@@ -1066,7 +1148,7 @@ export function promotionLetterTemplate(data) {
 
 <p class="para">Your revised compensation and benefits will take effect from the date mentioned above. A separate detailed addendum outlining your specific key performance indicators (KPIs) and functional expectations will be shared with you by your reporting manager shortly.</p>
 
-<p class="para">We congratulate you on this well-deserved milestone. Your growth within WaveSeed Co. reflects our confidence in your talents and our commitment to nurturing internal leadership. We look forward to seeing you excel and drive positive changes in this new role.</p>
+<p class="para">We congratulate you on this well-deserved milestone. Your growth within ${B.legal} reflects our confidence in your talents and our commitment to nurturing internal leadership. We look forward to seeing you excel and drive positive changes in this new role.</p>
 
 <p class="para" style="margin-bottom:24px;">Please sign and return the duplicate copy of this letter as token acceptance of your promotion terms and new responsibilities.</p>
 
@@ -1094,9 +1176,9 @@ export function warningLetterTemplate(data) {
 </div>
 <p class="salutation">Dear ${esc(recipientName)},</p>
 ${isShowCause ? `
-<p class="para">This is a formal <strong>Show Cause Notice</strong> issued to you, ${esc(recipientName)}, ${esc(role) ? `currently serving as <strong>${esc(role)}</strong> at WaveSeed Co.,` : 'associated with WaveSeed Co.,'} in connection with the following documented matter of concern:</p>
+<p class="para">This is a formal <strong>Show Cause Notice</strong> issued to you, ${esc(recipientName)}, ${esc(role) ? `currently serving as <strong>${esc(role)}</strong> at ${B.legal},` : 'associated with ${B.legal},'} in connection with the following documented matter of concern:</p>
 ` : `
-<p class="para">This letter serves as a formal <strong>Written Warning</strong> issued to you, ${esc(recipientName)}, ${esc(role) ? `serving as <strong>${esc(role)}</strong> at WaveSeed Co.,` : 'associated with WaveSeed Co.,'} regarding the following matter of concern:</p>
+<p class="para">This letter serves as a formal <strong>Written Warning</strong> issued to you, ${esc(recipientName)}, ${esc(role) ? `serving as <strong>${esc(role)}</strong> at ${B.legal},` : 'associated with ${B.legal},'} regarding the following matter of concern:</p>
 `}
 
 ${incident ? `
@@ -1112,9 +1194,9 @@ ${incident ? `
 
 ${isShowCause ? `
 <p class="para">You are hereby directed to submit a written explanation to the HR department within <strong>${esc(responseDeadline) || '48 hours'}</strong> of receipt of this notice, explaining why appropriate disciplinary action should not be initiated against you under the company's service rules and code of conduct.</p>
-<p class="para">Please be advised that failure to respond within the stipulated time, or submission of an explanation found to be unsatisfactory by the management, may result in immediate escalation of disciplinary measures, up to and including termination of your association with WaveSeed Co. without further notice.</p>
+<p class="para">Please be advised that failure to respond within the stipulated time, or submission of an explanation found to be unsatisfactory by the management, may result in immediate escalation of disciplinary measures, up to and including termination of your association with ${B.legal} without further notice.</p>
 ` : `
-<p class="para">Please consider this communication as your formal warning. You are expected to immediately correct the aforementioned performance or behavioral issues and ensure complete compliance with WaveSeed Co.'s policies, code of conduct, and project delivery frameworks going forward.</p>
+<p class="para">Please consider this communication as your formal warning. You are expected to immediately correct the aforementioned performance or behavioral issues and ensure complete compliance with ${B.legal}'s policies, code of conduct, and project delivery frameworks going forward.</p>
 <p class="para">Please note that failure to rectify these issues, or any recurrence of similar behavior, will lead to stricter disciplinary measures. This may include a formal Performance Improvement Plan (PIP), withholding of increments, or termination of your association with the company.</p>
 `}
 
@@ -1142,7 +1224,7 @@ export function salaryRevisionTemplate(data) {
   <span class="subject-text">Salary Revision / Compensation Restructuring Letter</span>
 </div>
 <p class="salutation">Dear ${esc(recipientName)},</p>
-<p class="para">We are pleased to formally inform you that, in recognition of your outstanding performance, consistent dedication, and significant contributions to <strong>WaveSeed Co.</strong> during the recent appraisal review, your annual compensation structure has been revised, effective from <strong>${fmtDate(effectiveDate)}</strong>.</p>
+<p class="para">We are pleased to formally inform you that, in recognition of your outstanding performance, consistent dedication, and significant contributions to <strong>${B.legal}</strong> during the recent appraisal review, your annual compensation structure has been revised, effective from <strong>${fmtDate(effectiveDate)}</strong>.</p>
 
 <p class="para">The details of your revised compensation structure and designation parameters are detailed below. This adjustment reflects our appreciation of your technical growth and our confidence in your ongoing contributions to the development of the company's SaaS solutions.</p>
 
@@ -1157,7 +1239,7 @@ export function salaryRevisionTemplate(data) {
 
 <p class="para">Please note that all other terms and conditions of your employment contract, including confidentiality clauses, intellectual property declarations, and service protocols, continue to remain in full force and effect. Your compensation is strictly confidential, and we expect you to maintain this confidentiality.</p>
 
-<p class="para">We thank you for your commitment and hard work. We are excited about your career path at WaveSeed Co. and look forward to scaling new milestones together in the coming periods.</p>
+<p class="para">We thank you for your commitment and hard work. We are excited about your career path at ${B.legal} and look forward to scaling new milestones together in the coming periods.</p>
 
 <p class="para" style="margin-bottom:24px;">Please sign and return the duplicate copy of this letter as acknowledgment and acceptance of the revised terms.</p>
 
@@ -1252,19 +1334,19 @@ export function salarySlipTemplate(data) {
   const body = `
 <style>
   .ps-title{ text-align:center; margin:-8px 0 18px; }
-  .ps-title h1{ font-size:15px; font-weight:800; letter-spacing:2px; text-transform:uppercase; color:#0d1b3e; }
+  .ps-title h1{ font-size:15px; font-weight:800; letter-spacing:2px; text-transform:uppercase; color:${B.color}; }
   .ps-title p{ font-size:10.5px; color:#64748b; margin-top:3px; font-weight:600; }
   .ps-info{ display:grid; grid-template-columns:1fr 1fr; gap:0 24px; margin-bottom:16px; }
   .ps-info table{ width:100%; border-collapse:collapse; font-size:10.5px; }
   .ps-info td{ padding:5px 8px; border-bottom:1px solid #eef2f7; color:#334155; }
   .ps-info td:first-child{ color:#64748b; font-weight:600; width:46%; }
   .ps-table{ width:100%; border-collapse:collapse; font-size:10.5px; margin-top:6px; border:1px solid #dbe3ee; }
-  .ps-table th{ background:#0d1b3e; color:#fff; padding:8px 10px; text-align:left; font-size:9px; letter-spacing:1px; text-transform:uppercase; }
+  .ps-table th{ background:${B.color}; color:#fff; padding:8px 10px; text-align:left; font-size:9px; letter-spacing:1px; text-transform:uppercase; }
   .ps-table td{ padding:7px 10px; border-bottom:1px solid #eef2f7; color:#1e293b; }
   .ps-table td.num, .ps-table th.num{ text-align:right; white-space:nowrap; }
   .ps-table td:nth-child(3){ border-left:1px solid #dbe3ee; }
-  .ps-table tr.total td{ font-weight:800; background:#f8fafc; color:#0d1b3e; border-top:2px solid #0d1b3e; }
-  .ps-net{ margin-top:16px; display:flex; justify-content:space-between; align-items:center; background:linear-gradient(135deg,#0d1b3e,#1e3264); color:#fff; border-radius:8px; padding:14px 18px; }
+  .ps-table tr.total td{ font-weight:800; background:#f8fafc; color:${B.color}; border-top:2px solid ${B.color}; }
+  .ps-net{ margin-top:16px; display:flex; justify-content:space-between; align-items:center; background:linear-gradient(135deg,${B.color},${B.colorLight}); color:#fff; border-radius:8px; padding:14px 18px; }
   .ps-net .label{ font-size:10px; letter-spacing:1.5px; text-transform:uppercase; opacity:0.8; font-weight:700; }
   .ps-net .value{ font-size:20px; font-weight:800; color:#f0d078; }
   .ps-words{ font-size:10.5px; color:#334155; margin-top:8px; font-style:italic; }
@@ -1305,7 +1387,7 @@ export function salarySlipTemplate(data) {
 </div>
 <p class="ps-words"><strong>In words:</strong> ${rupeesInWords(net)}</p>
 ${signatureBlockHTML()}
-<p class="ps-note">This is a computer-generated ${isStipend ? 'stipend' : 'salary'} slip issued by WaveSeed Co. Its authenticity can be verified at verify.waveseed.app using the Verification ID ${esc(certId)}. The contents of this document are confidential.</p>`;
+<p class="ps-note">This is a computer-generated ${isStipend ? 'stipend' : 'salary'} slip issued by ${B.legal} Its authenticity can be verified at verify.waveseed.app using the Verification ID ${esc(certId)}. The contents of this document are confidential.</p>`;
 
   return letterWrapper({ title: `${isStipend ? 'Stipend' : 'Salary'} Slip ${fmtMonth(payMonth)} — ${recipientName}`, refNum, date, body, verificationId: certId, docType: 'salary-slip' });
 }
@@ -1329,7 +1411,7 @@ export function salaryCertificateTemplate(data) {
   <span class="subject-text">Salary Certificate — ${name}</span>
 </div>
 <p class="salutation">To Whomsoever It May Concern,</p>
-<p class="para">This is to certify that <strong>${name}</strong> is employed with <strong>WaveSeed Co.</strong> as ${/^[aeiou]/i.test(role) ? 'an' : 'a'} <strong>${esc(role)}</strong>${department ? ` in the <strong>${esc(department)}</strong> department` : ''}${joiningDate ? ` since <strong>${fmtDate(joiningDate)}</strong>` : ''}, and continues to be in our employment as on the date of this letter.</p>
+<p class="para">This is to certify that <strong>${name}</strong> is employed with <strong>${B.legal}</strong> as ${/^[aeiou]/i.test(role) ? 'an' : 'a'} <strong>${esc(role)}</strong>${department ? ` in the <strong>${esc(department)}</strong> department` : ''}${joiningDate ? ` since <strong>${fmtDate(joiningDate)}</strong>` : ''}, and continues to be in our employment as on the date of this letter.</p>
 
 <p class="para">As per the records of the company, their current compensation details are as follows:</p>
 <table class="highlight-table">
@@ -1341,9 +1423,9 @@ export function salaryCertificateTemplate(data) {
   ${ctc ? `<tr><td>Annual CTC</td><td><strong>${inr(ctc)}</strong> <span style="color:#64748b;">(${rupeesInWords(ctc)})</span></td></tr>` : ''}
 </table>
 
-<p class="para">This certificate is issued upon their request ${purposeHTML}. It is issued without any risk or responsibility on the part of WaveSeed Co. or its management, and does not constitute a guarantee, surety, or undertaking of any kind towards any financial obligation of the employee.</p>
+<p class="para">This certificate is issued upon their request ${purposeHTML}. It is issued without any risk or responsibility on the part of ${B.legal} or its management, and does not constitute a guarantee, surety, or undertaking of any kind towards any financial obligation of the employee.</p>
 
-<p class="para" style="margin-bottom:24px;">For verification of this document, please visit <strong>verify.waveseed.app</strong> with the Verification ID, or contact our HR department at <strong>careers@waveseed.app</strong>.</p>
+<p class="para" style="margin-bottom:24px;">For verification of this document, please visit <strong>verify.waveseed.app</strong> with the Verification ID, or contact our HR department at <strong>${B.email}</strong>.</p>
 
 ${signatureBlockHTML()}`;
 
@@ -1351,7 +1433,7 @@ ${signatureBlockHTML()}`;
 }
 
 // ─── Master dispatcher ─────────────────────────────────────────────────────────
-export function generateDocument(type, data) {
+function renderDocument(type, data) {
   const map = {
     'internship-cert':    d => certificateTemplate({...d, certType:'internship'}),
     'employment-cert':    d => certificateTemplate({...d, certType:'employment'}),
@@ -1381,4 +1463,14 @@ export function generateDocument(type, data) {
   };
   const fn = map[type];
   return fn ? fn(data) : '<p>Unknown template type.</p>';
+}
+
+/** Render any document. The brand snapshot stored in data.brand decides the issuer identity. */
+export function generateDocument(type, data) {
+  setBrand(data && data.brand);
+  try {
+    return renderDocument(type, data);
+  } finally {
+    setBrand(null);
+  }
 }

@@ -132,8 +132,9 @@ export async function adminSeed(token) {
   return json;
 }
 
-export async function adminGetNextIds(token) {
-  const res = await fetch(`${HTTP_URL}/admin/next-ids`, { headers: authHeaders(token) });
+export async function adminGetNextIds(token, businessCode) {
+  const q = businessCode ? `?business=${encodeURIComponent(businessCode)}` : '';
+  const res = await fetch(`${HTTP_URL}/admin/next-ids${q}`, { headers: authHeaders(token) });
   if (!res.ok) throw new Error('Failed to get next IDs');
   return res.json();
 }

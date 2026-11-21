@@ -579,6 +579,7 @@ window.wsGenerate = async function(typeId) {
       notes:             `Generated via DocGen Dashboard: ${docType.name}${data.payMonth ? ` (${data.payMonth})` : ''}`,
       nameFont:          data.nameFont || 'cursive',
       templateData:      JSON.stringify(data),  // store ALL fields for future re-rendering
+      employeeId:        document.getElementById('gen-emp-autofill')?.value || undefined,
     });
 
     // Refresh existing certs list

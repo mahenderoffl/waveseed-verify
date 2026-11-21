@@ -89,9 +89,13 @@ export const insertCertificate = internalMutation({
     nameFont: v.optional(v.string()),
     templateData: v.optional(v.string()),  // JSON string of all original form fields
     businessId: v.optional(v.id("businesses")),
+    employeeId: v.optional(v.id("employees")),
   },
   handler: async (ctx, args) => {
-    const biz = await resolveBusiness(ctx, args.businessId);
+    const person = args.employeeId ? await ctx.db.get(args.employeeId) : null;
+    if (args.employeeId && !person) throw new Error("Unknown employee");
+    // A certificate issued to a person belongs to that person's business unless told otherwise.
+    const biz = await resolveBusiness(ctx, args.businessId ?? person?.businessId);
 
     // Prevent duplicate certificate IDs
     const existing = await ctx.db
@@ -270,6 +274,67 @@ export const getAllEmployees = internalQuery({
   args: {},
   handler: async (ctx) => {
     return await ctx.db.query("employees").order("desc").collect();
+  },
+});
+
+/**
+ * The person a certificate belongs to: the stored link if present,
+ * otherwise (legacy certificates) a match on e-mail address.
+ */
+export const getEmployeeForCertificate = internalQuery({
+  args: { certificateDocId: v.id("certificates") },
+  handler: async (ctx, { certificateDocId }) => {
+    const cert = await ctx.db.get(certificateDocId);
+    if (!cert) return null;
+    if (cert.employeeId) return await ctx.db.get(cert.employeeId);
+    if (!cert.holderEmail) return null;
+    const email = cert.holderEmail.toLowerCase();
+    const all = await ctx.db.query("employees").collect();
+    return all.find((e) => e.email?.toLowerCase() === email) ?? null;
+  },
+});
+
+export const getCertificatesByEmployee = internalQuery({
+  args: { employeeId: v.id("employees") },
+  handler: async (ctx, { employeeId }) => {
+    return await ctx.db.query("certificates").withIndex("by_employee", (q) => q.eq("employeeId", employeeId)).collect();
+  },
+});
+
+/**
+ * One-off: link existing certificates to people. Matches on e-mail, then on exact name.
+ * Only links when exactly one person matches; everything else is reported, never guessed.
+ * Run with { dryRun: true } first.
+ */
+export const linkCertificatesToEmployees = internalMutation({
+  args: { dryRun: v.boolean() },
+  handler: async (ctx, { dryRun }) => {
+    const emps = await ctx.db.query("employees").collect();
+    const certs = (await ctx.db.query("certificates").collect()).filter((c) => !c.employeeId);
+    const norm = (x?: string) => (x ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+
+    const linked: { certificateId: string; holder: string; by: string; person: string }[] = [];
+    const unmatched: { certificateId: string; holder: string; reason: string }[] = [];
+
+    for (const cert of certs) {
+      let match: typeof emps = [];
+      let by = "";
+      if (cert.holderEmail) {
+        match = emps.filter((e) => norm(e.email) === norm(cert.holderEmail));
+        by = "email";
+      }
+      if (match.length === 0) {
+        match = emps.filter((e) => norm(e.name) === norm(cert.holderName));
+        by = "name";
+      }
+      if (match.length === 1) {
+        linked.push({ certificateId: cert.certificateId, holder: cert.holderName, by, person: match[0].empCode ?? match[0].name });
+        if (!dryRun) await ctx.db.patch(cert._id, { employeeId: match[0]._id });
+      } else {
+        unmatched.push({ certificateId: cert.certificateId, holder: cert.holderName, reason: match.length === 0 ? "no matching profile" : "multiple matching profiles" });
+      }
+    }
+    return { dryRun, toLink: linked.length, unmatchedCount: unmatched.length, linked, unmatched };
   },
 });
 

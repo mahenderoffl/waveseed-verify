@@ -43,6 +43,7 @@ export default defineSchema({
     templateData: v.optional(v.string()), // JSON string — full set of fields used to generate the document
     signedUrl: v.optional(v.string()),    // URL to the uploaded signed document copy
     signedAt: v.optional(v.string()),     // Timestamp when the signed document was uploaded
+    employeeId: v.optional(v.id("employees")),    // the person this certificate was issued to
     businessId: v.optional(v.id("businesses")),   // issuing business (absent on legacy rows = WaveSeed)
     verificationCount: v.number(),
     createdAt: v.number(),
@@ -53,7 +54,8 @@ export default defineSchema({
     .index("by_holder_name", ["holderName"])
     .index("by_status", ["status"])
     .index("by_type", ["certificateType"])
-    .index("by_business", ["businessId"]),
+    .index("by_business", ["businessId"])
+    .index("by_employee", ["employeeId"]),
 
   // ── Businesses: parent company + ventures (tree via parentId) ──────────────
   // Optional branding fields mean "inherit from parent".

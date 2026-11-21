@@ -908,6 +908,7 @@ async function submitAdd() {
     issuerName:        get('f-issuer-name') || 'Mahender',
     issuerTitle:       get('f-issuer-title') || 'Founder, WaveSeed Co.',
     notes:             get('f-notes') || undefined,
+    employeeId:        document.getElementById('cert-emp-select')?.value || undefined,
   };
 
   const btn = document.getElementById('submit-add');

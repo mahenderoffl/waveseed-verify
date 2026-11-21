@@ -2,7 +2,7 @@
 import {
   adminGetEmployees, adminAddEmployee, adminDeleteEmployee,
   adminGetDocuments, adminDeleteDocument, adminVerifyDocument,
-  adminGetDocSummary, adminOpenDocument, adminGetDocLog,
+  adminGetDocSummary, adminOpenDocument, adminGetDocLog, adminGetAll,
 } from '../api.js';
 import { productDropdownHTML, tableSkeletonHTML } from './shared.js';
 import { DOC_TYPES, GROUPS, slotsFor, requirementProgress } from '../utils/docCatalog.js';
@@ -393,6 +393,9 @@ window.wsViewEmpProfile = (id) => {
     ${row('Reason for Leaving', meta.prevReasonLeaving)}
     ` : ''}
 
+    <div class="prof-section-title" style="margin-top:16px;">🎓 Certificates &amp; Letters Issued</div>
+    <div id="prof-certs" style="font-size:0.82rem;color:var(--gray-500);">Loading…</div>
+
     ${meta.notes ? `
     <div class="prof-section-title" style="margin-top:16px;">📝 Notes</div>
     <div style="font-size:0.85rem;color:var(--gray-600);line-height:1.6;background:var(--gray-100);padding:10px 12px;border-radius:8px;">${esc(meta.notes)}</div>
@@ -407,6 +410,20 @@ window.wsViewEmpProfile = (id) => {
 
   document.body.appendChild(overlay);
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+  // Certificates linked to this person
+  (async () => {
+    const el = document.getElementById('prof-certs');
+    try {
+      const token = sessionStorage.getItem('ws_admin_token');
+      const all = await adminGetAll(token);
+      const list = (Array.isArray(all) ? all : (all.certificates || [])).filter(c => c.employeeId === id);
+      if (!el) return;
+      el.innerHTML = list.length
+        ? list.map(c => `<div style="padding:5px 0;border-bottom:1px solid var(--gray-100);color:var(--gray-800);"><strong>${esc(c.certificateId)}</strong> · ${esc(c.certificateType)} · ${esc(c.issuedDate || '')}${c.status && c.status !== 'active' ? ' · <span style="color:var(--red);">' + esc(c.status) + '</span>' : ''}</div>`).join('')
+        : 'None linked yet.';
+    } catch { if (el) el.textContent = 'Could not load certificates.'; }
+  })();
 };
 
 window.wsIssueFromEmp = (id) => {

@@ -967,10 +967,9 @@ http.route({
     const denied = await verifyHolderDob(ctx, cert, dob.trim());
     if (denied) return denied;
 
-    // Find employee record by email
-    if (!cert.holderEmail) return json({ error: "No employee record linked to this certificate." }, 404);
-    const emp = await ctx.runQuery(internal.certificates.getEmployeeByEmail, { email: cert.holderEmail });
-    if (!emp) return json({ error: "Employee profile not found." }, 404);
+    // The person this certificate belongs to (stored link, or e-mail match for legacy certificates)
+    const emp = await ctx.runQuery(internal.certificates.getEmployeeForCertificate, { certificateDocId: cert._id });
+    if (!emp) return json({ error: "No employee profile is linked to this certificate. Please contact WaveSeed." }, 404);
 
     // Generate a Convex upload URL (short-lived, single-use)
     const uploadUrl = await ctx.storage.generateUploadUrl();
@@ -1008,6 +1007,14 @@ http.route({
     if (!cert) return json({ error: "Reference not found" }, 404);
     const denied = await verifyHolderDob(ctx, cert, dob.trim());
     if (denied) return denied;
+
+    // The employeeId comes from the browser, so it must match the person this certificate
+    // belongs to — otherwise a valid reference + DOB could write into someone else's folder.
+    const owner = await ctx.runQuery(internal.certificates.getEmployeeForCertificate, { certificateDocId: cert._id });
+    if (!owner || String(owner._id) !== String(employeeId)) {
+      try { await ctx.storage.delete(storageId as any); } catch {}
+      return json({ error: "This upload does not belong to the verified person." }, 403);
+    }
 
     // Validate magic bytes from storage
     const stored = await ctx.storage.get(storageId as any);

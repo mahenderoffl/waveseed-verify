@@ -231,6 +231,15 @@ http.route({
       return json({ error: "Provide ?id= or ?ref= parameter" }, 400);
     }
 
+    // Throttle lookups per IP so the sequential certificate IDs can't be swept in bulk.
+    const vIp = clientIp(request);
+    if (vIp !== "unknown") {
+      const vKey = `verify:ip:${vIp}`;
+      const vLocked = await ctx.runQuery(internal.security.lockedFor, { key: vKey });
+      if (vLocked > 0) return tooMany(vLocked);
+      await ctx.runMutation(internal.security.hit, { key: vKey, max: 60, windowMs: 5 * 60_000, lockMs: 10 * 60_000 });
+    }
+
     let cert = null;
     if (id) {
       cert = await ctx.runQuery(internal.certificates.getByCertificateId, {
@@ -1196,7 +1205,7 @@ http.route({
   path: "/admin/docs/summary",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
+    if (!(await checkRole(ctx, request, "admin", "hr", "operations"))) return json({ error: "Unauthorized" }, 401);
     const summary = await ctx.runQuery(internal.documents.getSummary, {});
     return json({ summary });
   }),
@@ -1215,6 +1224,7 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const role = await getRole(ctx, request);
     if (!role) return json({ error: "Unauthorized" }, 401);
+    if (role !== "admin" && role !== "hr") return forbidden();   // KYC documents: admin / HR only
 
     const url = new URL(request.url);
     const employeeId = url.searchParams.get("employeeId")?.trim();
@@ -1250,6 +1260,7 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const role = await getRole(ctx, request);
     if (!role) return json({ error: "Unauthorized" }, 401);
+    if (role !== "admin" && role !== "hr") return forbidden();   // KYC documents: admin / HR only
 
     let body: { id?: string };
     try { body = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }

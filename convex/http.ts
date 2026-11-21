@@ -2,6 +2,7 @@ import { httpRouter } from "convex/server";
 import { httpAction, type ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
+import * as acc from "./acceptances";
 
 const http = httpRouter();
 
@@ -1344,6 +1345,200 @@ http.route({
     });
     await ctx.runMutation(internal.documents.deleteDocument, { id: body.id as any });
     return json({ success: true });
+  }),
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PUBLIC — Offer acceptance (#accept): lookup, electronic acceptance / signed copy / decline
+// ═══════════════════════════════════════════════════════════════════════════════
+const OFFER_TYPES = new Set(["internship-offer", "employment-offer"]);
+
+/** The requester's IP: the first (client) entry of X-Forwarded-For. */
+function firstIp(request: Request): string {
+  const h = request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip") ?? "";
+  return (h.split(",")[0] ?? "").trim().slice(0, 64) || "unknown";
+}
+
+const normName = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ").trim();
+
+/** Offers can be accepted until the end of the "valid until" day (India time). */
+function offerDeadline(templateData: string | undefined): { validUntil: string | null; expired: boolean } {
+  let validUntil: string | null = null;
+  try { validUntil = (JSON.parse(templateData ?? "{}").offerValidity as string) || null; } catch { /* no template data */ }
+  if (!validUntil || !/^\d{4}-\d{2}-\d{2}$/.test(validUntil)) return { validUntil: null, expired: false };
+  const end = Date.parse(`${validUntil}T23:59:59+05:30`);
+  return { validUntil, expired: Number.isFinite(end) && Date.now() > end };
+}
+
+/** SHA-256 of the offer exactly as it stands, so a later edit to the letter is detectable. */
+async function offerHash(cert: CertDoc): Promise<string> {
+  return sha256Hex(JSON.stringify([
+    cert.certificateId, cert.referenceNumber, cert.certificateType, cert.holderName, cert.role,
+    cert.issuedDate, cert.startDate ?? "", cert.endDate ?? "", cert.templateData ?? "",
+  ]));
+}
+
+function publicAcceptance(r: Doc<"acceptances"> | null) {
+  if (!r) return { state: "pending" as const };
+  return {
+    state: r.decision === "accepted" ? ("accepted" as const) : ("declined" as const),
+    method: r.method, receiptId: r.receiptId, acceptedAt: r.acceptedAt, signedName: r.signedName ?? null,
+    ip: r.ip, geoStatus: r.geoStatus, docHash: r.docHash, consentVersion: r.consentVersion ?? null,
+    timeZone: r.timeZone ?? null, userAgent: r.userAgent, signedFileUrl: r.signedFileUrl ?? null,
+  };
+}
+
+http.route({ path: "/public/accept/lookup", method: "OPTIONS", handler: httpAction(async () => preflight()) });
+http.route({
+  path: "/public/accept/lookup",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const body = await request.json().catch(() => null) as { ref?: string; dob?: string } | null;
+    const ref = String(body?.ref ?? "").trim();
+    const dob = String(body?.dob ?? "").trim();
+    if (!ref || !dob) return json({ error: "Please enter your reference number and date of birth." }, 400);
+
+    const cert = await ctx.runQuery(internal.certificates.getByReferenceNumber, { referenceNumber: ref });
+    if (!cert) return json({ error: "We could not find an offer with that reference number. Please check it and try again." }, 404);
+    const denied = await verifyHolderDob(ctx, cert, dob);
+    if (denied) return denied;
+    if (!OFFER_TYPES.has(cert.certificateType)) return json({ error: "This reference number is not an offer letter." }, 400);
+    if (cert.status === "revoked") return json({ error: "This offer has been withdrawn. Please contact the company.", revoked: true }, 403);
+
+    const [issuer, emp, standing] = await Promise.all([
+      ctx.runQuery(internal.businesses.getPublicForCertificate, { businessId: cert.businessId }),
+      ctx.runQuery(internal.certificates.getEmployeeForCertificate, { certificateDocId: cert._id }),
+      ctx.runQuery(internal.acceptances.standing, { certificateDocId: cert._id }),
+    ]);
+    const { validUntil, expired } = offerDeadline(cert.templateData);
+    return json({
+      success: true,
+      certificateType: cert.certificateType,
+      templateData: cert.templateData ?? null,
+      certificateId: cert.certificateId,
+      referenceNumber: cert.referenceNumber,
+      holderName: cert.holderName,
+      holderEmail: cert.holderEmail ?? null,
+      holderInstitution: cert.holderInstitution ?? null,
+      holderDepartment: cert.holderDepartment ?? null,
+      role: cert.role,
+      product: cert.product ?? null,
+      reportingTo: cert.reportingTo ?? null,
+      workMode: cert.workMode ?? null,
+      issuedDate: cert.issuedDate,
+      startDate: cert.startDate ?? null,
+      endDate: cert.endDate ?? null,
+      issuerName: cert.issuerName,
+      issuerTitle: cert.issuerTitle,
+      employeeType: emp?.employeeType ?? (cert.certificateType === "employment-offer" ? "employee" : "intern"),
+      issuer: issuer
+        ? { name: issuer.name, legal: issuer.legal, tagline: issuer.tagline, logoUrl: issuer.logoUrl, email: issuer.email, website: issuer.website, sigName: issuer.sigName, sigTitle: issuer.sigTitle, venture: issuer.venture ?? null }
+        : null,
+      validUntil, expired,
+      acceptance: publicAcceptance(standing),
+      signedUrl: cert.signedUrl ?? null,
+      consent: {
+        version: acc.CONSENT_VERSION,
+        clauseTitle: acc.CONSENT_CLAUSE_TITLE,
+        clause: acc.CONSENT_CLAUSE,
+        items: acc.CONSENTS,
+        privacy: acc.PRIVACY_NOTICE,
+      },
+    });
+  }),
+});
+
+http.route({ path: "/public/accept/submit", method: "OPTIONS", handler: httpAction(async () => preflight()) });
+http.route({
+  path: "/public/accept/submit",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const ip = firstIp(request);
+    const rlKey = `accept:ip:${ip}`;
+    const locked = await ctx.runQuery(internal.security.lockedFor, { key: rlKey });
+    if (locked > 0) return tooMany(locked);
+
+    const b = await request.json().catch(() => null) as {
+      ref?: string; dob?: string; decision?: string; method?: string; signedName?: string; consents?: string[];
+      geo?: { status?: string; lat?: number; lon?: number; accuracy?: number }; timeZone?: string; language?: string; reason?: string;
+    } | null;
+    if (!b) return json({ error: "Invalid request" }, 400);
+    const ref = String(b.ref ?? "").trim();
+    const dob = String(b.dob ?? "").trim();
+    if (!ref || !dob) return json({ error: "Missing reference number or date of birth." }, 400);
+    await ctx.runMutation(internal.security.hit, { key: rlKey, max: 30, windowMs: 10 * 60_000, lockMs: 10 * 60_000 });
+
+    const cert = await ctx.runQuery(internal.certificates.getByReferenceNumber, { referenceNumber: ref });
+    if (!cert) return json({ error: "Offer not found." }, 404);
+    const denied = await verifyHolderDob(ctx, cert, dob);
+    if (denied) return denied;
+    if (!OFFER_TYPES.has(cert.certificateType)) return json({ error: "This reference number is not an offer letter." }, 400);
+    if (cert.status === "revoked") return json({ error: "This offer has been withdrawn.", revoked: true }, 403);
+
+    const standing = await ctx.runQuery(internal.acceptances.standing, { certificateDocId: cert._id });
+    if (standing?.decision === "accepted") return json({ error: "This offer has already been accepted.", acceptance: publicAcceptance(standing) }, 409);
+
+    const decision = b.decision === "decline" ? "declined" : "accepted";
+    const method = decision === "declined" ? "decline" : b.method === "signed_copy" ? "signed_copy" : "electronic";
+    const { expired } = offerDeadline(cert.templateData);
+    if (decision === "accepted" && expired) return json({ error: "This offer has expired. Please contact the company if you still wish to accept it." }, 410);
+
+    const clean = (s: unknown, n: number) => String(s ?? "").replace(/[\u0000-\u001f\u007f<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, n);
+    const g = b.geo ?? {};
+    const geoStatus = ["granted", "denied", "unavailable", "not_requested"].includes(String(g.status)) ? String(g.status) : "not_requested";
+    const okNum = (n: unknown, lo: number, hi: number) => typeof n === "number" && Number.isFinite(n) && n >= lo && n <= hi ? n : undefined;
+    const base = {
+      certificateDocId: cert._id,
+      docHash: await offerHash(cert),
+      ip,
+      userAgent: clean(request.headers.get("user-agent"), 300),
+      language: clean(b.language, 20) || undefined,
+      timeZone: clean(b.timeZone, 60) || undefined,
+      geoStatus,
+      geoLat: geoStatus === "granted" ? okNum(g.lat, -90, 90) : undefined,
+      geoLon: geoStatus === "granted" ? okNum(g.lon, -180, 180) : undefined,
+      geoAccuracyM: geoStatus === "granted" ? okNum(g.accuracy, 0, 1e7) : undefined,
+    };
+
+    if (decision === "declined") {
+      const r = await ctx.runMutation(internal.acceptances.record, { ...base, decision, method, reason: clean(b.reason, 500) || undefined });
+      return json({ success: true, decision, ...r });
+    }
+
+    if (method === "signed_copy") {
+      if (!cert.signedUrl) return json({ error: "Please upload your signed copy first." }, 400);
+      const r = await ctx.runMutation(internal.acceptances.record, { ...base, decision, method, signedFileUrl: cert.signedUrl, signedName: cert.holderName });
+      return json({ success: true, decision, method, ...r });
+    }
+
+    // Electronic acceptance: every consent ticked and the typed name must match the name on the offer
+    const ticked = new Set(Array.isArray(b.consents) ? b.consents.map(String) : []);
+    const missing = acc.CONSENTS.filter((c) => !ticked.has(c.id));
+    if (missing.length) return json({ error: "Please tick every declaration before signing." }, 400);
+    const typed = clean(b.signedName, 120);
+    if (!typed || normName(typed) !== normName(cert.holderName)) {
+      return json({ error: `Please type your full name exactly as it appears on the offer: ${cert.holderName}` }, 400);
+    }
+    const r = await ctx.runMutation(internal.acceptances.record, {
+      ...base, decision, method, signedName: typed,
+      consentVersion: acc.CONSENT_VERSION,
+      consentClause: acc.CONSENT_CLAUSE,
+      consentTexts: acc.CONSENTS.map((c) => c.text),
+      privacyNotice: acc.PRIVACY_NOTICE,
+    });
+    return json({ success: true, decision, method, ...r, ip, docHash: base.docHash, signedName: typed });
+  }),
+});
+
+// Admin: every acceptance record (for the Person page and reports)
+http.route({ path: "/admin/acceptances", method: "OPTIONS", handler: httpAction(async () => preflight()) });
+http.route({
+  path: "/admin/acceptances",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    if (!(await checkRole(ctx, request, "admin", "hr", "operations"))) return json({ error: "Unauthorized" }, 401);
+    const rows = await ctx.runQuery(internal.acceptances.listAll, {});
+    return json({ acceptances: rows.map((r) => ({ ...r, certificateDocId: String(r.certificateDocId) })) });
   }),
 });
 

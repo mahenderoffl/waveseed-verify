@@ -162,6 +162,39 @@ export default defineSchema({
     .index("by_token_hash", ["tokenHash"])
     .index("by_expires_at", ["expiresAt"]),
 
+  // ── Offer acceptance records (append-only evidence) ───────────────────────
+  acceptances: defineTable({
+    certificateDocId: v.id("certificates"),
+    certificateId:    v.string(),
+    referenceNumber:  v.string(),
+    holderName:       v.string(),
+    businessId:       v.optional(v.id("businesses")),
+    employeeId:       v.optional(v.id("employees")),
+    receiptId:        v.string(),             // shown to the candidate, e.g. ACC-WSOFFERINT0001-1K2M3
+    decision:         v.string(),             // accepted | declined
+    method:           v.string(),             // electronic | signed_copy | decline
+    signedName:       v.optional(v.string()), // typed name used as the electronic signature
+    consentVersion:   v.optional(v.string()),
+    consentClause:    v.optional(v.string()), // exact wording shown at the time
+    consentTexts:     v.optional(v.array(v.string())),
+    privacyNotice:    v.optional(v.string()),
+    docHash:          v.string(),             // SHA-256 of the offer content at acceptance
+    acceptedAt:       v.number(),             // server clock, epoch ms
+    ip:               v.string(),
+    userAgent:        v.string(),
+    language:         v.optional(v.string()),
+    timeZone:         v.optional(v.string()),
+    geoStatus:        v.string(),             // granted | denied | unavailable | not_requested
+    geoLat:           v.optional(v.number()),
+    geoLon:           v.optional(v.number()),
+    geoAccuracyM:     v.optional(v.number()),
+    reason:           v.optional(v.string()), // decline reason
+    signedFileUrl:    v.optional(v.string()), // signed copy upload (signed_copy method)
+  })
+    .index("by_certificate", ["certificateDocId"])
+    .index("by_employee", ["employeeId"])
+    .index("by_time", ["acceptedAt"]),
+
   // Brute-force / spam protection counters (login, DOB checks, onboarding)
   rateLimits: defineTable({
     key: v.string(),

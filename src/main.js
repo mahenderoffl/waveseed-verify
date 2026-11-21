@@ -4,12 +4,15 @@
 import './style.css';
 import './styles/design.css';
 import './styles/admin.css';
+import './styles/journey.css';
 
 const PAGES = {
   verify:   () => import('./pages/verify.js').then(m => m.initVerifyPage),
   admin:    () => import('./admin/app.js').then(m => m.initAdminApp),
   onboard:  () => import('./pages/onboard.js').then(m => m.initOnboardPage),
   upload:   () => import('./pages/upload.js').then(m => m.initUploadPage),
+  accept:   () => import('./pages/accept.js').then(m => m.initAcceptPage),
+  welcome:  () => import('./pages/welcome.js').then(m => m.initWelcomePage),
   download: () => import('./pages/download.js').then(m => m.initDownloadPage),
   ui:       () => import('./pages/styleguide.js').then(m => m.initStyleGuidePage),
   // Safety net: the previous admin, reachable at #admin-classic while the new one settles in
@@ -37,6 +40,10 @@ async function route() {
     key = 'admin';    title = 'Admin — WaveSeed Certificate System';
   } else if (onboardMatch) {
     key = 'onboard';  title = 'Onboarding — WaveSeed';  args = [onboardMatch[1] || ''];
+  } else if (hash === '#accept') {
+    key = 'accept';   title = 'Accept your offer — WaveSeed Co.';
+  } else if (hash === '#welcome') {
+    key = 'welcome';  title = 'Welcome — WaveSeed Co.';
   } else if (hash === '#upload') {
     key = 'upload';   title = 'Document Upload — WaveSeed Co.';
   } else if (hash === '#admin-classic') {

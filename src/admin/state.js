@@ -2,7 +2,7 @@
 // One place that knows who is logged in, what they may see, and the data every
 // admin page needs. Pages read from here instead of each fetching their own copy.
 import {
-  adminGetEmployees, adminGetAll, adminGetStats, adminGetDocSummary, adminGetBusinesses, adminLogout,
+  adminGetEmployees, adminGetAll, adminGetStats, adminGetDocSummary, adminGetBusinesses, adminLogout, adminGetAcceptances,
 } from '../api.js';
 import { slotsFor, requirementProgress } from '../utils/docCatalog.js';
 
@@ -37,7 +37,7 @@ export const session = {
 };
 
 // ── Data cache ───────────────────────────────────────────────────────────────
-export const data = { businesses: [], employees: [], certs: [], summary: {}, stats: {}, loadedAt: 0 };
+export const data = { businesses: [], employees: [], certs: [], acceptances: [], summary: {}, stats: {}, loadedAt: 0 };
 function resetData() { Object.assign(data, { businesses: [], employees: [], certs: [], summary: {}, stats: {}, loadedAt: 0 }); }
 
 const listeners = new Set();
@@ -57,8 +57,9 @@ export async function load({ force = false } = {}) {
     p.documents ? adminGetAll(t) : Promise.resolve([]),
     p.people ? adminGetDocSummary(t) : Promise.resolve({}),
     adminGetStats(t),
+    (p.people || p.documents) ? adminGetAcceptances(t) : Promise.resolve([]),
   ]);
-  const [b, e, c, s, st] = results;
+  const [b, e, c, s, st, ac] = results;
   if (b.status === 'rejected' && st.status === 'rejected') throw new AuthError('Session expired');
   data.businesses = b.status === 'fulfilled' ? (b.value.businesses || []) : [];
   data.employees  = e.status === 'fulfilled' ? e.value : [];
@@ -66,6 +67,7 @@ export async function load({ force = false } = {}) {
   data.certs      = Array.isArray(certs) ? certs : (certs.certificates || []);
   data.summary    = s.status === 'fulfilled' ? s.value : {};
   data.stats      = st.status === 'fulfilled' ? st.value : {};
+  data.acceptances = ac.status === 'fulfilled' ? ac.value : [];
   data.loadedAt = Date.now();
   emit('data');
   return data;

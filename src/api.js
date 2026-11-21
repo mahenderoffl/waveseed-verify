@@ -364,3 +364,28 @@ export async function adminUploadSigned(token, id, file) {
   return json;
 }
 
+
+// ── Offer acceptance (public: authenticated by reference number + date of birth) ──
+async function acceptJson(res, fallback) {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.error || fallback), { remaining: data.remaining, revoked: data.revoked, status: res.status, data });
+  return data;
+}
+
+export async function publicAcceptLookup({ ref, dob }) {
+  return acceptJson(await fetch(`${HTTP_URL}/public/accept/lookup`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ref, dob }),
+  }), 'We could not open this offer.');
+}
+
+export async function publicAcceptSubmit(payload) {
+  return acceptJson(await fetch(`${HTTP_URL}/public/accept/submit`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }), 'We could not record your response.');
+}
+
+export async function adminGetAcceptances(token) {
+  const res = await fetch(`${HTTP_URL}/admin/acceptances`, { headers: authHeaders(token) });
+  if (!res.ok) throw new Error('Could not load acceptances');
+  return (await res.json()).acceptances || [];
+}

@@ -1,213 +1,132 @@
-// ─── upload.js — Public Document Upload Page (#upload) ───────────────────────
-import { publicDocGetUploadUrl, publicDocUploadBlob, publicDocConfirm } from '../api.js';
+// ─── upload.js — Document upload (#upload) ───────────────────────────────────
+// Reached straight after accepting an offer (already signed in), or on its own with
+// reference number + date of birth. Files are compressed in the browser, then stored
+// privately; HR verifies them later.
+import { publicDocGetUploadUrl, publicDocUploadBlob, publicDocConfirm, publicAcceptLookup } from '../api.js';
 import { compressFile, fmtKB } from '../utils/compress.js';
+import { slotsFor, GROUPS, requirementProgress } from '../utils/docCatalog.js';
+import { icon } from '../ui/icons.js';
+import { esc, getJourney, setJourney, patchJourney, mountShell, spinner, alertBox } from '../utils/journey.js';
 
-import { slotsFor, GROUPS, requirementProgress } from './../utils/docCatalog.js';
+const GROUP_ICON = { identity: 'id-card', education: 'graduation-cap', work: 'briefcase' };
+const GROUP_TITLE = { identity: 'Identity & bank', education: 'Education certificates', work: 'Work history' };
 
 export function initUploadPage(app) {
-  app.innerHTML = buildUploadHTML();
-  attachUploadEvents(app);
-}
+  let issuer = null;
+  let shell = mountShell(app, null);
+  let main = shell.main;
+  const done = new Set();
 
-function buildUploadHTML() {
-  return `
-<div class="onboard-wrap">
-  <div class="onboard-card" style="max-width:720px;" id="upload-card">
-    <div style="text-align:center;margin-bottom:28px;">
-      <h1 class="onboard-title" style="font-size:1.6rem;">📁 Document Upload Portal</h1>
-      <p class="onboard-subtitle">Securely upload your KYC documents. Authenticate with your Reference Number and Date of Birth.</p>
-    </div>
+  const rebrand = () => { shell = mountShell(app, issuer); main = shell.main; };
 
-    <!-- Step 1: Auth -->
-    <div id="upload-auth-section">
-      <div class="onboard-section-title">🔐 Verify Your Identity</div>
-      <div class="onboard-form-grid">
-        <div class="form-group">
-          <label class="form-label">Reference Number <span class="req">*</span></label>
-          <input id="upl-ref" class="form-input" placeholder="e.g. WS/INT/2026/AI-FS/042" />
+  // ── Sign in (only when we are not coming from the acceptance page) ───────────
+  function viewAuth(err = '') {
+    shell.setHero({ eyebrow: 'Document upload', title: 'Upload your documents', sub: 'Sign in with your reference number and date of birth. Your files are encrypted in transit and visible only to authorised HR staff.', step: 4 });
+    main.innerHTML = `<div class="jy-card"><h2>Verify it’s you</h2>
+      <p class="lead">Use the reference number on your offer letter.</p>
+      <form id="u-f" novalidate>
+        <div class="jy-field"><label class="jy-label" for="u-ref">Reference number</label><input class="jy-input" id="u-ref" autocomplete="off" spellcheck="false" placeholder="e.g. WS/INT/2026/001"/></div>
+        <div class="jy-grid2">
+          <div class="jy-field"><label class="jy-label" for="u-dob">Date of birth</label><input class="jy-input" id="u-dob" type="date"/></div>
+          <div class="jy-field"><label class="jy-label" for="u-type">I am joining as</label>
+            <select class="jy-input" id="u-type"><option value="intern">An intern</option><option value="employee">An employee</option></select></div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Date of Birth <span class="req">*</span></label>
-          <input id="upl-dob" class="form-input" type="date" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Your Type</label>
-          <select id="upl-type" class="form-select">
-            <option value="intern">Intern</option>
-            <option value="employee">Employee</option>
-          </select>
-        </div>
-      </div>
-      <p id="upl-auth-err" style="color:var(--red);font-size:0.85rem;min-height:18px;margin-top:4px;"></p>
-      <div style="margin-top:16px;">
-        <button class="btn-primary" id="btn-upl-auth" style="padding:12px 32px;">Verify & Continue →</button>
-      </div>
-    </div>
+        <div id="u-err">${err ? alertBox('err', esc(err)) : ''}</div>
+        <div class="jy-actions"><button class="jy-btn navy block" id="u-go" type="submit">Continue ${icon('arrow-right', { size: 18 })}</button></div>
+      </form></div>`;
+    main.querySelector('#u-f').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const ref = main.querySelector('#u-ref').value.trim(), dob = main.querySelector('#u-dob').value, type = main.querySelector('#u-type').value;
+      if (!ref || !dob) return viewAuth('Please enter your reference number and date of birth.');
+      const btn = main.querySelector('#u-go'); btn.disabled = true; btn.innerHTML = `${spinner} Checking…`;
+      try {
+        // A tiny authorised request: it only succeeds for a valid reference + date of birth
+        await publicDocGetUploadUrl({ ref, dob, docType: 'photo', fileName: 'check.jpg', mimeType: 'image/jpeg', sizeBytes: 1024 });
+        setJourney({ ref, dob, type });
+        viewDocs({ ref, dob, type });
+      } catch (ex) { viewAuth(ex.message); }
+    });
+  }
 
-    <!-- Step 2: Document upload slots (shown after auth) -->
-    <div id="upload-docs-section" style="display:none;">
-      <div class="onboard-section-title" style="margin-top:24px;">📄 Upload Your Documents</div>
-      <p style="font-size:0.85rem;color:var(--gray-500);margin-bottom:16px;">
-        Upload what you have — ID and photo are required; education certificates (10th, 12th, graduation / ITI / PG, dual degree) help HR complete your verification. Files are auto-compressed in your browser. Accepted: JPG, PNG, WebP, PDF. Max 1.5 MB each.
-      </p>
-      <div id="upl-slots"></div>
-      <div style="margin-top:24px;text-align:center;">
-        <p id="upl-global-err" style="color:var(--red);font-size:0.85rem;min-height:18px;"></p>
-        <p id="upl-global-ok" style="color:var(--green,#16a34a);font-size:0.9rem;font-weight:600;min-height:18px;"></p>
-      </div>
-    </div>
-  </div>
-</div>`;
-}
+  // ── Slots ──────────────────────────────────────────────────────────────────
+  function viewDocs(J) {
+    const slots = slotsFor(J.type);
+    const first = (J.name || '').split(/\s+/)[0];
+    shell.setHero({
+      eyebrow: 'Last step',
+      title: first ? `Almost there, ${esc(first)}` : 'Upload your documents',
+      sub: 'Add the documents below. Photos from your phone are fine. We shrink them automatically before upload.',
+      step: 4,
+    });
+    const slotHTML = (s) => `<div class="jy-slot" id="slot-${s.type}">
+      <div class="chip">${icon(GROUP_ICON[s.group] || 'file-text', { size: 20 })}</div>
+      <div class="t"><b>${esc(s.label)}${s.required ? '<span class="jy-req">Required</span>' : s.oneOf ? '<span class="jy-req one">One needed</span>' : '<span class="jy-req opt">Optional</span>'}</b>
+        <small>${esc(s.hint)}</small><div class="st" id="st-${s.type}"></div>
+        <div class="jy-slot-bar" id="bar-${s.type}"><i></i></div></div>
+      <label class="jy-btn ghost sm" id="btn-${s.type}" style="cursor:pointer">${icon('upload', { size: 15 })} <span>Choose file</span>
+        <input type="file" hidden accept="image/jpeg,image/png,image/webp,application/pdf" data-slot="${s.type}"/></label>
+    </div>`;
+    const need = requirementProgress(slots, () => false).total;
+    main.innerHTML = `<div class="jy-card">
+      <div class="jy-prog"><div class="jy-prog-bar"><i id="p-fill"></i></div><b id="p-txt">0 of ${need} required</b></div>
+      <p class="jy-hint" style="margin-top:10px">JPG, PNG, WebP or PDF · each file is shrunk to under 1.5 MB · only you and authorised HR staff can see them.</p>
+      ${GROUPS.map((g) => {
+        const items = slots.filter((s) => s.group === g.id);
+        return items.length ? `<div class="jy-sec"><div class="jy-sec-t">${icon(GROUP_ICON[g.id] || 'file-text', { size: 14 })} ${GROUP_TITLE[g.id] || esc(g.title)}</div>${items.map(slotHTML).join('')}</div>` : '';
+      }).join('')}
+      <div class="jy-sticky"><span id="p-need" style="font-size:13px;color:var(--ink-2)"></span>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="jy-link" id="p-later">I’ll finish later</button>
+          <button class="jy-btn" id="p-go" disabled>Finish &amp; continue ${icon('arrow-right', { size: 18 })}</button></div></div>
+    </div>`;
 
-function attachUploadEvents(app) {
-  // Auth step
-  document.getElementById('btn-upl-auth').addEventListener('click', async () => {
-    const ref  = document.getElementById('upl-ref').value.trim();
-    const dob  = document.getElementById('upl-dob').value;
-    const type = document.getElementById('upl-type').value;
-    const errEl = document.getElementById('upl-auth-err');
-    errEl.textContent = '';
-
-    if (!ref || !dob) {
-      errEl.textContent = 'Please enter your Reference Number and Date of Birth.';
-      return;
-    }
-
-    // Validate by attempting a dry-run upload URL for a dummy doc slot
-    // We pass a dummy file size; backend auth check still runs
-    const btn = document.getElementById('btn-upl-auth');
-    btn.disabled = true;
-    btn.textContent = 'Verifying…';
-
-    try {
-      // We'll verify by trying the govt_id slot (always exists)
-      await publicDocGetUploadUrl({
-        ref, dob, docType: 'photo',
-        fileName: 'check.jpg', mimeType: 'image/jpeg', sizeBytes: 1024,
-      });
-      // Success — show upload slots
-      document.getElementById('upload-auth-section').style.display = 'none';
-      document.getElementById('upload-docs-section').style.display = '';
-      buildDocSlots(ref, dob, slotsFor(type));
-    } catch (e) {
-      errEl.textContent = e.message;
-      btn.disabled = false;
-      btn.textContent = 'Verify & Continue →';
-    }
-  });
-}
-
-function buildDocSlots(ref, dob, slots) {
-  const container = document.getElementById('upl-slots');
-  const slotHTML = s => `
-<div class="doc-slot" id="slot-${s.type}" style="
-  border:1px solid var(--gray-200,#e2e8f0);
-  border-radius:10px;padding:16px 20px;margin-bottom:12px;
-  background:#fafafa;transition:border-color .2s;
-">
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-    <div>
-      <span style="font-weight:600;color:var(--navy);">${s.label}</span>
-      ${s.required ? '<span class="req" style="margin-left:4px;">*</span>' : (s.oneOf ? '<span style="font-size:0.72rem;color:#b45309;margin-left:6px;font-weight:600;">any one required</span>' : '<span style="font-size:0.75rem;color:var(--gray-400);margin-left:6px;">optional</span>')}
-      <div style="font-size:0.8rem;color:var(--gray-500);margin-top:2px;">${s.hint}</div>
-    </div>
-    <div style="display:flex;align-items:center;gap:10px;">
-      <span id="slot-status-${s.type}" style="font-size:0.82rem;color:var(--gray-400);">No file selected</span>
-      <label class="btn-secondary" style="cursor:pointer;padding:7px 14px;font-size:0.82rem;margin:0;">
-        📎 Choose File
-        <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf"
-          style="display:none;" id="file-${s.type}"
-          onchange="window._handleDocFile('${s.type}','${ref}','${dob}')" />
-      </label>
-    </div>
-  </div>
-  <div id="slot-bar-${s.type}" style="display:none;margin-top:10px;">
-    <div style="height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;">
-      <div id="slot-bar-fill-${s.type}" style="height:100%;background:var(--indigo,#4f46e5);width:0%;transition:width .3s;border-radius:3px;"></div>
-    </div>
-    <div id="slot-bar-label-${s.type}" style="font-size:0.78rem;color:var(--gray-500);margin-top:4px;"></div>
-  </div>
-  <div id="slot-err-${s.type}" style="font-size:0.82rem;color:var(--red);margin-top:6px;min-height:14px;"></div>
-</div>`;
-
-  const isDone = t => !!document.getElementById(`slot-status-${t}`)?.textContent?.startsWith('✅');
-  const required = requirementProgress(slots, () => false).total;
-  container.innerHTML = `
-<div id="upl-progress" style="font-size:0.85rem;font-weight:600;color:var(--navy);margin-bottom:14px;">0 of ${required} required documents uploaded</div>` +
-    GROUPS.map(g => {
-      const items = slots.filter(s => s.group === g.id);
-      if (!items.length) return '';
-      return `<div style="font-size:0.8rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--gray-600);margin:20px 0 10px;">${g.title}</div>` + items.map(slotHTML).join('');
-    }).join('');
-
-
-  // Global upload handler
-  window._handleDocFile = async (docType, ref, dob) => {
-    const input = document.getElementById(`file-${docType}`);
-    const file = input?.files?.[0];
-    if (!file) return;
-
-    const statusEl  = document.getElementById(`slot-status-${docType}`);
-    const barEl     = document.getElementById(`slot-bar-${docType}`);
-    const barFill   = document.getElementById(`slot-bar-fill-${docType}`);
-    const barLabel  = document.getElementById(`slot-bar-label-${docType}`);
-    const errEl     = document.getElementById(`slot-err-${docType}`);
-    const slotEl    = document.getElementById(`slot-${docType}`);
-    errEl.textContent = '';
-    barEl.style.display = '';
-    statusEl.textContent = 'Compressing…';
-    statusEl.style.color = 'var(--gray-500)';
-    slotEl.style.borderColor = 'var(--indigo,#4f46e5)';
-
-    const setBar = (pct, label) => {
-      barFill.style.width = pct + '%';
-      barLabel.textContent = label;
+    const isDone = (t) => done.has(t);
+    const refresh = () => {
+      const p = requirementProgress(slots, isDone);
+      main.querySelector('#p-fill').style.width = (p.total ? Math.round((p.done / p.total) * 100) : 100) + '%';
+      main.querySelector('#p-txt').textContent = `${p.done} of ${p.total} required`;
+      main.querySelector('#p-need').textContent = p.done === p.total ? 'All required documents are in. You’re ready to finish.' : `Still needed: ${p.missing.join(' · ')}`;
+      main.querySelector('#p-go').disabled = p.done !== p.total;
+      return p;
     };
+    refresh();
 
-    try {
-      // Step 1: Compress
-      setBar(10, 'Compressing…');
-      const { blob, mimeType, sizeBytes } = await compressFile(file, docType, pct => setBar(pct * 0.5, `Compressing… ${pct}%`));
-      setBar(50, `Compressed to ${fmtKB(sizeBytes)} · Getting upload URL…`);
+    const finish = (complete) => { patchJourney({ docsDone: complete }); location.hash = '#welcome'; };
+    main.querySelector('#p-go').addEventListener('click', () => finish(true));
+    main.querySelector('#p-later').addEventListener('click', () => finish(refresh().done === refresh().total));
 
-      // Step 2: Get upload URL (auth check)
-      const { uploadUrl, employeeId } = await publicDocGetUploadUrl({
-        ref, dob, docType,
-        fileName: file.name,
-        mimeType,
-        sizeBytes,
-      });
-      setBar(60, 'Uploading…');
+    main.addEventListener('change', async (e) => {
+      const input = e.target.closest('input[data-slot]');
+      if (!input || !input.files[0]) return;
+      const docType = input.dataset.slot, file = input.files[0];
+      const box = main.querySelector(`#slot-${docType}`), st = main.querySelector(`#st-${docType}`);
+      const bar = main.querySelector(`#bar-${docType}`), fill = bar.firstElementChild, lbl = main.querySelector(`#btn-${docType} span`);
+      const setBar = (pct, txt) => { fill.style.width = pct + '%'; if (txt) st.textContent = txt; };
+      box.classList.remove('bad', 'done'); box.classList.add('busy'); bar.style.display = 'block'; setBar(8, 'Preparing…');
+      try {
+        const { blob, mimeType, sizeBytes } = await compressFile(file, docType, (p) => setBar(8 + p * 0.4, 'Shrinking…'));
+        setBar(55, 'Uploading…');
+        const { uploadUrl, employeeId } = await publicDocGetUploadUrl({ ref: J.ref, dob: J.dob, docType, fileName: file.name, mimeType, sizeBytes });
+        const { storageId } = await publicDocUploadBlob(uploadUrl, blob);
+        setBar(85, 'Saving…');
+        await publicDocConfirm({ ref: J.ref, dob: J.dob, employeeId, docType, storageId, fileName: file.name, mimeType, sizeBytes });
+        done.add(docType);
+        box.classList.remove('busy'); box.classList.add('done'); bar.style.display = 'none';
+        st.textContent = `Uploaded · ${fmtKB(sizeBytes)}`; lbl.textContent = 'Replace';
+      } catch (ex) {
+        box.classList.remove('busy'); box.classList.add('bad'); bar.style.display = 'none'; st.textContent = ex.message; input.value = '';
+      }
+      refresh();
+    });
+  }
 
-      // Step 3: Upload blob to Convex Storage
-      const { storageId } = await publicDocUploadBlob(uploadUrl, blob);
-      setBar(80, 'Saving…');
-
-      // Step 4: Confirm
-      await publicDocConfirm({ ref, dob, employeeId, docType, storageId, fileName: file.name, mimeType, sizeBytes });
-      setBar(100, `✅ Uploaded — ${fmtKB(sizeBytes)}`);
-      barFill.style.background = '#16a34a';
-      statusEl.textContent = `✅ ${fmtKB(sizeBytes)}`;
-      statusEl.style.color = '#16a34a';
-      slotEl.style.borderColor = '#86efac';
-      slotEl.style.background = '#f0fdf4';
-
-      // Update requirement progress
-      const prog = requirementProgress(slots, isDone);
-      const progEl = document.getElementById('upl-progress');
-      if (progEl) progEl.textContent = `${prog.done} of ${prog.total} required documents uploaded`;
-      document.getElementById('upl-global-ok').style.color = prog.done === prog.total ? '#16a34a' : '#b45309';
-      document.getElementById('upl-global-ok').textContent = prog.done === prog.total
-        ? '🎉 All required documents uploaded! HR will verify them shortly.'
-        : `Still needed: ${prog.missing.join(' · ')}`;
-    } catch (e) {
-      errEl.textContent = e.message;
-      barEl.style.display = 'none';
-      statusEl.textContent = '❌ Failed';
-      statusEl.style.color = 'var(--red)';
-      slotEl.style.borderColor = 'var(--red)';
-      input.value = '';
-    }
-  };
+  // ── Start ──────────────────────────────────────────────────────────────────
+  const J = getJourney();
+  if (!J) return viewAuth();
+  // Coming from the acceptance page: confirm the session, pick up the brand, go straight to the slots
+  publicAcceptLookup({ ref: J.ref, dob: J.dob }).then((r) => {
+    issuer = r.issuer; rebrand();
+    patchJourney({ type: r.employeeType, name: r.holderName });
+    viewDocs({ ...J, type: r.employeeType, name: r.holderName });
+  }).catch(() => viewAuth());
 }

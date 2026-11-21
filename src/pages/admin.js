@@ -18,7 +18,7 @@ const ONGOING_TYPES = ['experience-letter', 'employment-cert', 'lor', 'noc'];
 function parseTemplateData(cert) {
   try { return JSON.parse(cert.templateData || '{}') || {}; } catch { return {}; }
 }
-import { generateDocument, purposeClause, isEducationPurpose } from '../templates/templates.js';
+import { generateDocument, generateSignedCopy, purposeClause, isEducationPurpose } from '../templates/templates.js';
 
 
 let token = sessionStorage.getItem('ws_admin_token') || null;
@@ -600,7 +600,7 @@ window.wsViewCert = (id) => {
 };
 
 /** Re-render a stored certificate / letter and open it in a new window (also used by the Person page). */
-export function openCertificateDocument(cert) {
+export function openCertificateDocument(cert, acceptance) {
   // Attempt to reconstruct full template data
   let data = {};
 
@@ -639,7 +639,7 @@ export function openCertificateDocument(cert) {
   // 3. Generate the HTML
   let html;
   try {
-    html = generateDocument(cert.certificateType, data);
+    html = acceptance ? generateSignedCopy(cert.certificateType, data, { ...acceptance, state: acceptance.decision === 'accepted' ? 'accepted' : 'pending', holderName: cert.holderName }) : generateDocument(cert.certificateType, data);
   } catch (err) {
     showToast('❌ Could not render document: ' + err.message, 'error');
     return;

@@ -387,6 +387,7 @@ export function certificateTemplate(data) {
 
   .foot{ margin-top:10px; font-size:7.4px; color:#7b8290; line-height:1.5; }
   .foot b{ color:${NAVY}; font-weight:700; }
+  .foot a, .ver a{ color:inherit; text-decoration:none; }
 
   @media print{
     html,body{ width:297mm; height:210mm; background:#fff; padding:0; margin:0; display:block; }
@@ -436,7 +437,7 @@ export function certificateTemplate(data) {
         <img class="qr" src="${qrCodeUrl}" alt="Verification QR code"/>
         <div class="ver">
           <div class="k">Verified credential</div>
-          <div class="v">Scan to confirm authenticity<br/>verify.waveseed.app${refNum ? `<br/>Ref ${esc(refNum)}` : ''}</div>
+          <div class="v">Scan to confirm authenticity<br/><a href="${VERIFY_ORIGIN}" style="color:inherit">verify.waveseed.app</a>${refNum ? `<br/>Ref ${esc(refNum)}` : ''}</div>
         </div>
       </div>
       <div class="col-c">${sealHTML}</div>
@@ -451,7 +452,7 @@ export function certificateTemplate(data) {
       </div>
     </div>
 
-    <div class="foot"><b>${B.website}</b> &nbsp;·&nbsp; ${B.email}${addrLine ? ` &nbsp;·&nbsp; ${esc(addrLine)}` : ''}</div>
+    <div class="foot"><b>${siteLink()}</b> &nbsp;·&nbsp; ${mailLink()}${addrLine ? ` &nbsp;·&nbsp; ${esc(addrLine)}` : ''}</div>
   </div>
 </div>
 </body>
@@ -463,14 +464,20 @@ export function certificateTemplate(data) {
 // sub-head), reference/date block, body, signature, enclosures, verification, and a running
 // footer with "Page x of y" on every printed A4 page.
 const plain = s => String(s == null ? '' : s).replace(/&#039;/g, "'").replace(/&quot;/g, '"').replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
+const VERIFY_ORIGIN = 'https://verify.waveseed.app';
+const aHref = (href, text) => `<a href="${href}">${text}</a>`;
+const mailLink = () => B.email ? `<a href="mailto:${B.email}">${B.email}</a>` : '';
+const siteLink = () => B.website ? `<a href="${B.siteUrl}">${B.website}</a>` : '';
+const verifyLink = (path = '') => aHref(VERIFY_ORIGIN + (path ? '/' + path : ''), 'verify.waveseed.app' + (path ? '/' + path : ''));
+const acceptUrl = (ref) => VERIFY_ORIGIN + '/#accept' + (ref ? '?ref=' + encodeURIComponent(ref) : '');
 const cssStr = s => plain(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/[\r\n]+/g, ' ');
 
 function letterheadHTML() {
   const contact = [
     B.address,
     B.phone && `Tel: ${B.phone}`,
-    B.email,
-    B.website,
+    mailLink(),
+    siteLink(),
     B.reg && `CIN: ${B.reg}`,
   ].filter(Boolean).join('<br/>');
   const v = B.venture;
@@ -607,6 +614,8 @@ function letterWrapper({ title, refNum='', date='', body='', confidential=true, 
   .verify small{ font-size:7.5pt; color:var(--muted); }
   .foot{ margin-top:26px; padding-top:8px; border-top:1px solid var(--rule); font-size:7.5pt; color:var(--muted); display:flex; justify-content:space-between; gap:16px; }
 
+  a{ color:inherit; text-decoration:underline; text-decoration-color:#c9a227; text-underline-offset:2px; }
+  .lh-contact a{ text-decoration:none; }
   .print-btn{ position:fixed; top:16px; right:16px; padding:10px 22px; background:var(--navy); color:#fff; border:0; border-radius:8px; font:700 13px 'Inter',sans-serif; cursor:pointer; z-index:9999; box-shadow:0 4px 16px rgba(0,0,0,.25); }
 
   @media print{
@@ -721,13 +730,15 @@ export function internshipOfferTemplate(data) {
 </ul>
 
 ${extraBlock('Additional Terms &amp; Conditions')}
-<div class="section-title">Joining Formalities</div>
-<ul class="bullet-list">
-  <li>Complete your onboarding profile at <strong>verify.waveseed.app/#onboard/${B.code.toLowerCase()}</strong>.</li>
-  <li>Upload your government photo ID, passport-size photograph, college ID card, and your 10th and 12th marksheets at <strong>verify.waveseed.app/#upload</strong>, using your reference number and date of birth.</li>
+<div class="section-title">Accepting this Offer &amp; Joining Formalities</div>
+<p class="para">${offerValidity ? `This offer is valid until <strong>${fmtDate(offerValidity)}</strong>. ` : ''}Please complete these steps in order:</p>
+<ol class="terms-list" style="font-size:inherit;color:inherit;">
+  <li><strong>Accept this offer.</strong> The quickest way is online at <strong>${aHref(acceptUrl(refNum), 'verify.waveseed.app/#accept')}</strong>. Sign in with your reference number and date of birth, read this letter and accept it with your electronic signature. If you prefer, sign the acknowledgement on the last page and upload the signed copy at the same link, or email it to <strong>${mailLink()}</strong>.</li>
+  <li><strong>Upload your documents.</strong> Straight after you accept, you will be taken to the upload page for your government photo ID, passport-size photograph, college ID card, and your 10th and 12th marksheets. You can also upload them at any time at <strong>${aHref(VERIFY_ORIGIN + '/#upload', 'verify.waveseed.app/#upload')}</strong>, using your reference number and date of birth.</li>
+  <li><strong>Complete your onboarding profile</strong> at <strong>${aHref(VERIFY_ORIGIN + '/#onboard/' + B.code.toLowerCase(), 'verify.waveseed.app/#onboard/' + B.code.toLowerCase())}</strong>.</li>
   <li>Keep the originals ready for verification, where required.</li>
-</ul>
-<p class="para">Please confirm your acceptance of this offer by signing below and returning a scanned copy to <strong>${B.email}</strong>${offerValidity ? ` on or before <strong>${fmtDate(offerValidity)}</strong>. This offer lapses if it is not accepted by then` : ''}.</p>
+</ol>
+<p class="para">An electronic acceptance is recorded with its date and time, your IP address and device details, as explained in the Terms below.</p>
 
 ${signatureBlockHTML()}
 
@@ -761,7 +772,9 @@ ${signatureBlockHTML()}
     <li>You agree not to violate or attempt to violate the intellectual property rights of any third party during your internship.</li>
     <li>This internship is a learning engagement. It does not create an employer–employee relationship, and you are not entitled to employee benefits or any guarantee of future employment.</li>
     <li>On completion or termination of the internship, you shall promptly return all Company property, accounts, credentials, and access that were provided to you.</li>
-    <li>These Terms of Internship shall be governed by and construed in accordance with the Laws of India. This offer letter, together with Annexure A, constitutes the entire agreement between the parties and supersedes all prior discussions and representations.</li>
+    <li><strong>Electronic acceptance.</strong> This offer may be accepted electronically through the link given in this letter. An electronic acceptance, using your typed full name as your signature, is binding on you in the same way as a handwritten signature and is an agreement concluded by electronic means under the Information Technology Act, 2000. The Company records the date and time of the acceptance (from its own server), your IP address and your device and browser details, and, only if you choose to share it, your location, as evidence of the acceptance and to prevent fraud. The Company's record of the acceptance is conclusive evidence of it unless you prove otherwise.</li>
+    <li>If any term of this offer is found to be unenforceable, the remaining terms continue in full force. The Company's failure or delay in enforcing a term is not a waiver of it.</li>
+    <li>These Terms of Internship shall be governed by and construed in accordance with the Laws of India, and the courts at the place of the Company's registered office shall have exclusive jurisdiction over any dispute arising from them. This offer letter, together with Annexure A, constitutes the entire agreement between the parties and supersedes all prior discussions and representations.</li>
   </ol>
 
   <h3 class="annex-title">ACKNOWLEDGEMENT</h3>
@@ -816,13 +829,15 @@ export function employmentOfferTemplate(data) {
 </ul>
 
 ${extraBlock('Additional Terms &amp; Conditions')}
-<div class="section-title">Joining Formalities</div>
-<ul class="bullet-list">
-  <li>Complete your onboarding profile at <strong>verify.waveseed.app/#onboard/${B.code.toLowerCase()}</strong>.</li>
-  <li>Upload your government photo ID, PAN, passport-size photograph, 10th and 12th marksheets, highest qualification certificate and any previous experience letters at <strong>verify.waveseed.app/#upload</strong>, using your reference number and date of birth.</li>
+<div class="section-title">Accepting this Offer &amp; Joining Formalities</div>
+<p class="para">${offerValidity ? `This offer is valid until <strong>${fmtDate(offerValidity)}</strong>. ` : ''}Please complete these steps in order:</p>
+<ol class="terms-list" style="font-size:inherit;color:inherit;">
+  <li><strong>Accept this offer.</strong> The quickest way is online at <strong>${aHref(acceptUrl(refNum), 'verify.waveseed.app/#accept')}</strong>. Sign in with your reference number and date of birth, read this letter and accept it with your electronic signature. If you prefer, sign the acknowledgement on the last page and upload the signed copy at the same link, or email it to <strong>${mailLink()}</strong>.</li>
+  <li><strong>Upload your documents.</strong> Straight after you accept, you will be taken to the upload page for your government photo ID, PAN, passport-size photograph, 10th and 12th marksheets, highest qualification certificate and any previous experience letters. You can also upload them at any time at <strong>${aHref(VERIFY_ORIGIN + '/#upload', 'verify.waveseed.app/#upload')}</strong>, using your reference number and date of birth.</li>
+  <li><strong>Complete your onboarding profile</strong> at <strong>${aHref(VERIFY_ORIGIN + '/#onboard/' + B.code.toLowerCase(), 'verify.waveseed.app/#onboard/' + B.code.toLowerCase())}</strong>.</li>
   <li>Bring the originals for verification on your date of joining.</li>
-</ul>
-<p class="para">Please confirm your acceptance of this offer by signing below and returning a copy to <strong>${B.email}</strong>${offerValidity ? ` on or before <strong>${fmtDate(offerValidity)}</strong>. This offer lapses if it is not accepted by then` : ''}.</p>
+</ol>
+<p class="para">An electronic acceptance is recorded with its date and time, your IP address and device details, as explained in the Terms below.</p>
 
 ${signatureBlockHTML()}
 
@@ -855,7 +870,9 @@ ${signatureBlockHTML()}
     <li>You shall maintain strict confidentiality regarding all entities related to ${B.legal} during and after your employment. Upon termination, you shall update all professional and social profiles to reflect that you are no longer associated with the Company.</li>
     <li>You agree not to violate or attempt to violate the intellectual property rights of any third party during your employment.</li>
     <li>On separation, you shall promptly return all Company property, accounts, credentials, and access that were provided to you, and complete a proper handover of your work.</li>
-    <li>These Terms of Employment shall be governed by and construed in accordance with the Laws of India. This offer letter, together with Annexure A, constitutes the entire agreement between the parties.</li>
+    <li><strong>Electronic acceptance.</strong> This offer may be accepted electronically through the link given in this letter. An electronic acceptance, using your typed full name as your signature, is binding on you in the same way as a handwritten signature and is an agreement concluded by electronic means under the Information Technology Act, 2000. The Company records the date and time of the acceptance (from its own server), your IP address and your device and browser details, and, only if you choose to share it, your location, as evidence of the acceptance and to prevent fraud. The Company's record of the acceptance is conclusive evidence of it unless you prove otherwise.</li>
+    <li>If any term of this offer is found to be unenforceable, the remaining terms continue in full force. The Company's failure or delay in enforcing a term is not a waiver of it.</li>
+    <li>These Terms of Employment shall be governed by and construed in accordance with the Laws of India, and the courts at the place of the Company's registered office shall have exclusive jurisdiction over any dispute arising from them. This offer letter, together with Annexure A, constitutes the entire agreement between the parties.</li>
   </ol>
 
   <h3 class="annex-title">ACKNOWLEDGEMENT</h3>
@@ -954,7 +971,7 @@ export function relievingLetterTemplate(data) {
 
 <p class="para">We sincerely appreciate the efforts, dedication, and service you rendered during your tenure with ${B.legalDot} We wish you great success in all your future professional pursuits and personal endeavors.</p>
 
-<p class="para" style="margin-bottom:24px;">For any future verifications or reference checks, please refer to our registry database at <strong>verify.waveseed.app</strong> using your Verification ID, or contact our HR department directly at <strong>${B.email}</strong>.</p>
+<p class="para" style="margin-bottom:24px;">For any future verifications or reference checks, please refer to our registry database at <strong>${verifyLink()}</strong> using your Verification ID, or contact our HR department directly at <strong>${mailLink()}</strong>.</p>
 
 ${signatureBlockHTML()}`;
 
@@ -985,7 +1002,7 @@ ${finalSettlement ? `<p class="para"><strong>Final Settlement Terms:</strong> ${
 
 <p class="para">Please remember that your post-separation obligations regarding intellectual property ownership, confidentiality, and non-disclosure remain fully binding. You must not disclose or use any proprietary data or code belonging to ${B.legal} at any point in the future.</p>
 
-<p class="para" style="margin-bottom:24px;">Please acknowledge receipt of this letter by signing below. For queries related to clearance or settlement, you can contact the HR department at <strong>${B.email}</strong>.</p>
+<p class="para" style="margin-bottom:24px;">Please acknowledge receipt of this letter by signing below. For queries related to clearance or settlement, you can contact the HR department at <strong>${mailLink()}</strong>.</p>
 
 ${signatureBlockHTML()}`;
 
@@ -1023,7 +1040,7 @@ ${recommendation ? `<p class="para">${esc(recommendation)}</p>` : `
 <p class="para">I highly recommend <strong>${esc(recipientName)}</strong> for any role, academic endeavour, or project that requires intellectual curiosity, sound judgement, and dedication. I am confident they will bring the same excellence, energy, and value to your organization as they ${isOngoing(data) ? 'do' : 'did'} to ours. We wish them the absolute best in all their future professional pursuits.</p>
 `}
 
-<p class="para" style="margin-bottom:24px;">Please feel free to contact me at <strong>${B.email}</strong> if you require any additional information or verification regarding their tenure and contributions.</p>
+<p class="para" style="margin-bottom:24px;">Please feel free to contact me at <strong>${mailLink()}</strong> if you require any additional information or verification regarding their tenure and contributions.</p>
 
 ${signatureBlockHTML()}`;
 
@@ -1054,7 +1071,7 @@ ${purpose ? `<p class="para">This No Objection Certificate is issued specificall
 
 <p class="para">${B.legal} confirms that there are no outstanding dues, liabilities, or conflicts of interest associated with ${esc(recipientName)}. We have <strong>no objection</strong> to them pursuing any of the aforementioned activities, career advancements, or academic applications. We support their aspirations and believe they will continue to excel in their future goals.</p>
 
-<p class="para" style="margin-bottom:24px;">For any additional queries or formal verification of this document, feel free to visit <strong>verify.waveseed.app</strong> or reach out to our human resources team at <strong>${B.email}</strong>.</p>
+<p class="para" style="margin-bottom:24px;">For any additional queries or formal verification of this document, feel free to visit <strong>${verifyLink()}</strong> or reach out to our human resources team at <strong>${mailLink()}</strong>.</p>
 
 ${signatureBlockHTML()}`;
 
@@ -1369,7 +1386,7 @@ export function salaryCertificateTemplate(data) {
 
 <p class="para">This certificate is issued upon their request ${purposeHTML}. It is issued without any risk or responsibility on the part of ${B.legal} or its management, and does not constitute a guarantee, surety, or undertaking of any kind towards any financial obligation of the employee.</p>
 
-<p class="para" style="margin-bottom:24px;">For verification of this document, please visit <strong>verify.waveseed.app</strong> with the Verification ID, or contact our HR department at <strong>${B.email}</strong>.</p>
+<p class="para" style="margin-bottom:24px;">For verification of this document, please visit <strong>${verifyLink()}</strong> with the Verification ID, or contact our HR department at <strong>${mailLink()}</strong>.</p>
 
 ${signatureBlockHTML()}`;
 
@@ -1416,6 +1433,77 @@ export function generateDocument(type, data) {
   EXTRA = String((data && data.additionalTerms) || '').slice(0, 2000); EXTRA_USED = false;
   try {
     return renderDocument(type, data);
+  } finally {
+    setBrand(null);
+    EMP_CODE = ''; EXTRA = ''; EXTRA_USED = false;
+  }
+}
+
+// ─── Signed copy: the offer as issued + the candidate's acceptance record ────────
+const IST = { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'long', year: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true };
+
+function acceptanceAnnexHTML(rec) {
+  if (!rec || rec.state === 'pending') return '';
+  const when = new Date(rec.acceptedAt);
+  const ist = when.toLocaleString('en-IN', IST).replace(/\bam\b/, 'AM').replace(/\bpm\b/, 'PM') + ' IST';
+  const utc = when.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
+  const electronic = rec.method === 'electronic';
+  const geo = rec.geoStatus === 'granted'
+    ? (rec.geoLat != null && rec.geoLon != null
+        ? `${Number(rec.geoLat).toFixed(5)}, ${Number(rec.geoLon).toFixed(5)}${rec.geoAccuracyM != null ? ` (±${Math.round(rec.geoAccuracyM)} m)` : ''}`
+        : 'Shared by the candidate')
+    : rec.geoStatus === 'denied' ? 'Not shared (the candidate declined the browser prompt)'
+    : rec.geoStatus === 'unavailable' ? 'Not available on the candidate’s device' : 'Not requested';
+  const row = (k, v, mono) => `<tr><td>${k}</td><td${mono ? ' class="mono"' : ''}>${v}</td></tr>`;
+  const clause = rec.consentClause || (rec.consent && rec.consent.clause) || '';
+  const items = (rec.consentTexts && rec.consentTexts.length ? rec.consentTexts : (rec.consent && rec.consent.items ? rec.consent.items.map(i => i.text) : [])) || [];
+  return `
+<section class="annex ea">
+<style>
+  .ea .ea-sig{ margin:10px 0 16px; padding:14px 18px; border:1px solid var(--rule); border-left:4px solid var(--gold); background:#fbfcfe; break-inside:avoid; }
+  .ea .ea-sig small{ display:block; font-size:7.5pt; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:700; }
+  .ea .ea-name{ font:400 30pt/1.2 'Great Vibes', cursive; color:var(--navy); margin:4px 0 2px; }
+  .ea .ea-sub{ font-size:8.5pt; color:var(--muted); }
+  .ea table{ width:100%; border-collapse:collapse; font-size:8.8pt; margin:8px 0 14px; break-inside:avoid; }
+  .ea td{ padding:5px 10px; border:1px solid var(--rule); vertical-align:top; }
+  .ea td:first-child{ width:30%; background:#f5f7fb; font-weight:600; color:var(--navy); }
+  .ea .mono{ font-family:ui-monospace, Consolas, monospace; font-size:8pt; word-break:break-all; }
+  .ea ol{ padding-left:18px; font-size:8.6pt; color:#243049; line-height:1.5; }
+  .ea ol li{ margin-bottom:3px; }
+  .ea .ea-note{ font-size:8pt; color:var(--muted); margin-top:8px; }
+</style>
+<h3 class="annex-title">${electronic ? 'ELECTRONIC ACCEPTANCE RECORD' : 'RECORD OF ACCEPTANCE'}</h3>
+<p class="annex-p">${electronic
+    ? `This offer was accepted electronically by <strong>${esc(rec.signedName || rec.holderName || '')}</strong> on <strong>${ist}</strong>, using the secure acceptance page of ${B.legal}. The candidate’s typed name below is their electronic signature.`
+    : `The candidate returned a signed copy of this offer, which was recorded by ${B.legal} on <strong>${ist}</strong>.`}</p>
+${electronic ? `<div class="ea-sig"><small>Electronically signed by</small><div class="ea-name">${esc(rec.signedName || '')}</div><div class="ea-sub">${ist}</div></div>` : ''}
+<table>
+  ${row('Acceptance receipt', esc(rec.receiptId || ''), true)}
+  ${row('Method', electronic ? 'Electronic acceptance (typed-name e-signature)' : 'Signed copy uploaded')}
+  ${row('Date and time (server)', `${ist}<br/>${utc}`)}
+  ${row('IP address', esc(rec.ip || ''), true)}
+  ${row('Location', esc(geo))}
+  ${row('Device and browser', esc(String(rec.userAgent || '').slice(0, 160)))}
+  ${rec.timeZone ? row('Time zone reported', esc(rec.timeZone)) : ''}
+  ${rec.consentVersion ? row('Consent wording version', esc(rec.consentVersion)) : ''}
+  ${rec.docHash ? row('Offer fingerprint (SHA-256)', esc(rec.docHash), true) : ''}
+</table>
+${electronic && clause ? `<h3 class="annex-title" style="margin-top:6px;">DECLARATIONS MADE BY THE CANDIDATE</h3>
+<p class="annex-p"><strong>Electronic acceptance clause.</strong> ${esc(clause)}</p>
+${items.length ? `<ol>${items.map(t => `<li>${esc(t)}</li>`).join('')}</ol>` : ''}` : ''}
+<p class="ea-note">The offer fingerprint is computed from the content of this offer letter at the moment of acceptance. If the letter is later altered, the fingerprint will no longer match. This record is held by ${B.legal} and can be confirmed at ${verifyLink()} by quoting the document ID.</p>
+</section>`;
+}
+
+/** The offer exactly as issued, followed by the acceptance record page. */
+export function generateSignedCopy(type, data, rec) {
+  setBrand(data && data.brand);
+  EMP_CODE = esc((data && (data.empCode || data.employeeCode)) || '');
+  EXTRA = String((data && data.additionalTerms) || '').slice(0, 2000); EXTRA_USED = false;
+  try {
+    const html = renderDocument(type, data);
+    const annex = acceptanceAnnexHTML(rec);
+    return annex ? html.replace('</body>', () => annex + '\n</body>') : html;
   } finally {
     setBrand(null);
     EMP_CODE = ''; EXTRA = ''; EXTRA_USED = false;

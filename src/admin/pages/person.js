@@ -42,6 +42,17 @@ export default async function mount(el, ctx) {
   let log = null;
   let alive = true;
 
+  // Offers issued to this person and what they answered (newest answer wins; an acceptance is final)
+  const OFFER = new Set(['internship-offer', 'employment-offer']);
+  const myOffers = myCerts.filter(c => OFFER.has(c.certificateType) && c.status !== 'revoked');
+  const recFor = (c) => {
+    const rows = (store.acceptances || []).filter(a => a.certificateDocId === c._id).sort((a, b) => b.acceptedAt - a.acceptedAt);
+    return rows.find(r => r.decision === 'accepted') || rows[0] || null;
+  };
+  const IST = { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true };
+  const fmtWhen = (ms) => new Date(ms).toLocaleString('en-IN', IST) + ' IST';
+  const acceptUrl = (c) => 'https://verify.waveseed.app/#accept?ref=' + encodeURIComponent(c.referenceNumber);
+
   const uploadedTypes = () => new Set(docs ? docs.map(d => d.docType) : (store.summary[emp._id] || []).map(d => d.docType));
   const prog = () => progressOf(emp);
 
@@ -103,6 +114,7 @@ export default async function mount(el, ctx) {
         ${meta.notes ? `<div class="callout callout--blue" style="margin-top:16px">${icon('message', { size: 18 })}<div>${esc(meta.notes)}</div></div>` : ''}
       </section>
       <div class="col" style="gap:20px;align-content:start">
+        ${acceptanceCard()}
         <section class="card card-pad">
           <div class="row between"><div class="card-title">${icon('file-check', { size: 18 })} Documents</div><b class="tnum" style="font-size:20px">${pct}%</b></div>
           <div class="progress" style="margin:12px 0"><i style="width:${pct}%"></i></div>
@@ -115,6 +127,39 @@ export default async function mount(el, ctx) {
         </section>
       </div>
     </div>`;
+  };
+
+  const acceptanceCard = () => {
+    if (!myOffers.length) return '';
+    const block = (c) => {
+      const r = recFor(c);
+      const state = !r ? 'pending' : r.decision === 'accepted' ? 'accepted' : 'declined';
+      const geo = !r ? '' : r.geoStatus === 'granted' && r.geoLat != null
+        ? `<a href="https://www.openstreetmap.org/?mlat=${r.geoLat}&mlon=${r.geoLon}#map=16/${r.geoLat}/${r.geoLon}" target="_blank" rel="noopener noreferrer">${r.geoLat.toFixed(4)}, ${r.geoLon.toFixed(4)}</a>${r.geoAccuracyM != null ? ` (±${Math.round(r.geoAccuracyM)} m)` : ''}`
+        : ({ denied: 'Declined by the candidate', unavailable: 'Not available', not_requested: 'Not requested', granted: 'Shared' }[r.geoStatus] || '');
+      const head = state === 'accepted' ? badge(r.method === 'electronic' ? 'Accepted · e-signed' : 'Accepted · signed copy', { variant: 'green', icon: 'badge-check' })
+        : state === 'declined' ? badge('Declined', { variant: 'rose' }) : badge('Awaiting response', { variant: 'amber', dot: true });
+      return `<div style="padding:12px 0;border-top:1px solid var(--line)">
+        <div class="row between wrap gap-2"><div><b>${esc(certLabel(c.certificateType))}</b> <span class="muted mono" style="font-size:12px">${esc(c.certificateId)}</span></div>${head}</div>
+        ${r ? `<dl class="kvs" style="margin-top:10px">
+          ${kv('When', fmtWhen(r.acceptedAt))}
+          ${r.signedName && r.method === 'electronic' ? kv('Signed as', r.signedName) : ''}
+          ${kv('Receipt', r.receiptId)}
+          ${r.ip ? kv('IP address', r.ip) : ''}
+          ${r.method === 'electronic' ? `<div class="kv"><dt>Location</dt><dd>${geo}</dd></div>` : ''}
+          ${r.userAgent ? kv('Device', r.userAgent.slice(0, 90)) : ''}
+          ${r.reason ? kv('Reason', r.reason) : ''}
+        </dl>` : `<div class="muted" style="margin-top:6px;font-size:13px">No response yet. Share the acceptance link with ${esc(emp.name.split(' ')[0])}.</div>`}
+        <div class="row wrap gap-2" style="margin-top:10px">
+          ${state === 'accepted' && r.method === 'electronic' ? button('Signed copy', { size: 'sm', icon: 'download', action: 'signed-copy', attrs: `data-id="${esc(c._id)}"` }) : ''}
+          ${state === 'accepted' && r.signedFileUrl ? `<a class="btn btn--sm" href="${esc(r.signedFileUrl)}" target="_blank" rel="noopener noreferrer">${icon('paperclip', { size: 15 })} Uploaded copy</a>` : ''}
+          ${state !== 'accepted' ? button('Copy acceptance link', { size: 'sm', icon: 'link', action: 'copy-accept', attrs: `data-id="${esc(c._id)}"` }) : ''}
+        </div></div>`;
+    };
+    return `<section class="card card-pad">
+      <div class="card-title">${icon('signature', { size: 18 })} Offer acceptance</div>
+      ${myOffers.map(block).join('')}
+    </section>`;
   };
 
   const documentsTab = () => {
@@ -150,7 +195,7 @@ export default async function mount(el, ctx) {
 
   const certsTab = () => myCerts.length ? `<div class="card"><div class="tbl-wrap"><table class="tbl">
     <thead><tr><th>Document</th><th>ID</th><th>Issued</th><th>Status</th><th>Verified</th><th></th></tr></thead><tbody>
-    ${myCerts.map(c => `<tr><td><b style="font-weight:600">${esc(certLabel(c.certificateType))}</b>${c.role ? `<div class="muted" style="font-size:12.5px">${esc(c.role)}</div>` : ''}</td>
+    ${myCerts.map(c => `<tr><td><b style="font-weight:600">${esc(certLabel(c.certificateType))}</b>${OFFER.has(c.certificateType) ? (() => { const r = recFor(c); return ' ' + (r ? (r.decision === 'accepted' ? badge('Accepted', { variant: 'green' }) : badge('Declined', { variant: 'rose' })) : badge('Awaiting response', { variant: 'amber' })); })() : ''}${c.role ? `<div class="muted" style="font-size:12.5px">${esc(c.role)}</div>` : ''}</td>
       <td class="mono" style="font-size:12.5px">${esc(c.certificateId)}</td><td>${esc(fmtDate(c.issuedDate))}</td>
       <td>${badge(c.status === 'active' ? 'Active' : c.status === 'revoked' ? 'Revoked' : 'Expired', { variant: c.status === 'active' ? 'green' : c.status === 'revoked' ? 'rose' : 'amber', dot: true })}</td>
       <td class="tnum">${Number(c.verificationCount) || 0}×</td>
@@ -160,6 +205,7 @@ export default async function mount(el, ctx) {
   const activityTab = () => {
     const items = [];
     myCerts.forEach(c => items.push({ at: c.createdAt || 0, tone: 'violet', icon: 'award', text: `<b>${esc(certLabel(c.certificateType))}</b> issued`, sub: c.certificateId }));
+    (store.acceptances || []).filter(a => myCerts.some(c => c._id === a.certificateDocId)).forEach(a => items.push({ at: a.acceptedAt, tone: a.decision === 'accepted' ? 'green' : 'rose', icon: a.decision === 'accepted' ? 'signature' : 'x', text: a.decision === 'accepted' ? `Offer <b>accepted</b> ${a.method === 'electronic' ? 'electronically' : 'with a signed copy'}` : 'Offer <b>declined</b>', sub: a.receiptId }));
     (store.summary[emp._id] || []).forEach(d => d.at && items.push({ at: d.at, tone: 'teal', icon: 'cloud-upload', text: `Uploaded <b>${esc(DOC_TYPES[d.docType]?.label || d.docType)}</b>`, sub: d.verified ? 'Verified' : 'Awaiting review' }));
     (log || []).forEach(l => items.push({ at: l.at, tone: 'navy', icon: 'lock', text: `<b>${esc(l.role)}</b> ${esc(LOG_ACTIONS[l.action] || l.action)}${l.docType ? ' ' + esc(DOC_TYPES[l.docType]?.label || l.docType) : ''}`, sub: 'Access log' }));
     if (emp.createdAt) items.push({ at: emp.createdAt, tone: 'green', icon: 'user-plus', text: 'Profile created', sub: emp.empCode || '' });
@@ -253,6 +299,19 @@ export default async function mount(el, ctx) {
       title: 'Delete this document?', confirm: 'Delete', text: 'The file is permanently removed. The person can upload it again.',
       onYes: async () => { await adminDeleteDocument(ctx.token, b.dataset.id); ctx.toast('Document deleted.'); await afterChange(); loadLog(); },
     }),
+    'signed-copy': async (b) => {
+      const cert = store.certs.find(c => c._id === b.dataset.id);
+      const rec = cert && recFor(cert);
+      if (!cert || !rec) return;
+      const m = await import('../../pages/admin.js');
+      m.openCertificateDocument(cert, rec);
+    },
+    'copy-accept': async (b) => {
+      const cert = store.certs.find(c => c._id === b.dataset.id);
+      if (!cert) return;
+      try { await navigator.clipboard.writeText(acceptUrl(cert)); ctx.toast('Acceptance link copied.'); }
+      catch { ctx.toast(acceptUrl(cert), { title: 'Copy this link' }); }
+    },
     'open-cert': async (b) => {
       const cert = store.certs.find(c => c._id === b.dataset.id);
       if (!cert) return;

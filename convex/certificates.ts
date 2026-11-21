@@ -191,6 +191,9 @@ export const doExpire = internalMutation({
 export const doDelete = internalMutation({
   args: { id: v.id("certificates") },
   handler: async (ctx, args) => {
+    // Acceptance records belong to the document: they go with it
+    const acc = await ctx.db.query("acceptances").withIndex("by_certificate", (q) => q.eq("certificateDocId", args.id)).collect();
+    for (const r of acc) await ctx.db.delete(r._id);
     await ctx.db.delete(args.id);
   },
 });

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="24 14 48 50" fill="none">
+  <title>WaveSeed mark</title>
+  <g stroke="currentColor" stroke-linejoin="round" fill="none">
+      <path d="M29,34 C37,31 41,37 45.5,41 C48,43 51,42.6 53.8,41" stroke="currentColor" stroke-width="4.4"/>
+      <path d="M29,41.2 C37,38.5 41,45 45.5,48 C48,49.7 50.6,49.4 52.4,48.2" stroke="currentColor" stroke-width="4.4"/>
+      <path d="M29,48.6 C34,47.5 38,53.4 42,55.6 C46.5,57.6 51,55 54,50.2 L65.2,27.3" stroke="currentColor" stroke-width="5.2" stroke-linecap="butt"/>
+  </g>
+  <polygon points="57.4,26.6 67.6,19.8 67.6,31" fill="currentColor"/>
+</svg>

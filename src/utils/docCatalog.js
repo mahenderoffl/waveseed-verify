@@ -31,16 +31,50 @@ export const GROUPS = [
   { id: 'work',      title: '💼 Work History' },
 ];
 
-// Which documents each person is asked for. `required` ones must be uploaded.
-const INTERN  = { required: ['govt_id', 'photo'],
-  optional: ['college_id', 'bank', 'tenth', 'twelfth', 'iti_diploma', 'graduation', 'postgrad', 'dual_degree', 'marksheet', 'other_cert'] };
-const EMPLOYEE = { required: ['govt_id', 'pan', 'photo'],
-  optional: ['bank', 'tenth', 'twelfth', 'iti_diploma', 'graduation', 'postgrad', 'dual_degree', 'other_cert', 'experience', 'relieving', 'payslip'] };
+// Which documents each person is asked for.
+//  required — must be uploaded.
+//  oneOf    — "at least one of these" groups (e.g. highest qualification).
+// To change what is mandatory, edit only these two objects.
+const INTERN = {
+  required: ['govt_id', 'photo', 'college_id', 'tenth', 'twelfth'],
+  oneOf:    {},
+  optional: ['bank', 'marksheet', 'iti_diploma', 'graduation', 'postgrad', 'dual_degree', 'other_cert'],
+};
+const EMPLOYEE = {
+  required: ['govt_id', 'pan', 'photo', 'tenth', 'twelfth'],
+  oneOf:    { highest: ['graduation', 'iti_diploma', 'postgrad'] },
+  optional: ['bank', 'dual_degree', 'other_cert', 'experience', 'relieving', 'payslip'],
+};
+
+export const ONE_OF_LABELS = {
+  highest: 'Highest qualification (at least one of: Graduation, ITI/Diploma, Post-Graduation)',
+};
 
 export function slotsFor(personType) {
   const cfg = personType === 'employee' ? EMPLOYEE : INTERN;
-  return [
-    ...cfg.required.map(t => ({ type: t, required: true,  ...DOC_TYPES[t] })),
-    ...cfg.optional.map(t => ({ type: t, required: false, ...DOC_TYPES[t] })),
+  const grouped = new Map();
+  for (const [g, types] of Object.entries(cfg.oneOf)) types.forEach(t => grouped.set(t, g));
+  const all = [
+    ...cfg.required.map(t => ({ type: t, required: true })),
+    ...[...grouped.keys()].map(t => ({ type: t, required: false, oneOf: grouped.get(t) })),
+    ...cfg.optional.map(t => ({ type: t, required: false })),
   ];
+  return all.map(s => ({ ...s, ...DOC_TYPES[s.type] }));
+}
+
+// Counts requirement "units": each required doc is one unit, each oneOf group is one unit.
+// hasType(type) -> boolean. Returns { done, total, missing: [labels] }.
+export function requirementProgress(slots, hasType) {
+  let done = 0, total = 0;
+  const missing = [];
+  for (const s of slots.filter(s => s.required)) {
+    total++;
+    if (hasType(s.type)) done++; else missing.push(s.label);
+  }
+  for (const g of [...new Set(slots.filter(s => s.oneOf).map(s => s.oneOf))]) {
+    total++;
+    if (slots.filter(s => s.oneOf === g).some(s => hasType(s.type))) done++;
+    else missing.push(ONE_OF_LABELS[g] || g);
+  }
+  return { done, total, missing };
 }

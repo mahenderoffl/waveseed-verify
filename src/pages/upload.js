@@ -2,7 +2,7 @@
 import { publicDocGetUploadUrl, publicDocUploadBlob, publicDocConfirm } from '../api.js';
 import { compressFile, fmtKB } from '../utils/compress.js';
 
-import { slotsFor, GROUPS } from './../utils/docCatalog.js';
+import { slotsFor, GROUPS, requirementProgress } from './../utils/docCatalog.js';
 
 export function initUploadPage(app) {
   app.innerHTML = buildUploadHTML();
@@ -109,7 +109,7 @@ function buildDocSlots(ref, dob, slots) {
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
     <div>
       <span style="font-weight:600;color:var(--navy);">${s.label}</span>
-      ${s.required ? '<span class="req" style="margin-left:4px;">*</span>' : '<span style="font-size:0.75rem;color:var(--gray-400);margin-left:6px;">optional</span>'}
+      ${s.required ? '<span class="req" style="margin-left:4px;">*</span>' : (s.oneOf ? '<span style="font-size:0.72rem;color:#b45309;margin-left:6px;font-weight:600;">any one required</span>' : '<span style="font-size:0.75rem;color:var(--gray-400);margin-left:6px;">optional</span>')}
       <div style="font-size:0.8rem;color:var(--gray-500);margin-top:2px;">${s.hint}</div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;">
@@ -131,7 +131,8 @@ function buildDocSlots(ref, dob, slots) {
   <div id="slot-err-${s.type}" style="font-size:0.82rem;color:var(--red);margin-top:6px;min-height:14px;"></div>
 </div>`;
 
-  const required = slots.filter(s => s.required).length;
+  const isDone = t => !!document.getElementById(`slot-status-${t}`)?.textContent?.startsWith('✅');
+  const required = requirementProgress(slots, () => false).total;
   container.innerHTML = `
 <div id="upl-progress" style="font-size:0.85rem;font-weight:600;color:var(--navy);margin-bottom:14px;">0 of ${required} required documents uploaded</div>` +
     GROUPS.map(g => {
@@ -140,8 +141,6 @@ function buildDocSlots(ref, dob, slots) {
       return `<div style="font-size:0.8rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--gray-600);margin:20px 0 10px;">${g.title}</div>` + items.map(slotHTML).join('');
     }).join('');
 
-  window._uplRequired = slots.filter(s => s.required).map(s => s.type);
-  window._uplDone = new Set();
 
   // Global upload handler
   window._handleDocFile = async (docType, ref, dob) => {
@@ -194,18 +193,14 @@ function buildDocSlots(ref, dob, slots) {
       slotEl.style.borderColor = '#86efac';
       slotEl.style.background = '#f0fdf4';
 
-      // Check if all required slots done
-      const allRequired = slots.filter(s => s.required);
-      const allDone = allRequired.every(s => {
-        const st = document.getElementById(`slot-status-${s.type}`);
-        return st?.textContent?.startsWith('✅');
-      });
-      const doneCount = allRequired.filter(s => document.getElementById(`slot-status-${s.type}`)?.textContent?.startsWith('✅')).length;
-      const prog = document.getElementById('upl-progress');
-      if (prog) prog.textContent = `${doneCount} of ${allRequired.length} required documents uploaded`;
-      if (allDone) {
-        document.getElementById('upl-global-ok').textContent = '🎉 All required documents uploaded! HR will verify them shortly.';
-      }
+      // Update requirement progress
+      const prog = requirementProgress(slots, isDone);
+      const progEl = document.getElementById('upl-progress');
+      if (progEl) progEl.textContent = `${prog.done} of ${prog.total} required documents uploaded`;
+      document.getElementById('upl-global-ok').style.color = prog.done === prog.total ? '#16a34a' : '#b45309';
+      document.getElementById('upl-global-ok').textContent = prog.done === prog.total
+        ? '🎉 All required documents uploaded! HR will verify them shortly.'
+        : `Still needed: ${prog.missing.join(' · ')}`;
     } catch (e) {
       errEl.textContent = e.message;
       barEl.style.display = 'none';

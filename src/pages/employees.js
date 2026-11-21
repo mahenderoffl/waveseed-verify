@@ -4,7 +4,7 @@ import {
   adminGetDocuments, adminDeleteDocument, adminVerifyDocument,
 } from '../api.js';
 import { productDropdownHTML, tableSkeletonHTML } from './shared.js';
-import { DOC_TYPES, GROUPS, slotsFor } from '../utils/docCatalog.js';
+import { DOC_TYPES, GROUPS, slotsFor, requirementProgress } from '../utils/docCatalog.js';
 
 
 let employeesList = [];
@@ -448,13 +448,12 @@ window.wsViewEmpDocs = async (id) => {
 
     const slots = slotsFor(emp.employeeType);
     const byType = Object.fromEntries(documents.map(d => [d.docType, d]));
-    const reqSlots = slots.filter(s => s.required);
-    const reqDone = reqSlots.filter(s => byType[s.type]).length;
+    const prog = requirementProgress(slots, t => !!byType[t]);
     const verifiedCount = documents.filter(d => d.verified).length;
     // Uploads under types not in this person's list (e.g. older uploads)
     const extra = documents.filter(d => !slots.some(s => s.type === d.docType));
 
-    const row = (label, d, required) => d ? `
+    const row = (label, d, required, oneOf) => d ? `
 <div style="display:flex;align-items:center;justify-content:space-between;border:1px solid ${d.verified ? '#86efac' : 'var(--gray-200)'};border-radius:8px;padding:10px 14px;margin-bottom:6px;background:${d.verified ? '#f0fdf4' : '#fafafa'};gap:10px;flex-wrap:wrap;">
   <div>
     <div style="font-weight:600;color:var(--navy);font-size:0.88rem;">✅ ${esc(label)}${d.verified ? ' <span style="color:#16a34a;font-size:0.75rem;">· Verified</span>' : ''}</div>
@@ -467,19 +466,20 @@ window.wsViewEmpDocs = async (id) => {
   </div>
 </div>` : `
 <div style="display:flex;align-items:center;border:1px dashed var(--gray-200);border-radius:8px;padding:8px 14px;margin-bottom:6px;color:var(--gray-500);font-size:0.85rem;">
-  ${required ? '❌' : '⬜'} ${esc(label)} <span style="margin-left:6px;font-size:0.75rem;">${required ? '(required — missing)' : '(not uploaded)'}</span>
+  ${required ? '❌' : '⬜'} ${esc(label)} <span style="margin-left:6px;font-size:0.75rem;">${required ? '(required — missing)' : oneOf ? '(any one required)' : '(not uploaded)'}</span>
 </div>`;
 
     const groupTitle = t => `<div style="font-size:0.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--gray-600);margin:16px 0 8px;">${t}</div>`;
 
     body.innerHTML = `
 <div style="font-size:0.85rem;color:var(--gray-600);margin-bottom:6px;font-weight:600;">
-  Required: ${reqDone}/${reqSlots.length} · Uploaded: ${documents.length} · Verified: ${verifiedCount}
+  Required: ${prog.done}/${prog.total} · Uploaded: ${documents.length} · Verified: ${verifiedCount}
 </div>
+${prog.missing.length ? `<div style="font-size:0.8rem;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;margin-bottom:6px;">⚠ Missing: ${esc(prog.missing.join(' · '))}</div>` : '<div style="font-size:0.8rem;color:#16a34a;margin-bottom:6px;">✅ All required documents received</div>'}
 ${documents.length ? '' : '<p style="font-size:0.82rem;color:var(--gray-500);margin-bottom:8px;">Nothing uploaded yet. Ask the person to open the <strong>#upload</strong> page on the verification site with their Reference Number and Date of Birth.</p>'}
 ${GROUPS.map(g => {
   const items = slots.filter(s => s.group === g.id);
-  return items.length ? groupTitle(g.title) + items.map(s => row(s.label, byType[s.type], s.required)).join('') : '';
+  return items.length ? groupTitle(g.title) + items.map(s => row(s.label, byType[s.type], s.required, s.oneOf)).join('') : '';
 }).join('')}
 ${extra.length ? groupTitle('Other') + extra.map(d => row(DOC_TYPES[d.docType]?.label || d.docType, d, false)).join('') : ''}`;
 

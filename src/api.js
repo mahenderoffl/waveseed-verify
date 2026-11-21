@@ -233,6 +233,42 @@ export async function adminGetDocuments(token, employeeId) {
   return res.json(); // { documents: [...] }
 }
 
+// ── Admin: Businesses & branding settings ─────────────────────────────────────
+async function bizJson(res, fallback) {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || fallback);
+  return data;
+}
+
+export async function adminGetBusinesses(token) {
+  return bizJson(await fetch(`${HTTP_URL}/admin/businesses`, { headers: authHeaders(token) }), 'Failed to load businesses');
+}
+
+export async function adminCreateBusiness(token, data) {
+  return bizJson(await fetch(`${HTTP_URL}/admin/businesses`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify(data) }), 'Failed to create business');
+}
+
+export async function adminUpdateBusiness(token, data) {
+  return bizJson(await fetch(`${HTTP_URL}/admin/businesses/update`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify(data) }), 'Failed to save changes');
+}
+
+/** Upload a logo / seal / signature image (PNG, JPG or WebP, max 1 MB). */
+export async function adminSetBusinessImage(token, id, kind, file) {
+  const { uploadUrl } = await bizJson(await fetch(`${HTTP_URL}/admin/businesses/image-upload-url`, { method: 'POST', headers: authHeaders(token), body: '{}' }), 'Failed to start upload');
+  const up = await fetch(uploadUrl, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
+  const { storageId } = await bizJson(up, 'Upload failed');
+  return bizJson(await fetch(`${HTTP_URL}/admin/businesses/image`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ id, kind, storageId }) }), 'Failed to attach image');
+}
+
+export async function adminClearBusinessImage(token, id, kind) {
+  return bizJson(await fetch(`${HTTP_URL}/admin/businesses/image/clear`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ id, kind }) }), 'Failed to remove image');
+}
+
+export async function adminGetBusinessLog(token, id) {
+  const data = await bizJson(await fetch(`${HTTP_URL}/admin/businesses/log?id=${encodeURIComponent(id)}`, { headers: authHeaders(token) }), 'Failed to load history');
+  return data.logs;
+}
+
 export async function adminGetDocSummary(token) {
   const res = await fetch(`${HTTP_URL}/admin/docs/summary`, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error('Failed to fetch document summary');

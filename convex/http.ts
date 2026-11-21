@@ -639,20 +639,132 @@ http.route({
   }),
 });
 
-// ─── Businesses (read-only for now; editing arrives with the Settings page) ───
-http.route({
-  path: "/admin/businesses",
-  method: "OPTIONS",
-  handler: httpAction(async () => preflight()),
-});
+// ─── Businesses & branding settings ──────────────────────────────────────────
+for (const p of [
+  "/admin/businesses", "/admin/businesses/update", "/admin/businesses/image-upload-url",
+  "/admin/businesses/image", "/admin/businesses/image/clear", "/admin/businesses/log",
+]) {
+  http.route({ path: p, method: "OPTIONS", handler: httpAction(async () => preflight()) });
+}
 
+// GET — admin/hr get full branding detail; other roles get the basic list only
 http.route({
   path: "/admin/businesses",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
-    const rows = await ctx.runQuery(internal.businesses.list, {});
-    return json({ businesses: rows.map((b) => ({ id: b._id, code: b.code, slug: b.slug, parentId: b.parentId ?? null, displayName: b.displayName, active: b.active })) });
+    const role = await getRole(ctx, request);
+    if (!role) return json({ error: "Unauthorized" }, 401);
+    const rows = await ctx.runQuery(internal.businesses.listResolved, {});
+    if (role === "admin" || role === "hr") return json({ businesses: rows, canEdit: true });
+    return json({
+      businesses: rows.map((b) => ({ id: b.id, code: b.code, slug: b.slug, parentId: b.parentId, displayName: b.displayName, active: b.active })),
+      canEdit: false,
+    });
+  }),
+});
+
+// POST — add a business
+http.route({
+  path: "/admin/businesses",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const role = await getRole(ctx, request);
+    if (role !== "admin" && role !== "hr") return role ? forbidden() : json({ error: "Unauthorized" }, 401);
+    let body: { displayName?: string; code?: string; parentId?: string };
+    try { body = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+    try {
+      const res = await ctx.runMutation(internal.businesses.createBusiness, {
+        displayName: String(body.displayName ?? ""), code: String(body.code ?? ""),
+        parentId: body.parentId ? (body.parentId as any) : undefined, role,
+      });
+      return json({ success: true, ...res }, 201);
+    } catch (err) { return json({ error: (err as Error).message.replace(/^.*Uncaught Error: /s, "").split("\n")[0] }, 400); }
+  }),
+});
+
+// POST — edit text fields / active flag (never the code)
+http.route({
+  path: "/admin/businesses/update",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const role = await getRole(ctx, request);
+    if (role !== "admin" && role !== "hr") return role ? forbidden() : json({ error: "Unauthorized" }, 401);
+    let body: Record<string, unknown>;
+    try { body = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+    if (!body.id) return json({ error: "Provide id" }, 400);
+
+    const allowed = ["displayName", "legalName", "tagline", "address", "website", "email", "brandColor", "signatoryName", "signatoryTitle", "active"];
+    const args: Record<string, unknown> = { id: body.id, role };
+    for (const k of allowed) if (k in body) args[k] = body[k];
+    try {
+      const res = await ctx.runMutation(internal.businesses.updateBusiness, args as any);
+      return json({ success: true, ...res });
+    } catch (err) { return json({ error: (err as Error).message.replace(/^.*Uncaught Error: /s, "").split("\n")[0] }, 400); }
+  }),
+});
+
+// POST — step 1 of an image upload: get a one-time upload URL
+http.route({
+  path: "/admin/businesses/image-upload-url",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    if (!(await checkRole(ctx, request, "admin", "hr"))) return forbidden();
+    return json({ uploadUrl: await ctx.storage.generateUploadUrl() });
+  }),
+});
+
+// POST — step 2: validate the uploaded image and attach it
+const BRAND_IMAGE_MAX = 1024 * 1024; // 1 MB
+http.route({
+  path: "/admin/businesses/image",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const role = await getRole(ctx, request);
+    if (role !== "admin" && role !== "hr") return role ? forbidden() : json({ error: "Unauthorized" }, 401);
+    let body: { id?: string; kind?: string; storageId?: string };
+    try { body = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+    if (!body.id || !body.kind || !body.storageId) return json({ error: "Provide id, kind and storageId" }, 400);
+
+    const drop = async () => { try { await ctx.storage.delete(body.storageId as any); } catch {} };
+    const blob = await ctx.storage.get(body.storageId as any);
+    if (!blob) return json({ error: "Upload not found" }, 404);
+    if (blob.size > BRAND_IMAGE_MAX) { await drop(); return json({ error: "Image is larger than 1 MB" }, 413); }
+    const mime = detectMime(new Uint8Array(await blob.slice(0, 12).arrayBuffer()));
+    if (mime !== "image/png" && mime !== "image/jpeg" && mime !== "image/webp") {
+      await drop();
+      return json({ error: "Use a PNG, JPG or WebP image (transparent PNG is best for signatures)" }, 415);
+    }
+    try {
+      await ctx.runMutation(internal.businesses.setImage, { id: body.id as any, kind: body.kind, storageId: body.storageId, role });
+      return json({ success: true });
+    } catch (err) { await drop(); return json({ error: (err as Error).message.replace(/^.*Uncaught Error: /s, "").split("\n")[0] }, 400); }
+  }),
+});
+
+http.route({
+  path: "/admin/businesses/image/clear",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const role = await getRole(ctx, request);
+    if (role !== "admin" && role !== "hr") return role ? forbidden() : json({ error: "Unauthorized" }, 401);
+    let body: { id?: string; kind?: string };
+    try { body = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+    if (!body.id || !body.kind) return json({ error: "Provide id and kind" }, 400);
+    try {
+      await ctx.runMutation(internal.businesses.setImage, { id: body.id as any, kind: body.kind, role });
+      return json({ success: true });
+    } catch (err) { return json({ error: (err as Error).message.replace(/^.*Uncaught Error: /s, "").split("\n")[0] }, 400); }
+  }),
+});
+
+http.route({
+  path: "/admin/businesses/log",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    if (!(await checkRole(ctx, request, "admin", "hr"))) return forbidden();
+    const id = new URL(request.url).searchParams.get("id");
+    if (!id) return json({ error: "Provide id" }, 400);
+    return json({ logs: await ctx.runQuery(internal.businesses.getLogs, { businessId: id as any }) });
   }),
 });
 

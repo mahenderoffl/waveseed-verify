@@ -125,6 +125,15 @@ export default defineSchema({
     .index("by_employee",   ["employeeId"])
     .index("by_emp_type",   ["employeeId", "docType"]),
 
+  // Change history for business settings (branding / signatory edits end up on legal letters)
+  businessAuditLogs: defineTable({
+    businessId: v.id("businesses"),
+    action:     v.string(),                 // create | update | image_set | image_clear
+    fields:     v.array(v.string()),        // names of fields changed (values are not stored)
+    role:       v.string(),
+    at:         v.number(),
+  }).index("by_business", ["businessId", "at"]),
+
   // Atomic sequence counters (e.g. "emp:INT:2026")
   counters: defineTable({
     key:   v.string(),

@@ -251,6 +251,9 @@ http.route({
       id: cert._id,
     });
 
+    // Issuing business branding (name, logo, signatory) so the result page can show the right issuer
+    const issuer = await ctx.runQuery(internal.businesses.getPublicForCertificate, { businessId: cert.businessId });
+
     // Return safe public payload (no internal _id exposed in raw form)
     return json({
       found: true,
@@ -273,7 +276,24 @@ http.route({
       revokedDate: cert.revokedDate ?? null,
       revokedReason: cert.revokedReason ?? null,
       verificationCount: cert.verificationCount + 1,
+      issuer: issuer
+        ? { name: issuer.name, legal: issuer.legal, tagline: issuer.tagline, logoUrl: issuer.logoUrl, email: issuer.email, sigName: issuer.sigName, sigTitle: issuer.sigTitle }
+        : null,
     });
+  }),
+});
+
+// PUBLIC — branding for a business onboarding link (#onboard/<code>)
+http.route({ path: "/public/business", method: "OPTIONS", handler: httpAction(async () => preflight()) });
+http.route({
+  path: "/public/business",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const code = new URL(request.url).searchParams.get("code")?.trim();
+    if (!code || code.length > 8) return json({ error: "Provide ?code=" }, 400);
+    const b = await ctx.runQuery(internal.businesses.getPublicByCode, { code });
+    if (!b) return json({ found: false }, 404);
+    return json({ found: true, code: b.code, name: b.name, legal: b.legal, tagline: b.tagline, logoUrl: b.logoUrl, email: b.email });
   }),
 });
 
@@ -881,6 +901,15 @@ http.route({
     if (typeof parsed === "string") return json({ error: parsed }, 400);
     const body = parsed;
 
+    // Which business this onboarding link belongs to (validated here — never trust the browser for the id)
+    let businessId: any = undefined;
+    const linkCode = typeof (raw as Record<string, unknown>).business === "string" ? String((raw as Record<string, unknown>).business).trim() : "";
+    if (linkCode) {
+      const biz = await ctx.runQuery(internal.businesses.getPublicByCode, { code: linkCode });
+      if (!biz) return json({ error: "This onboarding link is not valid. Please ask HR for the correct link." }, 400);
+      businessId = biz.id;
+    }
+
     // Duplicate email check
     const email = body.email;
     if (email) {
@@ -893,7 +922,7 @@ http.route({
     }
 
     try {
-      const id = await ctx.runMutation(internal.certificates.insertEmployee, body);
+      const id = await ctx.runMutation(internal.certificates.insertEmployee, { ...body, businessId });
       return json({ success: true, id }, 201);
     } catch (e: unknown) {
       return json({ error: (e as Error).message }, 400);

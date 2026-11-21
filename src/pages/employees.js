@@ -2,7 +2,7 @@
 import {
   adminGetEmployees, adminAddEmployee, adminDeleteEmployee,
   adminGetDocuments, adminDeleteDocument, adminVerifyDocument,
-  adminGetDocSummary, adminOpenDocument, adminGetDocLog, adminGetAll,
+  adminGetDocSummary, adminOpenDocument, adminGetDocLog, adminGetAll, adminGetBusinesses,
 } from '../api.js';
 import { productDropdownHTML, tableSkeletonHTML } from './shared.js';
 import { DOC_TYPES, GROUPS, slotsFor, requirementProgress } from '../utils/docCatalog.js';
@@ -221,6 +221,11 @@ function openAddEmployeeModal(token) {
           <option value="employee">Employee</option>
         </select>
       </div>
+      <div class="form-group" id="emp-biz-group" style="display:none;">
+        <label class="form-label">Business <span class="req">*</span></label>
+        <select id="emp-f-business" class="form-select"></select>
+        <div style="font-size:0.72rem;color:var(--gray-500);margin-top:3px;">Decides the ID prefix (e.g. WSG-INT-…) and letterhead.</div>
+      </div>
       <div class="form-group">
         <label class="form-label">Role / Designation <span class="req">*</span></label>
         <input id="emp-f-role" class="form-input" placeholder="AI Full Stack Developer Intern" />
@@ -269,6 +274,19 @@ function openAddEmployeeModal(token) {
   document.body.appendChild(overlay);
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 
+  // Business picker (only shown when there is more than one active business)
+  (async () => {
+    try {
+      const { businesses } = await adminGetBusinesses(token);
+      const active = businesses.filter(b => b.active);
+      const sel = document.getElementById('emp-f-business');
+      if (!sel || active.length < 2) return;
+      const parent = active.find(b => !b.parentId);
+      sel.innerHTML = active.map(b => `<option value="${esc(b.id)}" ${parent && b.id === parent.id ? 'selected' : ''}>${esc(b.displayName)} (${esc(b.code)})</option>`).join('');
+      document.getElementById('emp-biz-group').style.display = '';
+    } catch { /* single-business fallback: server defaults to the parent company */ }
+  })();
+
   document.getElementById('emp-submit-btn').addEventListener('click', async () => {
     const name = document.getElementById('emp-f-name').value.trim();
     const email = document.getElementById('emp-f-email').value.trim();
@@ -299,6 +317,7 @@ function openAddEmployeeModal(token) {
 
     try {
       await adminAddEmployee(token, {
+        businessId: document.getElementById('emp-f-business')?.value || undefined,
         name,
         email: email || undefined,
         employeeType: type,

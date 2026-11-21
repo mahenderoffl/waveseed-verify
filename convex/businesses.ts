@@ -2,6 +2,7 @@ import { internalQuery, internalMutation } from "./_generated/server";
 import type { DatabaseReader } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { v } from "convex/values";
+import type { StorageReader } from "convex/server";
 
 /** Parent company code. Legacy rows without a businessId belong to it. */
 export const PARENT_CODE = "WS";
@@ -284,5 +285,52 @@ export const getLogs = internalQuery({
   args: { businessId: v.id("businesses") },
   handler: async (ctx, { businessId }) => {
     return await ctx.db.query("businessAuditLogs").withIndex("by_business", (q) => q.eq("businessId", businessId)).order("desc").take(30);
+  },
+});
+
+// ─── Public branding (safe to show on public pages) ───────────────────────────
+// Only names, logo, tagline, contact email and signatory — never internal fields.
+async function publicBranding(ctx: { db: DatabaseReader; storage: StorageReader }, biz: any) {
+  const chain: any[] = [biz];
+  for (let i = 0; i < 5 && chain[chain.length - 1].parentId; i++) {
+    const p = await ctx.db.get(chain[chain.length - 1].parentId);
+    if (!p) break;
+    chain.push(p);
+  }
+  const text = (f: string) => chain.find((c) => c[f])?.[f] ?? null;
+  const url = async (id?: string) => (id ? await ctx.storage.getUrl(id as any) : null);
+  const logoOwner = chain.find((c) => c.logoStorageId);
+  const signer = chain.find((c) => c.signatoryName);
+  return {
+    id: biz._id,
+    code: biz.code,
+    name: biz.displayName,
+    legal: text("legalName") ?? biz.displayName,
+    tagline: text("tagline"),
+    email: text("email"),
+    website: text("website"),
+    color: text("brandColor"),
+    logoUrl: logoOwner ? await url(logoOwner.logoStorageId) : null,
+    sigName: signer?.signatoryName ?? null,
+    sigTitle: signer?.signatoryTitle ?? null,
+  };
+}
+
+export const getPublicByCode = internalQuery({
+  args: { code: v.string() },
+  handler: async (ctx, { code }) => {
+    const biz = await getBusinessByCode(ctx, code.trim().toUpperCase());
+    if (!biz || !biz.active) return null;
+    return await publicBranding(ctx, biz);
+  },
+});
+
+/** Branding for a certificate's issuing business (legacy certificates belong to the parent company). */
+export const getPublicForCertificate = internalQuery({
+  args: { businessId: v.optional(v.id("businesses")) },
+  handler: async (ctx, { businessId }) => {
+    const biz = businessId ? await ctx.db.get(businessId) : await getBusinessByCode(ctx, PARENT_CODE);
+    if (!biz) return null;
+    return await publicBranding(ctx, biz);
   },
 });

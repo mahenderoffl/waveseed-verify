@@ -2,7 +2,7 @@
 import {
   adminLogin, adminGetStats, adminGetAll,
   adminAddCertificate, adminUpdateCertificate, adminRevoke, adminRestore, adminSeed, adminDeleteCertificate,
-  adminGetEmployees, adminGetNextIds, adminUploadSigned, adminExpire, adminLogout
+  adminGetEmployees, adminGetNextIds, adminUploadSigned, adminExpire, adminLogout, adminGetBusinesses
 } from '../api.js';
 import { initGeneratePage } from './generate.js';
 import { initEmployeesPage } from './employees.js';
@@ -707,6 +707,10 @@ document.addEventListener('click', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // ADD CERTIFICATE MODAL
 // ═══════════════════════════════════════════════════════════════════════════════
+// Business chosen in the "Issue New Certificate" modal
+let addBizCode = 'WS';
+let addBizList = [];
+
 async function openAddModal() {
   const today = new Date().toISOString().split('T')[0];
   const overlay = document.createElement('div');
@@ -723,14 +727,18 @@ async function openAddModal() {
 
   let employees = [];
   let nextIds = { nextCertId: '', nextRefNum: '' };
+  let bizList = [];
 
   try {
-    const [empRes, nextIdRes] = await Promise.all([
+    const [empRes, bizRes] = await Promise.all([
       adminGetEmployees(token),
-      adminGetNextIds(token),
+      adminGetBusinesses(token).catch(() => ({ businesses: [] })),
     ]);
     employees = empRes;
-    nextIds = nextIdRes;
+    bizList = (bizRes.businesses || []).filter(b => b.active);
+    addBizList = bizList;
+    addBizCode = (bizList.find(b => !b.parentId) || {}).code || 'WS';
+    nextIds = await adminGetNextIds(token, addBizCode);
   } catch (err) {
     showToast('⚠️ Failed to load directories. Manual fill active.', 'error');
   }
@@ -739,6 +747,14 @@ async function openAddModal() {
     `<option value="${esc(e._id)}">${esc(e.name)} (${e.employeeType === 'intern' ? 'Intern' : 'Employee'})</option>`
   ).join('');
 
+  const bizSelectHTML = bizList.length > 1 ? `
+    <div style="background:rgba(201,162,39,0.08);border:1px solid rgba(201,162,39,0.35);border-radius:8px;padding:12px 14px;margin-bottom:12px;">
+      <label class="form-label" style="font-weight:700;color:var(--navy);text-transform:uppercase;font-size:0.7rem;letter-spacing:0.5px;">🏢 Issuing business</label>
+      <select id="cert-biz-select" class="form-select">
+        ${bizList.map(b => `<option value="${esc(b.code)}" ${b.code === addBizCode ? 'selected' : ''}>${esc(b.displayName)} (${esc(b.code)})</option>`).join('')}
+      </select>
+    </div>` : '';
+
   overlay.innerHTML = `
 <div class="modal-box">
   <div class="modal-header">
@@ -746,6 +762,7 @@ async function openAddModal() {
     <button class="modal-close" id="close-add-modal">✕</button>
   </div>
   <div class="modal-body">
+    ${bizSelectHTML}
     <!-- Employee Directory Selector -->
     <div style="background:rgba(13,27,62,0.04);border:1px solid rgba(13,27,62,0.12);border-radius:8px;padding:12px 14px;margin-bottom:18px;display:flex;flex-direction:column;gap:6px;">
       <label class="form-label" style="font-weight:700;color:var(--navy);text-transform:uppercase;font-size:0.7rem;letter-spacing:0.5px;">👤 Select Employee/Intern Profile</label>
@@ -858,6 +875,14 @@ async function openAddModal() {
     const emp = employees.find(e => e._id === val);
     if (!emp) return;
 
+    // The person's own business decides the letterhead and ID prefix
+    const empBiz = bizList.find(b => b.id === emp.businessId);
+    if (empBiz) {
+      addBizCode = empBiz.code;
+      const sel = document.getElementById('cert-biz-select');
+      if (sel) sel.value = empBiz.code;
+    }
+
     document.getElementById('f-name').value = emp.name || '';
     document.getElementById('f-email').value = emp.email || '';
     document.getElementById('f-institution').value = emp.institution || '';
@@ -875,17 +900,41 @@ async function openAddModal() {
 
     // Auto-update certificate ID prefix / reference sequence depending on role
     // E.g. If employee type is employee, set WS-EMP instead of WS-CERT
-    const certPrefix = emp.employeeType === 'intern' ? 'WS-CERT' : 'WS-EMP';
-    const refPrefix = emp.employeeType === 'intern' ? 'WS/INT' : 'WS/EMP';
-    
+    applyIdsFor(emp.employeeType);
+  });
+
+  // Re-number certificate ID / reference for the chosen business
+  async function applyIdsFor(empType) {
+    try { nextIds = await adminGetNextIds(token, addBizCode); } catch { return; }
+    const kind = empType === 'employee' ? 'EMP' : 'INT';
+    const year = new Date().getFullYear();
     const seqPart = nextIds.nextCertId.split('-').pop() || '0043';
     const refSeqPart = nextIds.nextRefNum.split('/').pop() || '043';
+    document.getElementById('f-certId').value = `${addBizCode}-${kind === 'EMP' ? 'EMP' : 'CERT'}-${year}-${seqPart}`;
+    document.getElementById('f-refNum').value = addBizCode === 'WS'
+      ? `WS/${kind}/${year}/AI-FS/${refSeqPart}`
+      : `${addBizCode}/${kind}/${year}/${refSeqPart}`;
+  }
 
-    document.getElementById('f-certId').value = `${certPrefix}-2026-${seqPart}`;
-    document.getElementById('f-refNum').value = `${refPrefix}/2026/AI-FS/${refSeqPart}`;
+  document.getElementById('cert-biz-select')?.addEventListener('change', (ev) => {
+    addBizCode = ev.target.value;
+    const empId = document.getElementById('cert-emp-select')?.value;
+    const emp = employees.find(e => e._id === empId);
+    applyIdsFor(emp ? emp.employeeType : 'intern');
   });
 }
 
+
+// Signatory of the business selected in the modal (falls back to the founder)
+function addSigner() {
+  const b = addBizList.find(x => x.code === addBizCode);
+  const s = b && b.effective && b.effective.signatory;
+  const legal = b && b.effective && b.effective.legalName && b.effective.legalName.value;
+  return {
+    name: (s && s.name) || 'Mahender',
+    title: s && s.title ? `${s.title}, ${legal || (b && b.displayName) || 'WaveSeed Co.'}` : 'Founder, WaveSeed Co.',
+  };
+}
 
 async function submitAdd() {
   const get = (id) => document.getElementById(id)?.value?.trim() || '';
@@ -922,10 +971,11 @@ async function submitAdd() {
     issuedDate:        issued,
     startDate:         get('f-start') || undefined,
     endDate:           get('f-end') || undefined,
-    issuerName:        get('f-issuer-name') || 'Mahender',
-    issuerTitle:       get('f-issuer-title') || 'Founder, WaveSeed Co.',
+    issuerName:        get('f-issuer-name') || addSigner().name,
+    issuerTitle:       get('f-issuer-title') || addSigner().title,
     notes:             get('f-notes') || undefined,
     employeeId:        document.getElementById('cert-emp-select')?.value || undefined,
+    businessId:        (addBizList.find(b => b.code === addBizCode) || {}).id,
   };
 
   const btn = document.getElementById('submit-add');

@@ -618,8 +618,8 @@ window.wsGenerate = async function(typeId) {
       issuedDate:        data.issuedDate || data.date || new Date().toISOString().split('T')[0],
       startDate:         data.startDate || '',
       endDate:           data.endDate || '',
-      issuerName:        data.issuerName || 'Mahender',
-      issuerTitle:       data.issuerTitle || 'Founder, WaveSeed Co.',
+      issuerName:        data.issuerName || data.brand?.sigName || 'Mahender',
+      issuerTitle:       data.issuerTitle || (data.brand?.sigTitle ? `${data.brand.sigTitle}, ${data.brand.legal || data.brand.name}` : 'Founder, WaveSeed Co.'),
       notes:             `Generated via DocGen Dashboard: ${docType.name}${data.payMonth ? ` (${data.payMonth})` : ''}`,
       nameFont:          data.nameFont || 'cursive',
       templateData:      JSON.stringify(data),  // store ALL fields for future re-rendering

@@ -172,6 +172,16 @@ ${sectionTitle('Identity')}
 </div>
 <div style="font-size:0.75rem;color:var(--gray-500);margin-top:-4px;">The code <strong>${esc(b.code)}</strong> is part of every ID issued and cannot be changed.</div>
 
+${sectionTitle('Public links')}
+<div style="font-size:0.82rem;color:var(--gray-800);">
+  <div style="margin-bottom:4px;font-weight:600;">Onboarding form for <strong>${esc(b.displayName)}</strong></div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+    <code id="bz-link" style="background:var(--gray-100);padding:6px 10px;border-radius:6px;font-size:0.78rem;word-break:break-all;">${esc(location.origin + location.pathname + '#onboard/' + b.code.toLowerCase())}</code>
+    <button class="btn-secondary" id="bz-copy" style="padding:6px 12px;font-size:0.78rem;">Copy link</button>
+  </div>
+  <div style="font-size:0.72rem;color:var(--gray-500);margin-top:4px;">People who fill this form join <strong>${esc(b.displayName)}</strong> and get a ${esc(b.code)}-… ID. Verification and document links are shared by all businesses.</div>
+</div>
+
 ${sectionTitle('Branding & contact')}
 ${TEXT_FIELDS.map(f => `
 <div class="form-group" style="margin-bottom:12px;">
@@ -223,6 +233,12 @@ ${canEdit ? `<div style="margin-top:22px;display:flex;align-items:center;gap:12p
 
 ${sectionTitle('🔒 Change history')}
 <div id="bz-log" style="font-size:0.78rem;color:var(--gray-500);">Loading…</div>`;
+
+  document.getElementById('bz-copy')?.addEventListener('click', async () => {
+    const link = document.getElementById('bz-link')?.textContent || '';
+    try { await navigator.clipboard.writeText(link); showToast('✅ Link copied'); }
+    catch { showToast('Copy failed — select the link and copy it manually', 'error'); }
+  });
 
   if (canEdit) wireEditor(b);
   loadLog(b.id);

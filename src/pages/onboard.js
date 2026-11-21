@@ -1,21 +1,38 @@
 // ─── onboard.js — Public Onboarding Form ─────────────────────────────────────
-import { publicOnboardEmployee, publicDocGetUploadUrl, publicDocUploadBlob, publicDocConfirm } from '../api.js';
+import { publicOnboardEmployee, publicDocGetUploadUrl, publicDocUploadBlob, publicDocConfirm, publicGetBusiness } from '../api.js';
 import { LOGO_BASE64 } from '../templates/assets.js';
 import { productDropdownHTML } from './shared.js';
 import { compressFile, fmtKB } from '../utils/compress.js';
 
-export function initOnboardPage(app) {
-  app.innerHTML = buildOnboardHTML();
+let onboardBusiness = '';   // business code from the link (#onboard/wsg); '' = parent company
+
+export async function initOnboardPage(app, businessCode = '') {
+  onboardBusiness = businessCode.toUpperCase();
+  let brand = null;
+  if (onboardBusiness) {
+    brand = await publicGetBusiness(onboardBusiness);
+    if (!brand) {
+      app.innerHTML = `<div class="onboard-wrap"><div class="onboard-card" style="max-width:520px;text-align:center;padding:48px 24px;">
+        <div style="font-size:3rem;margin-bottom:12px;">🔗</div>
+        <h1 class="onboard-title">This onboarding link is not valid</h1>
+        <p class="onboard-subtitle">Please ask HR for the correct link.</p></div></div>`;
+      return;
+    }
+    document.title = `Onboarding — ${brand.name}`;
+  }
+  app.innerHTML = buildOnboardHTML(brand);
   attachOnboardEvents();
 }
 
-function buildOnboardHTML() {
+function buildOnboardHTML(brand) {
+  const bName = esc(brand?.name || 'WaveSeed Co.');
+  const bLogo = esc(brand?.logoUrl || LOGO_BASE64);
   return `
 <div class="onboard-wrap">
   <div class="onboard-card" style="max-width:760px;">
     <div style="text-align:center;margin-bottom:28px;">
-      <img src="${LOGO_BASE64}" alt="WaveSeed Logo" style="height:72px;object-fit:contain;margin-bottom:14px;" />
-      <h1 class="onboard-title">WaveSeed Co. — Onboarding Form</h1>
+      <img src="${bLogo}" alt="${bName} logo" style="height:72px;object-fit:contain;margin-bottom:14px;" />
+      <h1 class="onboard-title">${bName} — Onboarding Form</h1>
       <p class="onboard-subtitle">Please fill in all your details. This information will be used to issue your official credentials, certificates, and letters.</p>
     </div>
 
@@ -125,7 +142,7 @@ function buildOnboardHTML() {
     </div>
 
     <!-- SECTION 4: WaveSeed Role Details -->
-    <div class="onboard-section-title">🌊 WaveSeed Role Details</div>
+    <div class="onboard-section-title">🌊 ${bName} Role Details</div>
     <div class="onboard-form-grid">
       <div class="form-group">
         <label class="form-label">Onboarding Type <span class="req">*</span></label>
@@ -254,6 +271,7 @@ function attachOnboardEvents() {
         startDate: start,
         endDate: end || undefined,
         meta: JSON.stringify(meta),
+        business: onboardBusiness || undefined,
       });
 
       // Show success with doc upload CTA

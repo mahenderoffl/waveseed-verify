@@ -92,7 +92,7 @@ function buildVerifyHTML() {
   <!-- Footer -->
   <footer class="site-footer">
     <span>© 2026 WaveSeed Co. — <a href="https://waveseed.app" target="_blank">waveseed.app</a></span>
-    <span>All certificates are cryptographically tracked · <a href="mailto:careers@waveseed.app">careers@waveseed.app</a></span>
+    <span>All certificates are cryptographically tracked · <a href="mailto:${esc(I.email)}">${esc(I.email)}</a></span>
   </footer>
 </div>`;
 }
@@ -174,7 +174,24 @@ function renderResult(data, query) {
   return renderValid(data);
 }
 
+// Issuing business shown on the result card (defaults to WaveSeed for legacy responses)
+function iss(d) {
+  const i = (d && d.issuer) || {};
+  const name = i.name || 'WaveSeed Co.';
+  return {
+    name,
+    legal: i.legal || name,
+    tagline: i.tagline !== undefined && i.tagline !== null ? i.tagline : "Building Tomorrow's Wave, Today",
+    logo: i.logoUrl || LOGO_BASE64,
+    email: i.email || 'careers@waveseed.app',
+    sigName: i.sigName || 'Mahender Banoth',
+    sigTitle: i.sigTitle || 'Founder, CEO',
+    isDefaultSigner: !i.sigName || i.sigName === 'Mahender Banoth',
+  };
+}
+
 function renderValid(d) {
+  const I = iss(d);
   const typeLabel = certTypeLabel(d.certificateType);
   const typeOf    = certTypeOf(d.certificateType);
   
@@ -207,10 +224,10 @@ function renderValid(d) {
   const roleTextHTML = isLetter 
     ? `was issued this official <strong>${esc(typeLabel)}</strong> for the role of<br>
        <span class="cert-role-highlight">${esc(d.role)}</span><br>
-       at <strong>WaveSeed Co.</strong>${d.product ? ` — <em>${esc(d.product)}</em>` : ''}`
+       at <strong>${esc(I.legal)}</strong>${d.product ? ` — <em>${esc(d.product)}</em>` : ''}`
     : `has successfully ${completionVerb(d.certificateType)} as<br>
        <span class="cert-role-highlight">${esc(d.role)}</span><br>
-       at <strong>WaveSeed Co.</strong>${d.product ? ` — <em>${esc(d.product)}</em>` : ''}
+       at <strong>${esc(I.legal)}</strong>${d.product ? ` — <em>${esc(d.product)}</em>` : ''}
        ${(d.startDate && d.endDate) ? `<br>during the period of <strong>${durationText}</strong>`
          : d.startDate ? `<br>since <strong>${formatDate(d.startDate)}</strong>` : ''}`;
 
@@ -236,10 +253,10 @@ function renderValid(d) {
       <!-- Header Row -->
       <div class="cert-header-row">
         <div class="cert-logo-area" style="display:flex;align-items:center;gap:10px;">
-          <img src="${LOGO_BASE64}" alt="WaveSeed Logo" style="height:36px;object-fit:contain;" />
+          <img src="${esc(I.logo)}" alt="${esc(I.name)} logo" style="height:36px;object-fit:contain;" />
           <div>
-            <div class="cert-logo-name">WaveSeed Co.</div>
-            <div class="cert-logo-tagline">Building Tomorrow's Wave, Today</div>
+            <div class="cert-logo-name">${esc(I.name)}</div>
+            <div class="cert-logo-tagline">${esc(I.tagline)}</div>
           </div>
         </div>
         <div class="cert-id-box">
@@ -283,13 +300,13 @@ function renderValid(d) {
       <!-- Footer -->
       <div class="cert-footer" style="margin-top:28px; display:flex; justify-content:space-between; align-items:flex-end;">
         <div class="cert-sig-area" style="display:flex; flex-direction:column; align-items:center; position:relative; min-height:85px; min-width:160px; text-align:center;">
-          ${SIG_BASE64 ? `<img src="${SIG_BASE64}" alt="Founder Signature" style="height:36px; max-width:110px; object-fit:contain; position:absolute; top:-26px; z-index:2; mix-blend-mode:multiply; filter:contrast(1.2);" />` : ''}
+          ${(I.isDefaultSigner && SIG_BASE64) ? `<img src="${SIG_BASE64}" alt="Signature" style="height:36px; max-width:110px; object-fit:contain; position:absolute; top:-26px; z-index:2; mix-blend-mode:multiply; filter:contrast(1.2);" />` : ''}
           ${STAMP_BASE64 ? `<img src="${STAMP_BASE64}" alt="Company Stamp" style="height:72px; width:72px; object-fit:contain; position:absolute; top:-36px; left:80px; z-index:1; transform:rotate(-8deg); opacity:0.85; pointer-events:none;" />` : ''}
           <div style="width:110px; height:1px; background:#cbd5e1; margin-bottom:4px; position:relative; z-index:2;"></div>
-          <div class="cert-sig-name" style="font-size:0.75rem; font-weight:700; color:#0d1b3e; position:relative; z-index:2;">Mahender Banoth</div>
-          <div style="font-size:0.55rem; color:#64748b; font-style:italic; line-height:1.2; position:relative; z-index:2;">Indian Institute of Technology Patna</div>
+          <div class="cert-sig-name" style="font-size:0.75rem; font-weight:700; color:#0d1b3e; position:relative; z-index:2;">${esc(I.sigName)}</div>
+          ${I.isDefaultSigner ? '<div style="font-size:0.55rem; color:#64748b; font-style:italic; line-height:1.2; position:relative; z-index:2;">Indian Institute of Technology Patna</div>' : ''}
           <div class="cert-sig-role" style="font-size:0.6rem; color:#c9a227; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; margin-top:2px; position:relative; z-index:2;">Founder &amp; CEO</div>
-          <div style="font-size:0.55rem; color:#94a3b8; font-weight:500; position:relative; z-index:2;">Building WaveSeed Co.</div>
+          <div style="font-size:0.55rem; color:#94a3b8; font-weight:500; position:relative; z-index:2;">Building ${esc(I.legal)}</div>
         </div>
         <div class="cert-footer-domain">
           🌐 waveseed.app
@@ -306,6 +323,7 @@ function renderValid(d) {
 }
 
 function renderRevoked(d) {
+  const I = iss(d);
   return `
 <div class="cert-result-wrap">
   <div class="cert-card">
@@ -317,7 +335,7 @@ function renderRevoked(d) {
       <div class="cert-stamp revoked-stamp">REVOKED</div>
       <div class="cert-header-row">
         <div class="cert-logo-area">
-          <div class="cert-logo-name">WaveSeed Co.</div>
+          <div class="cert-logo-name">${esc(I.name)}</div>
         </div>
         <div class="cert-id-box">
           <div class="cert-id-label">Certificate ID</div>
@@ -328,9 +346,9 @@ function renderRevoked(d) {
       <div class="cert-holder-name" style="margin:20px 0 8px;">${esc(d.holderName)}</div>
       <p class="cert-role-text">${esc(d.role)} — ${certTypeLabel(d.certificateType)}</p>
       <div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:8px;padding:16px;margin:16px 0;text-align:center;">
-        <p style="color:#dc2626;font-weight:700;font-size:0.88rem;">This certificate has been officially revoked by WaveSeed Co.</p>
+        <p style="color:#dc2626;font-weight:700;font-size:0.88rem;">This certificate has been officially revoked by ${esc(I.legal)}.</p>
         ${d.revokedReason ? `<p style="color:#7f1d1d;font-size:0.8rem;margin-top:6px;">Reason: ${esc(d.revokedReason)}</p>` : ''}
-        <p style="color:#991b1b;font-size:0.75rem;margin-top:8px;">For inquiries, contact <a href="mailto:careers@waveseed.app" style="color:#b91c1c;font-weight:700;">careers@waveseed.app</a></p>
+        <p style="color:#991b1b;font-size:0.75rem;margin-top:8px;">For inquiries, contact <a href="mailto:${esc(I.email)}" style="color:#b91c1c;font-weight:700;">${esc(I.email)}</a></p>
       </div>
     </div>
   </div>
@@ -338,6 +356,7 @@ function renderRevoked(d) {
 }
 
 function renderExpired(d) {
+  const I = iss(d);
   return `
 <div class="cert-result-wrap">
   <div class="cert-card">
@@ -348,7 +367,7 @@ function renderExpired(d) {
     <div class="cert-body">
       <div class="cert-holder-name" style="margin:16px 0 8px;">${esc(d.holderName)}</div>
       <p class="cert-role-text">${esc(d.role)}</p>
-      <p style="text-align:center;color:#92400e;font-size:0.85rem;">This certificate was valid but has since expired. Contact <a href="mailto:careers@waveseed.app" style="color:#b45309;">careers@waveseed.app</a> for renewal.</p>
+      <p style="text-align:center;color:#92400e;font-size:0.85rem;">This certificate was valid but has since expired. Contact <a href="mailto:${esc(I.email)}" style="color:#b45309;">${esc(I.email)}</a> for renewal.</p>
     </div>
   </div>
 </div>`;
@@ -362,7 +381,7 @@ function renderNotFound(query) {
     <h2 class="error-title">Certificate Not Found</h2>
     <p class="error-msg">
       No certificate matching <strong>"${esc(query)}"</strong> exists in the WaveSeed registry.<br><br>
-      Please double-check the Certificate ID or Reference Number. If you believe this is an error, contact <a href="mailto:careers@waveseed.app" style="color:#c9a227;">careers@waveseed.app</a>
+      Please double-check the Certificate ID or Reference Number. If you believe this is an error, contact <a href="mailto:${esc(I.email)}" style="color:#c9a227;">${esc(I.email)}</a>
     </p>
   </div>
 </div>`;

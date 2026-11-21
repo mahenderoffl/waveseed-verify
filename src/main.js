@@ -9,6 +9,7 @@ import { initUploadPage }   from './pages/upload.js';
 function route() {
   const app  = document.getElementById('app');
   const hash = window.location.hash.split('?')[0]; // strip query params for routing
+  const onboardMatch = hash.match(/^#onboard(?:\/([A-Za-z]{2,6}))?$/);   // #onboard or #onboard/wsg
 
   // Kill any open modals from previous page
   document.querySelectorAll('.modal-overlay, .login-overlay').forEach(el => el.remove());
@@ -16,9 +17,9 @@ function route() {
   if (hash === '#admin') {
     document.title = 'Admin — WaveSeed Certificate System';
     initAdminPage(app);
-  } else if (hash === '#onboard') {
-    document.title = 'Employee Onboarding — WaveSeed Co.';
-    initOnboardPage(app);
+  } else if (onboardMatch) {
+    document.title = 'Onboarding — WaveSeed';
+    initOnboardPage(app, onboardMatch[1] || '');
   } else if (hash === '#upload') {
     document.title = 'Document Upload — WaveSeed Co.';
     initUploadPage(app);

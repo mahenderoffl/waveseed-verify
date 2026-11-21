@@ -10,6 +10,15 @@ export async function verifyCertificate({ id, ref }) {
   return res.json();
 }
 
+/** Public branding for an onboarding link (#onboard/<code>). Returns null if the code is unknown. */
+export async function publicGetBusiness(code) {
+  try {
+    const res = await fetch(`${HTTP_URL}/public/business?code=${encodeURIComponent(code)}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
 // ── Public Secure Download (ref/certId + DOB) ──────────────────────────────────
 export async function publicDownload({ ref, certId, dob }) {
   const res = await fetch(`${HTTP_URL}/public/download`, {

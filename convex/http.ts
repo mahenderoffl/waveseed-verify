@@ -286,7 +286,7 @@ http.route({
       revokedReason: cert.revokedReason ?? null,
       verificationCount: cert.verificationCount + 1,
       issuer: issuer
-        ? { name: issuer.name, legal: issuer.legal, tagline: issuer.tagline, logoUrl: issuer.logoUrl, email: issuer.email, sigName: issuer.sigName, sigTitle: issuer.sigTitle }
+        ? { name: issuer.name, legal: issuer.legal, tagline: issuer.tagline, logoUrl: issuer.logoUrl, email: issuer.email, sigName: issuer.sigName, sigTitle: issuer.sigTitle, venture: issuer.venture ?? null }
         : null,
     });
   }),
@@ -723,7 +723,7 @@ http.route({
     try { body = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
     if (!body.id) return json({ error: "Provide id" }, 400);
 
-    const allowed = ["displayName", "legalName", "tagline", "address", "website", "email", "brandColor", "signatoryName", "signatoryTitle", "products", "active"];
+    const allowed = ["displayName", "legalName", "tagline", "address", "phone", "registrationNo", "website", "email", "brandColor", "signatoryName", "signatoryTitle", "products", "active"];
     const args: Record<string, unknown> = { id: body.id, role };
     for (const k of allowed) if (k in body) args[k] = body[k];
     try {

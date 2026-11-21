@@ -45,6 +45,12 @@ function buildBrand(snap) {
     siteUrl: 'https://' + encodeURI(website).replace(/"/g, ''),
     email: e((s && s.email) || D.email),
     address: e((s && s.address) || D.address).replace(/\n/g, '<br/>'),
+    phone: e((s && s.phone) || ''),
+    reg: e((s && s.reg) || ''),
+    // A venture's documents carry the parent's letterhead; the venture is shown as a sub-head
+    venture: (s && s.venture && s.venture.name)
+      ? { name: e(s.venture.name), code: e(s.venture.code || ''), tagline: e(s.venture.tagline || ''), logo: okImg(s.venture.logo) || '' }
+      : null,
     color,
     colorLight: color === D.color ? '#1e3264' : lighten(color),   // default keeps the original navy gradient
     logo: (s && okImg(s.logo)) || D.logo,
@@ -66,23 +72,31 @@ let EMP_CODE = '';
  * Build the snapshot to store with a document from a business record returned by
  * the admin businesses API (uses its resolved, inherited values).
  */
-export function brandSnapshot(business) {
+export function brandSnapshot(business, parent) {
   if (!business || !business.effective) return undefined;
-  const ef = business.effective;
+  // Letterhead identity = the parent company; a venture is a sub-head under it.
+  const isVenture = !!(business.parentId && parent && parent.effective && parent.id !== business.id);
+  const p = isVenture ? parent : business;
+  const ep = p.effective, eb = business.effective;
+  const val = (o, k) => (o && o[k] && o[k].value) || '';
+  const own = (k) => eb[k] && eb[k].from === business.code;      // set on the venture itself, not inherited
   return {
-    code: business.code,
-    name: business.displayName,
-    legal: ef.legalName.value || business.displayName,
-    tagline: ef.tagline.value || '',
-    website: ef.website.value || '',
-    email: ef.email.value || '',
-    address: ef.address.value || '',
-    color: ef.brandColor.value || '',
-    logo: ef.logo.value || '',
-    seal: ef.seal.value || '',
-    sigName: ef.signatory.name || '',
-    sigTitle: ef.signatory.title || '',
-    sigImage: ef.signatory.signature || '',
+    code: business.code,                       // the issuing business (drives numbering and WaveSeed-only defaults)
+    name: p.displayName,
+    legal: val(ep, 'legalName') || p.displayName,
+    tagline: val(ep, 'tagline'),
+    website: val(ep, 'website'),
+    email: val(ep, 'email'),
+    address: val(ep, 'address'),
+    phone: val(ep, 'phone'),
+    reg: val(ep, 'registrationNo'),
+    color: val(ep, 'brandColor'),
+    logo: val(ep, 'logo'),
+    seal: val(eb, 'seal'),
+    sigName: eb.signatory.name || '',
+    sigTitle: eb.signatory.title || '',
+    sigImage: eb.signatory.signature || '',
+    venture: isVenture ? { code: business.code, name: business.displayName, tagline: own('tagline') ? val(eb, 'tagline') : '', logo: own('logo') ? val(eb, 'logo') : '' } : null,
   };
 }
 
@@ -98,17 +112,6 @@ const LOGO_HTML = () => `
   <div style="font-family:'Inter',sans-serif;font-size:8px;color:#666;letter-spacing:2px;text-transform:uppercase;line-height:1;margin-top:2px;">${B.tagline}</div>
 </div>`;
 
-// Letterhead logo with white contrast backplate
-const LETTERHEAD_LOGO = () => `
-<div style="display:flex;align-items:center;gap:12px;">
-  <div style="background:white;padding:6px;border-radius:6px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
-    <img src="${B.logo}" alt="${B.name} logo" style="height:32px;object-fit:contain;" />
-  </div>
-  <div>
-    <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:800;color:white;line-height:1.1;letter-spacing:0.3px;">${B.name}</div>
-    <div style="font-size:8px;color:rgba(255,255,255,0.75);letter-spacing:2px;text-transform:uppercase;margin-top:2px;">${B.tagline}</div>
-  </div>
-</div>`;
 
 function sealSVG(type) {
   const labels = {
@@ -445,6 +448,7 @@ export function certificateTemplate(data) {
       <div style="display:flex; flex-direction:column; align-items:flex-start; justify-content:center;">
         <div style="font-family:'Montserrat',sans-serif; font-size:32px; font-weight:800; color:#0B1F3A; line-height:1.05; letter-spacing:0.5px;">${B.name}</div>
         <div style="font-family:'Montserrat',sans-serif; font-size:9px; font-weight:650; color:#888; letter-spacing:1.8px; text-transform:uppercase; margin-top:5px; line-height:1;">${B.tagline}</div>
+        ${B.venture ? `<div style="font-family:'Montserrat',sans-serif; font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#a8861c; margin-top:8px; line-height:1;">${B.venture.name} <span style="color:#8a8f9c; font-weight:600;">· A venture of ${B.legal}</span></div>` : ''}
       </div>
     </div>
     
@@ -532,182 +536,178 @@ export function certificateTemplate(data) {
 </html>`;
 }
 
-const COMPANY_STAMP_HTML = () => `
-<div style="position:absolute; bottom:-16px; left:125px; z-index:1; transform:rotate(-10deg); opacity:0.85; pointer-events:none;">
-  <img src="${B.seal}" alt="Company Stamp" style="height:105px; width:105px; object-fit:contain;" />
-</div>`;
+
+// ─── Letter frame ─────────────────────────────────────────────────────────────
+// Standard business-letter layout: letterhead of the PARENT company (with the venture as a
+// sub-head), reference/date block, body, signature, enclosures, verification, and a running
+// footer with "Page x of y" on every printed A4 page.
+const plain = s => String(s == null ? '' : s).replace(/&#039;/g, "'").replace(/&quot;/g, '"').replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
+const cssStr = s => plain(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/[\r\n]+/g, ' ');
+
+function letterheadHTML() {
+  const contact = [
+    B.address,
+    B.phone && `Tel: ${B.phone}`,
+    [B.email, B.website].filter(Boolean).join(' &nbsp;·&nbsp; '),
+    B.reg && `CIN: ${B.reg}`,
+  ].filter(Boolean).join('<br/>');
+  const v = B.venture;
+  return `
+<header class="lh">
+  <div class="lh-brand">
+    <img src="${B.logo}" alt="${B.name} logo"/>
+    <div><div class="lh-name">${B.name}</div>${B.tagline ? `<div class="lh-tag">${B.tagline}</div>` : ''}</div>
+  </div>
+  <div class="lh-contact">${contact}</div>
+</header>
+<div class="lh-rule"></div>
+${v ? `<div class="venture">${v.logo ? `<img src="${v.logo}" alt=""/>` : ''}<span><b>${v.name}</b> &nbsp;A venture of ${B.legal}</span>${v.tagline ? `<em>${v.tagline}</em>` : ''}</div>` : ''}`;
+}
 
 export function signatureBlockHTML() {
   return `
-<div class="sig-block" style="position:relative; display:inline-block; min-height:115px; margin-top:36px; text-align:left; width:100%;">
-  <p class="closing" style="font-size:11px;color:#333;margin-bottom:34px;">For <strong>${B.legal}</strong>,</p>
-  <div style="position:relative; z-index:2; padding-left:4px;">
-    ${B.sigImage ? `<img src="${B.sigImage}" alt="Signature" style="height:48px; max-width:130px; object-fit:contain; position:absolute; top:-38px; left:12px; mix-blend-mode:multiply; filter:contrast(1.25); pointer-events:none;" />` : ''}
-    <div class="sig-line" style="width:160px; height:1px; background:#cbd5e1; margin-bottom:5px;"></div>
-    <div class="sig-name" style="font-family:'Inter', sans-serif; font-size:11px; font-weight:700; color:${B.color}; line-height:1.2; margin-bottom:1px;">${B.sigName}</div>
-    ${B.sigAffil ? `<div style="font-size:7px; color:#64748b; font-style:italic; margin-bottom:2px; font-weight:600;">${B.sigAffil}</div>` : ''}
-    <div class="sig-designation" style="font-size:8px; font-weight:700; color:#c9a227; text-transform:uppercase; letter-spacing:0.5px;">${B.sigTitle === 'Founder, CEO' ? 'Founder &amp; CEO' : B.sigTitle}</div>
-    <div style="font-size:7px; color:#94a3b8; font-weight:500; margin-top:1px;">Building ${B.legal}</div>
+<div class="sign">
+  <p class="sign-close">Yours sincerely,</p>
+  <p class="sign-for">For <b>${B.legal}</b></p>
+  <div class="sign-area">
+    ${B.sigImage ? `<img class="sign-img" src="${B.sigImage}" alt="Signature"/>` : ''}
+    ${B.seal ? `<img class="sign-seal" src="${B.seal}" alt="Company seal"/>` : ''}
   </div>
-  ${COMPANY_STAMP_HTML()}
+  <div class="sign-name">${B.sigName}</div>
+  <div class="sign-title">${B.sigTitle}</div>
+  <div class="sign-auth">Authorised Signatory</div>
 </div>`;
 }
 
-function letterWrapper({ title, refNum='', date='', body='', confidential=true, verificationId='', docType='' }) {
+function letterWrapper({ title, refNum='', date='', body='', confidential=true, verificationId='', docType='', enclosures='' }) {
+  const dateHTML = /^\d{4}-\d{2}-\d{2}$/.test(date) ? fmtDate(date) : (esc(date) || today());
+  const footLeft = cssStr(`${B.name}${verificationId ? '  ·  ' + verificationId : ''}`);
+  const verifyUrl = `https://verify.waveseed.app/?id=${encodeURIComponent(verificationId)}`;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>${esc(title)} — ${B.name}</title>
 <link href="${GF}" rel="stylesheet"/>
 <style>
-  @page{ size:A4 portrait; margin:0; }
+  /* A4 page: margins come from @page so every printed page is framed the same way */
+  @page {
+    size: A4 portrait; margin: 16mm 18mm 20mm 18mm;
+    @bottom-left  { content: "${footLeft}"; font: 7.5pt 'Inter', Arial, sans-serif; color: #7a849c; }
+    @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 7.5pt 'Inter', Arial, sans-serif; color: #7a849c; }
+  }
   *{ box-sizing:border-box; margin:0; padding:0; }
-  html{ background:#f8fafc; min-height:100vh; display:flex; justify-content:center; align-items:flex-start; padding:24px 0; overflow-y:auto; overflow-x:hidden; }
-  body{ width:210mm; min-height:297mm; height:auto; background:#ffffff; font-family:'Inter',Arial,sans-serif; -webkit-print-color-adjust:exact; print-color-adjust:exact; display:flex; flex-direction:column; position:relative; box-shadow:0 10px 30px rgba(0,0,0,0.08); overflow:visible; flex-shrink:0; }
-  /* Letterhead */
-  .lh{ background:linear-gradient(135deg,${B.color} 0%,${B.colorLight} 100%);padding:24px 40px 20px;display:flex;justify-content:space-between;align-items:flex-end; }
-  .lh-contact{ text-align:right;font-size:8px;color:rgba(255,255,255,0.7);line-height:1.8; }
-  .lh-contact a{ color:rgba(255,255,255,0.85); }
-  /* Gold strip */
-  .gold-strip{ height:4px;background:linear-gradient(90deg,#c9a227,#f0d078,#c9a227); }
-  
-  /* Compact overrides for offer letters to ensure they fit on 1 page */
-  .internship-offer .letter-body, .employment-offer .letter-body {
-    padding: 14px 48px 10px;
-  }
-  .internship-offer .para, .employment-offer .para {
-    font-size: 9.8px;
-    line-height: 1.45;
-    margin-bottom: 5px;
-  }
-  .internship-offer .highlight-table, .employment-offer .highlight-table {
-    margin: 6px 0;
-  }
-  .internship-offer .highlight-table td, .employment-offer .highlight-table td {
-    padding: 4px 10px;
-  }
-  .internship-offer .section-title, .employment-offer .section-title {
-    margin: 6px 0 3px;
-  }
-  .internship-offer .bullet-list, .employment-offer .bullet-list {
-    margin-bottom: 4px;
-  }
-  .internship-offer .bullet-list li, .employment-offer .bullet-list li {
-    font-size: 9.5px;
-    line-height: 1.4;
-    margin-bottom: 2px;
-  }
-  .internship-offer .sig-block, .employment-offer .sig-block {
-    margin-top: 6px;
-    min-height: 60px;
-  }
-  .internship-offer .sig-block .closing, .employment-offer .sig-block .closing {
-    margin-bottom: 12px;
-  }
-  
-  /* Body */
-  .letter-body{ padding:36px 48px 48px; flex:1; position:relative; }
-  
-  /* Watermark background logo for letters */
-  .letter-watermark { 
-    position:absolute; 
-    top:48%; left:50%; 
-    transform:translate(-50%,-50%) rotate(-12deg); 
-    width: 320px; height: 320px;
-    background-image: url("${B.logo}");
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: contain;
-    opacity:0.02; 
-    pointer-events:none; 
-    z-index:0; 
-  }
-  
-  .ref-date{ display:flex;justify-content:space-between;margin-bottom:24px;font-size:10.5px;color:#475569;font-weight:500; }
-  .confidential{ text-align:right;font-size:8.5px;font-weight:750;letter-spacing:2px;text-transform:uppercase;color:#dc2626;margin-bottom:16px; }
-  .recipient-block{ margin-bottom:22px;font-size:11.5px;color:#1e293b;line-height:1.75; }
-  .subject-line{ margin-bottom:22px; }
-  .subject-label{ font-size:11px;font-weight:700;color:${B.color}; }
-  .subject-text{ font-size:11px;font-weight:800;color:${B.color};text-decoration:underline;text-transform:uppercase;letter-spacing:0.3px; }
-  .salutation{ font-size:12px;margin-bottom:16px;color:#0f172a;font-weight:600; }
-  .para{ font-size:11.5px;color:#1e293b;line-height:1.8;margin-bottom:16px;text-align:justify; }
-  .highlight-table{ width:100%;border-collapse:collapse;margin:20px 0;font-size:11px; }
-  .highlight-table th{ background:${B.color};color:white;padding:10px 14px;text-align:left;font-size:9.5px;letter-spacing:1px;text-transform:uppercase; }
-  .highlight-table td{ padding:9px 14px;border-bottom:1px solid #e2e8f0;color:#334155; }
-  .highlight-table tr:nth-child(even) td{ background:#f8fafc; }
-  .highlight-table td:first-child{ font-weight:600;color:${B.color};white-space:nowrap; }
-  .section-title{ font-size:10.5px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:${B.color};margin:22px 0 10px;padding-bottom:4px;border-bottom:2px solid #c9a227;display:inline-block; }
-  .bullet-list{ list-style:none;padding:0;margin:0 0 16px; }
-  .bullet-list li{ font-size:11.5px;color:#1e293b;line-height:1.75;padding-left:16px;position:relative;margin-bottom:6px; }
-  .bullet-list li::before{ content:'›';position:absolute;left:0;color:#c9a227;font-weight:700;font-size:13px; }
+  :root{ --navy:${B.color}; --ink:#1b2437; --muted:#5b667f; --rule:#cfd6e4; --gold:#c9a227; }
+  html{ background:#e8ecf4; }
+  body{ width:210mm; min-height:297mm; margin:24px auto; padding:16mm 18mm 18mm; background:#fff; color:var(--ink);
+        font:10.5pt/1.62 'Inter', Arial, sans-serif; position:relative; box-shadow:0 8px 34px rgba(10,20,48,.20);
+        -webkit-print-color-adjust:exact; print-color-adjust:exact; hyphens:auto; }
+
+  /* Letterhead (first page) */
+  .lh{ display:flex; justify-content:space-between; align-items:flex-start; gap:24px; padding-bottom:10px; }
+  .lh-brand{ display:flex; align-items:center; gap:12px; min-width:0; }
+  .lh-brand img{ height:46px; width:46px; object-fit:contain; flex:none; }
+  .lh-name{ font:700 18pt/1.1 'Playfair Display', Georgia, serif; color:var(--navy); letter-spacing:.2px; }
+  .lh-tag{ margin-top:3px; font-size:7pt; letter-spacing:.14em; text-transform:uppercase; color:#8a6d12; font-weight:600; }
+  .lh-contact{ text-align:right; font-size:7.8pt; line-height:1.6; color:var(--muted); }
+  .lh-rule{ position:relative; height:2px; background:var(--navy); margin-bottom:10px; }
+  .lh-rule::after{ content:''; position:absolute; left:0; right:0; bottom:-4px; height:1px; background:linear-gradient(90deg,#c9a227,#ecd27a,#c9a227); }
+  .venture{ display:flex; align-items:center; gap:10px; margin:8px 0 0; padding:6px 12px; border-left:3px solid var(--gold); background:#faf6e8; font-size:8.5pt; color:#3b4560; }
+  .venture img{ height:20px; }
+  .venture b{ color:var(--navy); letter-spacing:.12em; text-transform:uppercase; font-weight:700; }
+  .venture em{ margin-left:auto; font-style:normal; color:#7a6a2a; font-size:8pt; }
+
+  /* Reference block */
+  .meta{ display:flex; justify-content:space-between; gap:20px; margin:20px 0 14px; font-size:9.5pt; color:var(--ink); }
+  .meta span{ color:var(--muted); font-size:8.5pt; display:inline-block; min-width:70px; }
+  .meta-r{ text-align:right; }
+  .meta-r span{ min-width:0; margin-right:10px; }
+  .confidential{ font-size:7.5pt; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:#b42318; margin-bottom:14px; }
+
+  /* Letter body */
+  .recipient-block{ margin-bottom:16px; line-height:1.55; }
+  .subject-line{ margin:0 0 14px; }
+  .subject-label{ font-weight:700; color:var(--navy); }
+  .subject-text{ font-weight:700; color:var(--navy); text-decoration:underline; text-underline-offset:2px; text-transform:uppercase; letter-spacing:.02em; }
+  .salutation{ margin-bottom:10px; font-weight:600; }
+  .para{ margin-bottom:10px; text-align:justify; orphans:3; widows:3; }
+  .section-title{ break-after:avoid; margin:16px 0 8px; padding-bottom:3px; border-bottom:1.5px solid var(--gold); display:inline-block; font-size:9pt; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--navy); }
+  .highlight-table{ width:100%; border-collapse:collapse; margin:8px 0 14px; font-size:10pt; border:1px solid var(--rule); break-inside:avoid; }
+  .highlight-table th{ background:var(--navy); color:#fff; padding:7px 12px; text-align:left; font-size:8.5pt; letter-spacing:.08em; text-transform:uppercase; }
+  .highlight-table td{ padding:6px 12px; border:1px solid var(--rule); vertical-align:top; }
+  .highlight-table td:first-child{ width:32%; background:#f5f7fb; font-weight:600; color:var(--navy); }
+  .bullet-list{ list-style:none; margin:0 0 12px; }
+  .bullet-list li{ position:relative; padding-left:16px; margin-bottom:4px; orphans:2; widows:2; }
+  .bullet-list li::before{ content:'›'; position:absolute; left:2px; color:var(--gold); font-weight:700; }
+
+  /* Annexure (terms) — starts on its own page when printed */
+  .annex{ margin-top:34px; padding-top:18px; border-top:1px dashed var(--rule); }
+  .annex-title{ font-size:10pt; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--navy); margin:0 0 8px; padding-bottom:4px; border-bottom:1.5px solid var(--gold); display:inline-block; break-after:avoid; }
+  .annex-p{ font-size:9.5pt; color:var(--muted); margin-bottom:10px; text-align:justify; }
+  .terms-list{ padding-left:20px; margin:0 0 18px; font-size:9.5pt; line-height:1.55; color:#243049; }
+  .terms-list li{ margin-bottom:5px; text-align:justify; break-inside:avoid-page; orphans:2; widows:2; }
+  .accept{ margin-top:14px; padding:12px 14px; border:1px solid var(--rule); border-radius:4px; break-inside:avoid; }
+  .accept-sign{ margin-top:22px; display:flex; justify-content:flex-end; break-inside:avoid; }
+  .accept-sign > div{ min-width:230px; }
+  .accept-label{ font-size:8.5pt; color:var(--muted); margin-bottom:26px; }
+  .accept-line{ border-top:1px solid #333; padding-top:4px; font-size:8.5pt; color:#333; }
+
   /* Signature */
-  .sig-block{ margin-top:28px; }
-  .closing{ font-size:11.5px;color:#333;margin-bottom:20px; }
-  .sig-name{ font-family:'Dancing Script',cursive;font-size:28px;color:${B.color};font-weight:700;line-height:1; }
-  .sig-line{ width:150px;height:1px;background:#ccc;margin:2px 0 4px; }
-  .sig-designation{ font-size:10px;font-weight:700;color:${B.color}; }
-  .sig-org{ font-size:9px;color:#666; }
-  /* Footer */
-  .lh-footer{ background:${B.color};padding:10px 40px;display:flex;justify-content:space-between;align-items:center; }
-  .lh-footer span{ font-size:8px;color:rgba(255,255,255,0.6); }
-  .lh-footer a{ color:rgba(255,255,255,0.8); }
-  .gold-strip-bottom{ height:3px;background:linear-gradient(90deg,#c9a227,#f0d078,#c9a227); }
+  .sign{ margin-top:22px; break-inside:avoid; }
+  .sign-close{ margin-bottom:2px; }
+  .sign-for{ margin-bottom:0; }
+  .sign-area{ position:relative; height:62px; margin:2px 0; }
+  .sign-img{ position:absolute; left:0; top:6px; height:46px; max-width:150px; object-fit:contain; mix-blend-mode:multiply; }
+  .sign-seal{ position:absolute; left:130px; top:-6px; height:74px; width:74px; object-fit:contain; opacity:.92; transform:rotate(-8deg); }
+  .sign-name{ font-weight:700; color:var(--navy); }
+  .sign-title{ font-size:9.5pt; color:var(--ink); }
+  .sign-auth{ font-size:8.5pt; color:var(--muted); }
+  .encl{ margin-top:14px; font-size:9pt; color:var(--muted); }
+
+  /* Verification + footer */
+  .verify{ display:flex; align-items:center; gap:12px; margin-top:20px; padding:8px 12px; border:1px solid var(--rule); border-radius:6px; width:fit-content; break-inside:avoid; background:#fbfcfe; }
+  .verify img{ height:54px; width:54px; }
+  .verify b{ display:block; font-size:8pt; letter-spacing:.1em; text-transform:uppercase; color:var(--navy); }
+  .verify code{ display:block; font:600 8.5pt ui-monospace, Consolas, monospace; color:#8a6d12; margin:1px 0; }
+  .verify small{ font-size:7.5pt; color:var(--muted); }
+  .foot{ margin-top:26px; padding-top:8px; border-top:1px solid var(--rule); font-size:7.5pt; color:var(--muted); display:flex; justify-content:space-between; gap:16px; }
+
+  .print-btn{ position:fixed; top:16px; right:16px; padding:10px 22px; background:var(--navy); color:#fff; border:0; border-radius:8px; font:700 13px 'Inter',sans-serif; cursor:pointer; z-index:9999; box-shadow:0 4px 16px rgba(0,0,0,.25); }
+
   @media print{
-    html{ background:none; padding:0; overflow:hidden; }
-    body{ width:210mm; height:auto!important; min-height:297mm; margin:0!important; box-shadow:none!important; overflow:visible!important; }
+    html{ background:none; }
+    body{ width:auto; min-height:0; margin:0; padding:0; box-shadow:none; }
     .no-print{ display:none!important; }
-    .page-break{ page-break-before:always; break-before:page; }
+    .annex{ break-before:page; border-top:0; margin-top:0; padding-top:0; }
+    .foot{ display:none; }
   }
-  .print-btn{ position:fixed;top:16px;right:16px;padding:10px 22px;background:${B.color};color:white;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.3); }
-  .print-btn:hover{ background:${B.colorLight}; }
 </style>
 </head>
 <body class="${docType}">
 <button class="print-btn no-print" onclick="window.print()">PRINT / SAVE PDF</button>
-<!-- Letterhead -->
-<div class="lh">
-  ${LETTERHEAD_LOGO()}
-  <div class="lh-contact">
-    ${B.website}<br/>
-    ${B.email}<br/>
-    ${B.address ? B.address + '<br/>' : ''}verify.waveseed.app
+${letterheadHTML()}
+<div class="meta">
+  <div>
+    ${refNum ? `<div><span>Ref. No.</span>${esc(refNum)}</div>` : ''}
+    ${EMP_CODE ? `<div><span>ID</span>${EMP_CODE}</div>` : ''}
+  </div>
+  <div class="meta-r">
+    <div><span>Date</span>${dateHTML}</div>
+    ${verificationId ? `<div><span>Document ID</span>${esc(verificationId)}</div>` : ''}
   </div>
 </div>
-<div class="gold-strip"></div>
-<!-- Body -->
-<div class="letter-body">
-  <div class="letter-watermark"></div>
-  <div style="position:relative; z-index:1;">
-    <div class="ref-date">
-      <span>${refNum ? `Ref: ${esc(refNum)}` : ''}${EMP_CODE ? `${refNum ? ' &nbsp;|&nbsp; ' : ''}ID: ${EMP_CODE}` : ''}</span>
-      <span style="text-align:right;">
-        ${verificationId ? `Verification ID: <strong>${esc(verificationId)}</strong><br/>` : ''}
-        Date: ${/^\d{4}-\d{2}-\d{2}$/.test(date) ? fmtDate(date) : (esc(date) || today())}
-      </span>
-    </div>
-    ${confidential ? '<div class="confidential">Strictly Private &amp; Confidential</div>' : ''}
-    ${body}
-  </div>
-</div>
-
-<!-- Verification QR Code Badge at the bottom right of the page container, above the footer -->
+${confidential ? '<div class="confidential">Private &amp; Confidential</div>' : ''}
+${/To Whomsoever/i.test(body) ? body.replace('Yours sincerely,', 'Yours faithfully,') : body}
+${enclosures ? `<div class="encl"><b>Enclosures:</b> ${esc(enclosures)}</div>` : ''}
 ${verificationId ? `
-<div style="position:absolute; bottom:52px; right:48px; display:flex; align-items:center; gap:8px; z-index:100; pointer-events:auto; font-family:'Inter', sans-serif; background:#fff; padding:6px 10px; border-radius:6px; border:1px solid #cbd5e1; box-shadow:0 4px 12px rgba(0,0,0,0.04);">
-  <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`https://verify.waveseed.app/?id=${verificationId}`)}" alt="Verification QR Code" style="height:44px; width:44px; object-fit:contain; border:1px solid #cbd5e1; padding:2px; background:#fff; border-radius:4px;" />
-  <div style="text-align:left; line-height:1.2;">
-    <div style="font-size:6.5px; font-weight:700; color:${B.color}; text-transform:uppercase; letter-spacing:0.3px;">Document Verified</div>
-    <div style="font-size:7px; font-weight:800; color:#c9a227; font-family:monospace; margin:1px 0;">${esc(verificationId)}</div>
-    <div style="font-size:6px; color:#64748b;">verify.waveseed.app</div>
-  </div>
+<div class="verify">
+  <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(verifyUrl)}" alt="Verification QR code"/>
+  <div><b>Verify this document</b><code>${esc(verificationId)}</code><small>Scan the code or visit verify.waveseed.app</small></div>
 </div>` : ''}
-
-<div style="margin-top:auto;">
-  <div class="gold-strip-bottom"></div>
-  <div class="lh-footer">
-    <span>${B.name} &nbsp;|&nbsp; ${B.tagline}</span>
-    <span>This document is strictly private and confidential. &nbsp;<a href="${B.siteUrl}">${B.website}</a></span>
-  </div>
+<div class="foot">
+  <span>${B.legal}${B.address ? ' &nbsp;·&nbsp; ' + B.address.replace(/<br\/>/g, ', ') : ''}</span>
+  <span>${B.reg ? 'CIN: ' + B.reg + ' &nbsp;·&nbsp; ' : ''}<a href="${B.siteUrl}" style="color:inherit">${B.website}</a></span>
 </div>
 </body>
 </html>`;
@@ -722,7 +722,7 @@ export function internshipOfferTemplate(data) {
     recipientEmail='', role='', product=(B.code === 'WS' ? 'WaveBase AI' : ''), reportingTo=(B.code === 'WS' ? `Chief Developer, ${B.legal}` : ''),
     startDate='', endDate='', duration='2 Months', workHours='4–5 Hours per Day',
     workMode='Remote (Work From Home)', stipend='Unpaid Internship',
-    probation='15 days', noticePeriod='15 days', responsibilities='',
+    probation='15 days', noticePeriod='15 days', responsibilities='', workLocation='', offerValidity='',
     certId='',
   } = data;
 
@@ -769,6 +769,7 @@ export function internshipOfferTemplate(data) {
   <tr><td>Duration</td><td>${esc(duration)}${(startDate && endDate) ? ' ('+fmtDate(startDate)+' – '+fmtDate(endDate)+')' : ''}</td></tr>
   <tr><td>Start Date</td><td>${fmtDate(startDate)}</td></tr>
   <tr><td>Work Mode</td><td>${esc(workMode)}</td></tr>
+  ${workLocation ? `<tr><td>Place of Work</td><td>${esc(workLocation)}</td></tr>` : ''}
   <tr><td>Working Hours</td><td>${esc(workHours)}</td></tr>
   <tr><td>Stipend</td><td>${esc(stipend)}</td></tr>
 </table>
@@ -785,25 +786,24 @@ export function internshipOfferTemplate(data) {
   <li><strong>Termination:</strong> Either party may terminate the association by giving written notice of ${esc(noticePeriod)}. ${B.legal} reserves the right to terminate immediately for cause.</li>
 </ul>
 
-<p class="para">Please confirm your acceptance of this offer by signing below and returning a scanned copy to: <strong>${B.email}</strong></p>
+<div class="section-title">Joining Formalities</div>
+<ul class="bullet-list">
+  <li>Complete your onboarding profile at <strong>verify.waveseed.app/#onboard/${B.code.toLowerCase()}</strong>.</li>
+  <li>Upload your government photo ID, passport-size photograph, college ID card, and your 10th and 12th marksheets at <strong>verify.waveseed.app/#upload</strong>, using your reference number and date of birth.</li>
+  <li>Keep the originals ready for verification, where required.</li>
+</ul>
+<p class="para">Please confirm your acceptance of this offer by signing below and returning a scanned copy to <strong>${B.email}</strong>${offerValidity ? ` on or before <strong>${fmtDate(offerValidity)}</strong>. This offer lapses if it is not accepted by then` : ''}.</p>
 
 ${signatureBlockHTML()}
 
-<div style="margin-top:12px;display:flex;justify-content:flex-end;">
-  <div>
-    <div style="font-size:9px;color:#555;margin-bottom:2px;">Accepted by — ${esc(recipientName)}</div>
-    <div style="border-top:1px solid #333;padding-top:4px;font-size:9px;color:#333;min-width:180px;">Date: _______________</div>
-  </div>
-</div>
 
-<div class="page-break no-print" style="margin-top: 50px; border-top: 1px dashed #cbd5e1; padding-top: 40px; margin-bottom: 20px;"></div>
-<div class="annexure-section" style="position: relative; font-family: 'Inter', sans-serif;">
-  <div class="section-title" style="margin-top: 0; margin-bottom: 12px; font-size: 11px; font-weight: 800; border-bottom: 2px solid #c9a227; display: inline-block; text-transform: uppercase; letter-spacing: 1.5px; color: ${B.color};">TERMS AND CONDITIONS — ANNEXURE A</div>
-  <p class="para" style="font-size: 10px; color: #475569; margin-bottom: 14px; line-height: 1.6; text-align: justify;">
+<section class="annex">
+  <h3 class="annex-title">TERMS AND CONDITIONS — ANNEXURE A</h3>
+  <p class="annex-p">
     The following terms govern your internship with ${B.legal} (referred to as 'the Company' hereinafter), and may be amended from time to time at the Company's discretion.
   </p>
   
-  <ol class="terms-list" style="padding-left: 18px; margin: 0 0 24px; font-size: 9px; color: #334155; line-height: 1.6; display: flex; flex-direction: column; gap: 6px; list-style-type: decimal;">
+  <ol class="terms-list">
     <li>The roles, responsibilities, and duties appropriate to your designation will be specified by the Company from time to time and may be modified at its sole discretion. You may also be required to provide services to the Company's affiliates, contractors, and clients as necessary.</li>
     <li>The duration of the internship is ${esc(duration)}${workHours ? ` with ${esc(workHours)}` : ''}, ${(startDate && endDate) ? `commencing ${fmtDate(startDate)} and concluding ${fmtDate(endDate)}` : startDate ? `commencing ${fmtDate(startDate)}` : 'commencing on the start date confirmed by the Company'}. You are required to devote your time and efforts solely to ${B.legal} work during this period. Please inform your mentor in advance of any upcoming commitments so that work can be planned accordingly.</li>
     <li>Your work mode is: ${esc(workMode)}. Regular catch-up calls will be scheduled with ${reportingTo ? esc(reportingTo) : 'your mentor'} to review progress and your overall internship experience.</li>
@@ -829,18 +829,13 @@ ${signatureBlockHTML()}
     <li>These Terms of Internship shall be governed by and construed in accordance with the Laws of India. This offer letter, together with Annexure A, constitutes the entire agreement between the parties and supersedes all prior discussions and representations.</li>
   </ol>
 
-  <div class="section-title" style="margin-top: 10px; margin-bottom: 10px; font-size: 11px; font-weight: 800; border-bottom: 2px solid #c9a227; display: inline-block; text-transform: uppercase; letter-spacing: 1.5px; color: ${B.color};">ACKNOWLEDGEMENT</div>
-  <p class="para" style="font-size: 10px; color: #1e293b; line-height: 1.6; margin-bottom: 24px; text-align: justify;">
+  <h3 class="annex-title">ACKNOWLEDGEMENT</h3>
+  <p class="annex-p">
     I, <strong>${esc(recipientName)}</strong>, confirm that I have read, understood, and agree to all the terms and conditions contained in this Internship Offer Letter and Annexure A. I accept this offer and commit to fulfilling my responsibilities with dedication, professionalism, and integrity.
   </p>
 
-  <div style="margin-top: 24px; display: flex; justify-content: flex-end;">
-    <div>
-      <div style="font-size: 8px; color: #555; margin-bottom: 2px;">Signature of Intern</div>
-      <div style="border-top: 1px solid #333; padding-top: 4px; font-size: 8.5px; color: #333; min-width: 180px;">Date: _______________</div>
-    </div>
-  </div>
-</div>`;
+  <div class="accept-sign"><div><div class="accept-label">Signature of Intern</div><div class="accept-line">Date: ______________ &nbsp;&nbsp; Place: ______________</div></div></div>
+</section>`;
 
   return letterWrapper({ title:`Internship Offer Letter — ${recipientName}`, refNum, date, body, verificationId: certId, docType: 'internship-offer' });
 }
@@ -852,7 +847,7 @@ export function employmentOfferTemplate(data) {
   const {
     refNum='', date='', recipientName='', role='', department='',
     reportingTo='', joiningDate='', workMode='', ctc='',
-    probation='3 Months', noticePeriod='60 days', noticeProbation='30 days',
+    probation='3 Months', noticePeriod='60 days', noticeProbation='30 days', workLocation='', offerValidity='',
     certId='',
   } = data;
 
@@ -872,6 +867,7 @@ export function employmentOfferTemplate(data) {
   ${reportingTo ? `<tr><td>Reporting To</td><td>${esc(reportingTo)}</td></tr>` : ''}
   ${joiningDate ? `<tr><td>Date of Joining</td><td>${fmtDate(joiningDate)}</td></tr>` : ''}
   ${workMode ? `<tr><td>Work Mode</td><td>${esc(workMode)}</td></tr>` : ''}
+  ${workLocation ? `<tr><td>Place of Work</td><td>${esc(workLocation)}</td></tr>` : ''}
   ${ctc ? `<tr><td>Compensation (CTC)</td><td>${esc(ctc)}</td></tr>` : ''}
   <tr><td>Probation Period</td><td>${esc(probation)}</td></tr>
 </table>
@@ -884,25 +880,24 @@ export function employmentOfferTemplate(data) {
   <li><strong>Termination notice:</strong> Post-confirmation, the notice period required by either party shall be ${esc(noticePeriod)} in writing.</li>
 </ul>
 
-<p class="para">Please confirm your acceptance of this offer by signing below and returning a copy to: <strong>${B.email}</strong></p>
+<div class="section-title">Joining Formalities</div>
+<ul class="bullet-list">
+  <li>Complete your onboarding profile at <strong>verify.waveseed.app/#onboard/${B.code.toLowerCase()}</strong>.</li>
+  <li>Upload your government photo ID, PAN, passport-size photograph, 10th and 12th marksheets, highest qualification certificate and any previous experience letters at <strong>verify.waveseed.app/#upload</strong>, using your reference number and date of birth.</li>
+  <li>Bring the originals for verification on your date of joining.</li>
+</ul>
+<p class="para">Please confirm your acceptance of this offer by signing below and returning a copy to <strong>${B.email}</strong>${offerValidity ? ` on or before <strong>${fmtDate(offerValidity)}</strong>. This offer lapses if it is not accepted by then` : ''}.</p>
 
 ${signatureBlockHTML()}
 
-<div style="margin-top:12px;display:flex;justify-content:flex-end;">
-  <div>
-    <div style="font-size:9px;color:#555;margin-bottom:2px;">Accepted by — ${esc(recipientName)}</div>
-    <div style="border-top:1px solid #333;padding-top:4px;font-size:9px;color:#333;min-width:180px;">Date: _______________</div>
-  </div>
-</div>
 
-<div class="page-break no-print" style="margin-top: 50px; border-top: 1px dashed #cbd5e1; padding-top: 40px; margin-bottom: 20px;"></div>
-<div class="annexure-section" style="position: relative; font-family: 'Inter', sans-serif;">
-  <div class="section-title" style="margin-top: 0; margin-bottom: 12px; font-size: 11px; font-weight: 800; border-bottom: 2px solid #c9a227; display: inline-block; text-transform: uppercase; letter-spacing: 1.5px; color: ${B.color};">TERMS AND CONDITIONS — ANNEXURE A</div>
-  <p class="para" style="font-size: 10px; color: #475569; margin-bottom: 14px; line-height: 1.6; text-align: justify;">
+<section class="annex">
+  <h3 class="annex-title">TERMS AND CONDITIONS — ANNEXURE A</h3>
+  <p class="annex-p">
     The following terms govern your employment with ${B.legal} (referred to as 'the Company' hereinafter), and may be amended from time to time at the Company's discretion.
   </p>
   
-  <ol class="terms-list" style="padding-left: 18px; margin: 0 0 24px; font-size: 9px; color: #334155; line-height: 1.6; display: flex; flex-direction: column; gap: 6px; list-style-type: decimal;">
+  <ol class="terms-list">
     <li>The roles, responsibilities, and duties appropriate to your designation will be specified by the Company from time to time and may be modified at its sole discretion. You may also be required to provide services to the Company's affiliates, contractors, and clients as necessary.</li>
     <li>The duration of your employment is permanent and indefinite, commencing ${joiningDate ? fmtDate(joiningDate) : 'upon joining'}, subject to successful completion of the probation period. You are required to devote your full time, attention, and efforts solely to the business of ${B.legal} during this association.</li>
     <li>You may work remotely or from the office as specified in your offer details. Regular catch-up calls and status syncs will be scheduled to review progress and performance.</li>
@@ -927,18 +922,13 @@ ${signatureBlockHTML()}
     <li>These Terms of Employment shall be governed by and construed in accordance with the Laws of India. This offer letter, together with Annexure A, constitutes the entire agreement between the parties.</li>
   </ol>
 
-  <div class="section-title" style="margin-top: 10px; margin-bottom: 10px; font-size: 11px; font-weight: 800; border-bottom: 2px solid #c9a227; display: inline-block; text-transform: uppercase; letter-spacing: 1.5px; color: ${B.color};">ACKNOWLEDGEMENT</div>
-  <p class="para" style="font-size: 10px; color: #1e293b; line-height: 1.6; margin-bottom: 24px; text-align: justify;">
+  <h3 class="annex-title">ACKNOWLEDGEMENT</h3>
+  <p class="annex-p">
     I, <strong>${esc(recipientName)}</strong>, confirm that I have read, understood, and agree to all the terms and conditions contained in this Employment Offer Letter and Annexure A. I accept this offer and commit to fulfilling my responsibilities with dedication, professionalism, and integrity.
   </p>
 
-  <div style="margin-top: 24px; display: flex; justify-content: flex-end;">
-    <div>
-      <div style="font-size: 8px; color: #555; margin-bottom: 2px;">Signature of Employee</div>
-      <div style="border-top: 1px solid #333; padding-top: 4px; font-size: 8.5px; color: #333; min-width: 180px;">Date: _______________</div>
-    </div>
-  </div>
-</div>`;
+  <div class="accept-sign"><div><div class="accept-label">Signature of Employee</div><div class="accept-line">Date: ______________ &nbsp;&nbsp; Place: ______________</div></div></div>
+</section>`;
 
   return letterWrapper({ title:`Employment Offer — ${recipientName}`, refNum, date, body, verificationId: certId, docType: 'employment-offer' });
 }
@@ -1020,7 +1010,7 @@ export function relievingLetterTemplate(data) {
   <span class="subject-text">Relieving Letter — ${esc(recipientName)}</span>
 </div>
 <p class="salutation">Dear ${esc(recipientName)},</p>
-<p class="para">We acknowledge the receipt and acceptance of your resignation from the position of <strong>${esc(role)}</strong> at <strong>${B.legalDot}</strong> This letter serves as formal confirmation that you have been officially relieved from your employment and duties with the company, effective as of the close of business hours on <strong>${fmtDate(relievingDate)}</strong>.</p>
+<p class="para">This is with reference to your resignation from the position of <strong>${esc(role)}</strong> at <strong>${B.legal}</strong>, which has been accepted. We confirm that you stand relieved from your duties and responsibilities with the company at the close of business hours on <strong>${fmtDate(relievingDate)}</strong>.</p>
 
 <p class="para">We confirm that all exit formalities, full and final settlement of accounts, transition of key duties, and handover reports have been completed to the satisfaction of the management. All company assets, including hardware, intellectual property access, database keys, and email accounts in your possession, have been returned and deactivated as per the company's security policy.</p>
 
@@ -1047,13 +1037,11 @@ export function terminationLetterTemplate(data) {
   <span class="subject-text">Notice of Termination of Association</span>
 </div>
 <p class="salutation">Dear ${esc(recipientName)},</p>
-<p class="para">This letter serves as formal notification that your association with <strong>${B.legal}</strong> as a <strong>${esc(role)}</strong> is being terminated, with the effective date of release being <strong>${fmtDate(terminationDate)}</strong>. From this date onwards, you will no longer be authorized to represent or perform any duties on behalf of ${B.legalDot}</p>
+<p class="para">This letter serves as formal notification that your association with <strong>${B.legal}</strong> as a <strong>${esc(role)}</strong> stands terminated with effect from <strong>${fmtDate(terminationDate)}</strong>. From that date you will no longer be authorised to represent or perform any duties on behalf of ${B.legalDot}</p>
 
-${reason ? `<p class="para"><strong>Reason for Termination / Separation:</strong> ${esc(reason)}</p>` : `
-<p class="para">This decision has been reached after a thorough review of organizational alignment and operational requirements. We appreciate the efforts you put into your work during your time with us and wish you the best in finding opportunities that align with your skillset.</p>
-`}
+${reason ? `<p class="para"><strong>Grounds for termination:</strong> ${esc(reason)}</p>` : ''}
 
-<p class="para">You are required to immediately return all Company-owned assets, including but not limited to laptops, access cards, key tokens, proprietary documents, codebases, and any other physical or digital property in your possession. Your access to all ${B.short} servers, slack channels, email accounts, and repository hosting services will be formally revoked as of the separation date.</p>
+<p class="para">You are required to immediately return all Company-owned assets, including but not limited to laptops, access cards, key tokens, proprietary documents, codebases, and any other physical or digital property in your possession. Your access to all ${B.short} systems, communication channels, email accounts, and repository hosting services will be formally revoked as of the separation date.</p>
 
 ${finalSettlement ? `<p class="para"><strong>Final Settlement Terms:</strong> ${esc(finalSettlement)}</p>` : `
 <p class="para">The finance team will process your full and final settlement, including any outstanding stipends, salary payouts, or expenses, within the standard corporate cycle, subject to a completed clearance certificate from your team lead.</p>
@@ -1407,7 +1395,6 @@ export function salarySlipTemplate(data) {
   <span class="value">${inr(net)}</span>
 </div>
 <p class="ps-words"><strong>In words:</strong> ${rupeesInWords(net)}</p>
-${signatureBlockHTML()}
 <p class="ps-note">This is a computer-generated ${isStipend ? 'stipend' : 'salary'} slip issued by ${B.legalDot} Its authenticity can be verified at verify.waveseed.app using the Verification ID ${esc(certId)}. The contents of this document are confidential.</p>`;
 
   return letterWrapper({ title: `${isStipend ? 'Stipend' : 'Salary'} Slip ${fmtMonth(payMonth)} — ${recipientName}`, refNum, date, body, verificationId: certId, docType: 'salary-slip' });

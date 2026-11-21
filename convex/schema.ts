@@ -67,6 +67,8 @@ export default defineSchema({
     tagline:     v.optional(v.string()),
     legalName:   v.optional(v.string()),
     address:     v.optional(v.string()),
+    phone:       v.optional(v.string()),
+    registrationNo: v.optional(v.string()),   // CIN / company registration number printed in the letter footer
     website:     v.optional(v.string()),
     email:       v.optional(v.string()),
     brandColor:  v.optional(v.string()),

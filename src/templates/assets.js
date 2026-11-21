@@ -7,6 +7,6 @@ const ORIGIN = (typeof location !== 'undefined' && location.origin && location.o
   ? location.origin
   : 'https://verify.waveseed.app';
 
-export const LOGO_URL  = `${ORIGIN}/brand/logo.png`;
+export const LOGO_URL  = `${ORIGIN}/brand/mark.svg`;
 export const STAMP_URL = `${ORIGIN}/brand/stamp.webp`;
 export const SIG_URL   = `${ORIGIN}/brand/signature.webp`;

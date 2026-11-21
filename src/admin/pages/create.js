@@ -101,7 +101,7 @@ function editor(el, ctx, doc, query) {
     const d = { ...values }; delete d.splitHelper;
     d.certType = doc.id.replace('-cert', '');
     if (d.currentlyWorking) d.endDate = '';
-    d.brand = brandSnapshot(biz());
+    d.brand = brandSnapshot(biz(), parentBusiness());
     if (person && person.empCode) d.empCode = person.empCode;
     const dob = parseMeta(person).dob; if (dob) d.holderDob = dob;
     if (d.recipientEmail === undefined) d.recipientEmail = '';

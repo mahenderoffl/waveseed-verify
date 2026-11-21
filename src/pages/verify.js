@@ -182,6 +182,7 @@ function iss(d) {
     name,
     legal: i.legal || name,
     tagline: i.tagline !== undefined && i.tagline !== null ? i.tagline : "Building Tomorrow's Wave, Today",
+    venture: i.venture && i.venture.name ? i.venture : null,
     logo: i.logoUrl || LOGO_URL,
     email: i.email || 'careers@waveseed.app',
     sigName: i.sigName || 'Mahender Banoth',
@@ -256,7 +257,7 @@ function renderValid(d) {
           <img src="${esc(I.logo)}" alt="${esc(I.name)} logo" style="height:36px;object-fit:contain;" />
           <div>
             <div class="cert-logo-name">${esc(I.name)}</div>
-            <div class="cert-logo-tagline">${esc(I.tagline)}</div>
+            <div class="cert-logo-tagline">${esc(I.tagline)}</div>${I.venture ? `<div class="cert-logo-tagline" style="font-weight:600;">${esc(I.venture.name)} · A venture of ${esc(I.legal)}</div>` : ''}
           </div>
         </div>
         <div class="cert-id-box">

@@ -87,7 +87,7 @@ export const seedAndBackfill = internalMutation({
 // The signatory (name + title + signature image) is inherited as ONE unit so a venture
 // never prints one person's name with another person's signature.
 
-const TEXT_FIELDS = ["legalName", "tagline", "address", "website", "email", "brandColor"] as const;
+const TEXT_FIELDS = ["legalName", "tagline", "address", "phone", "registrationNo", "website", "email", "brandColor"] as const;
 type TextField = (typeof TEXT_FIELDS)[number];
 const IMAGE_KINDS = { logo: "logoStorageId", seal: "sealStorageId", signature: "signatureStorageId" } as const;
 type ImageKind = keyof typeof IMAGE_KINDS;
@@ -133,6 +133,7 @@ export const listResolved = internalQuery({
         own: {
           legalName: biz.legalName ?? "", tagline: biz.tagline ?? "", address: biz.address ?? "",
           website: biz.website ?? "", email: biz.email ?? "", brandColor: biz.brandColor ?? "",
+          phone: biz.phone ?? "", registrationNo: biz.registrationNo ?? "",
           signatoryName: biz.signatoryName ?? "", signatoryTitle: biz.signatoryTitle ?? "",
           logoUrl: await url(biz.logoStorageId), sealUrl: await url(biz.sealStorageId),
           signatureUrl: await url(biz.signatureStorageId),
@@ -167,6 +168,16 @@ function validateField(f: string, raw: string): string {
     case "tagline":        return cleanText("Tagline", raw, 120);
     case "signatoryName":  return cleanText("Signatory name", raw, 80);
     case "signatoryTitle": return cleanText("Signatory title", raw, 100);
+    case "phone": {
+      const t = cleanText("Phone", raw, 40);
+      if (t && !/^[0-9+()\-\s.,/]{5,40}$/.test(t)) throw new Error("Phone may only contain digits, spaces and + ( ) - . ,");
+      return t;
+    }
+    case "registrationNo": {
+      const t = cleanText("Registration number", raw, 60);
+      if (t && !/^[A-Za-z0-9\-\/\s.]{3,60}$/.test(t)) throw new Error("Registration number may only contain letters, digits, spaces and - / .");
+      return t;
+    }
     case "address": {
       const t = raw.replace(/[ \t]+/g, " ").trim();
       if (t.length > 300) throw new Error("Address is too long (max 300 characters)");
@@ -199,7 +210,7 @@ export const updateBusiness = internalMutation({
     id: v.id("businesses"),
     role: v.string(),
     displayName: v.optional(v.string()),
-    legalName: nullableStr, tagline: nullableStr, address: nullableStr,
+    legalName: nullableStr, tagline: nullableStr, address: nullableStr, phone: nullableStr, registrationNo: nullableStr,
     website: nullableStr, email: nullableStr, brandColor: nullableStr,
     signatoryName: nullableStr, signatoryTitle: nullableStr,
     products: v.optional(v.union(v.array(v.string()), v.null())),
@@ -320,6 +331,9 @@ async function publicBranding(ctx: { db: DatabaseReader; storage: StorageReader 
     tagline: text("tagline"),
     email: text("email"),
     website: text("website"),
+    phone: text("phone"),
+    registrationNo: text("registrationNo"),
+    address: text("address"),
     color: text("brandColor"),
     logoUrl: logoOwner ? await url(logoOwner.logoStorageId) : null,
     products: biz.products ?? [],
@@ -343,7 +357,22 @@ export const getPublicForCertificate = internalQuery({
   handler: async (ctx, { businessId }) => {
     const biz = businessId ? await ctx.db.get(businessId) : await getBusinessByCode(ctx, PARENT_CODE);
     if (!biz) return null;
-    return await publicBranding(ctx, biz);
+    // Documents carry the PARENT company's identity; a venture appears as a sub-head.
+    let root: any = biz;
+    for (let i = 0; i < 5 && root.parentId; i++) {
+      const p = await ctx.db.get(root.parentId);
+      if (!p) break;
+      root = p;
+    }
+    const primary = await publicBranding(ctx, root);
+    if (root._id === biz._id) return { ...primary, venture: null };
+    const mine = await publicBranding(ctx, biz);
+    return {
+      ...primary,
+      signatory: undefined,
+      sigName: mine.sigName, sigTitle: mine.sigTitle,          // whoever signs for this venture
+      venture: { code: biz.code, name: biz.displayName, tagline: biz.tagline ?? null, logoUrl: biz.logoStorageId ? mine.logoUrl : null },
+    };
   },
 });
 

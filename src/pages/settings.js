@@ -14,7 +14,9 @@ const TEXT_FIELDS = [
   { key: 'tagline',   label: 'Tagline' },
   { key: 'website',   label: 'Website',        placeholder: 'www.example.com' },
   { key: 'email',     label: 'Contact email' },
-  { key: 'address',   label: 'Address',        textarea: true },
+  { key: 'address',   label: 'Registered office address', textarea: true, hint: 'Printed on the letterhead of every letter and certificate' },
+  { key: 'phone',     label: 'Phone' },
+  { key: 'registrationNo', label: 'Registration no. (CIN)', hint: 'Printed in the footer of letters, e.g. U72900TG2025PTC000000' },
 ];
 
 const IMAGE_LABELS = {
@@ -26,7 +28,7 @@ const IMAGE_LABELS = {
 const ACTION_LABELS = { create: 'created the business', update: 'changed', image_set: 'uploaded', image_clear: 'removed' };
 const FIELD_LABELS = {
   displayName: 'display name', legalName: 'legal name', tagline: 'tagline', address: 'address', website: 'website',
-  email: 'email', brandColor: 'brand colour', products: 'product list', signatoryName: 'signatory name', signatoryTitle: 'signatory title',
+  email: 'email', phone: 'phone', registrationNo: 'registration number', brandColor: 'brand colour', products: 'product list', signatoryName: 'signatory name', signatoryTitle: 'signatory title',
   active: 'active status', code: 'code', logo: 'logo', seal: 'seal', signature: 'signature image',
 };
 
@@ -266,7 +268,7 @@ function wireEditor(b) {
     msg.textContent = '';
     const val = id => document.getElementById(id).value;
     const payload = { id: b.id, displayName: val('bz-displayName') };
-    for (const k of ['legalName', 'tagline', 'website', 'email', 'address', 'brandColor', 'signatoryName', 'signatoryTitle']) {
+    for (const k of ['legalName', 'tagline', 'website', 'email', 'address', 'phone', 'registrationNo', 'brandColor', 'signatoryName', 'signatoryTitle']) {
       payload[k] = val(`bz-${k}`).trim() === '' ? null : val(`bz-${k}`);
     }
     payload.products = val('bz-products').split('\n').map(s => s.trim()).filter(Boolean);

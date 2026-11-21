@@ -288,8 +288,25 @@ export const insertEmployee = internalMutation({
     meta: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Sequential, collision-free ID: WS-INT-2026-0001 (interns) / WS-EMP-2026-0001 (employees).
+    // Mutations are serialised by Convex, so read-increment-write on the counter is atomic.
+    const kind = args.employeeType === "intern" ? "INT" : "EMP";
+    const year = new Date().getFullYear();
+    const counterKey = `emp:${kind}:${year}`;
+    const counter = await ctx.db.query("counters").withIndex("by_key", (q) => q.eq("key", counterKey)).first();
+    let seq: number;
+    if (counter) {
+      seq = counter.value + 1;
+      await ctx.db.patch(counter._id, { value: seq });
+    } else {
+      seq = 1;
+      await ctx.db.insert("counters", { key: counterKey, value: seq });
+    }
+    const empCode = `WS-${kind}-${year}-${String(seq).padStart(4, "0")}`;
+
     return await ctx.db.insert("employees", {
       ...args,
+      empCode,
       status: "active",
       createdAt: Date.now(),
       updatedAt: Date.now(),

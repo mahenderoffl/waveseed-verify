@@ -44,7 +44,7 @@ function buildEmployeesHTML() {
   <div class="table-toolbar">
     <div class="search-input-wrap">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input id="emp-search" class="admin-search" type="text" placeholder="Search profiles by name, role, institution…" />
+      <input id="emp-search" class="admin-search" type="text" placeholder="Search by name, ID, role, institution…" />
     </div>
     <select id="emp-filter-type" class="filter-select">
       <option value="">All Types</option>
@@ -132,7 +132,7 @@ function renderEmployeesTable(token) {
   const typeF = document.getElementById('emp-filter-type')?.value || '';
 
   const filtered = employeesList.filter(emp => {
-    const matchQ = !query || [emp.name, emp.role, emp.institution, emp.department, emp.email]
+    const matchQ = !query || [emp.name, emp.empCode, emp.role, emp.institution, emp.department, emp.email]
       .join(' ').toLowerCase().includes(query);
     const matchT = !typeF || emp.employeeType === typeF;
     const docF = document.getElementById('emp-filter-docs')?.value || '';
@@ -159,6 +159,7 @@ function renderEmployeesTable(token) {
 <tr>
   <td>
     <div class="td-name">${esc(emp.name)}</div>
+    <div style="font-size:0.72rem;font-weight:700;letter-spacing:.03em;color:var(--gold-dark);margin-top:2px;font-family:monospace;">${emp.empCode ? esc(emp.empCode) : '<span style="color:var(--gray-400);font-weight:400;">ID not assigned</span>'}</div>
     <div style="font-size:0.7rem;color:var(--gray-400);margin-top:2px;">Work Mode: ${esc(emp.workMode || '—')}</div>
   </td>
   <td>
@@ -360,6 +361,7 @@ window.wsViewEmpProfile = (id) => {
   <div class="modal-body" style="padding-bottom:8px;">
 
     <div class="prof-section-title">🏷️ Work Info</div>
+    ${row(emp.employeeType === 'intern' ? 'Intern ID' : 'Employee ID', emp.empCode || 'Not assigned (created before IDs were introduced)')}
     ${row('Role', emp.role)}
     ${row('Project / Product', emp.product)}
     ${row('Work Mode', emp.workMode)}
@@ -453,7 +455,7 @@ window.wsViewEmpDocs = async (id) => {
   overlay.innerHTML = `
 <div class="modal-box" style="max-width:640px;max-height:90vh;overflow:auto;">
   <div class="modal-header">
-    <h2 class="modal-title">📁 Documents — ${esc(emp.name)}</h2>
+    <h2 class="modal-title">📁 Documents — ${esc(emp.name)}${emp.empCode ? ` <span style="font-size:0.8rem;font-family:monospace;color:var(--gold-dark);">${esc(emp.empCode)}</span>` : ''}</h2>
     <button class="modal-close" onclick="document.getElementById('docs-modal').remove()">✕</button>
   </div>
   <div class="modal-body" id="docs-modal-body">

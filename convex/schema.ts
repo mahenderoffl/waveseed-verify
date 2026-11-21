@@ -67,10 +67,12 @@ export default defineSchema({
     employeeType: v.string(), // "intern" | "employee"
     status: v.string(),       // "active" | "former"
     meta: v.optional(v.string()), // JSON string with extended profile data
+    empCode: v.optional(v.string()), // WS-INT-2026-0001 / WS-EMP-2026-0001 (set at creation; absent on legacy profiles)
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_name", ["name"])
+    .index("by_emp_code", ["empCode"])
     .index("by_type", ["employeeType"])
     .index("by_status", ["status"]),
 
@@ -90,6 +92,12 @@ export default defineSchema({
   })
     .index("by_employee",   ["employeeId"])
     .index("by_emp_type",   ["employeeId", "docType"]),
+
+  // Atomic sequence counters (e.g. "emp:INT:2026")
+  counters: defineTable({
+    key:   v.string(),
+    value: v.number(),
+  }).index("by_key", ["key"]),
 
   // ── Who accessed which KYC document (audit trail) ─────────────────────────
   docAccessLogs: defineTable({

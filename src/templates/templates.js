@@ -39,6 +39,7 @@ function buildBrand(snap) {
     name: e(name),
     short: e(name.replace(/\s+(Co\.?|Inc\.?|Ltd\.?|Pvt\.? Ltd\.?)$/i, '')),   // "WaveSeed Co." -> "WaveSeed"
     legal: e((s && s.legal) || name),
+    legalDot: e(/[.!?]$/.test((s && s.legal) || name) ? ((s && s.legal) || name) : ((s && s.legal) || name) + '.'),   // for sentence endings
     tagline: e(s ? (s.tagline || '') : D.tagline),
     website: e(website),
     siteUrl: 'https://' + encodeURI(website).replace(/"/g, ''),
@@ -718,11 +719,33 @@ ${verificationId ? `
 export function internshipOfferTemplate(data) {
   const {
     refNum='', date='', recipientName='', recipientCollege='', recipientDept='',
-    recipientEmail='', role='', product=(B.code === 'WS' ? 'WaveBase AI' : ''), reportingTo=`Chief Developer, ${B.legal}`,
+    recipientEmail='', role='', product=(B.code === 'WS' ? 'WaveBase AI' : ''), reportingTo=(B.code === 'WS' ? `Chief Developer, ${B.legal}` : ''),
     startDate='', endDate='', duration='2 Months', workHours='4–5 Hours per Day',
     workMode='Remote (Work From Home)', stipend='Unpaid Internship',
+    probation='15 days', noticePeriod='15 days', responsibilities='',
     certId='',
   } = data;
+
+  // Responsibilities: custom list (one per line) if given; otherwise a default that suits the business.
+  const mentorRef = reportingTo ? `your mentor, ${esc(reportingTo)},` : 'your mentor';
+  const customResp = String(responsibilities || '').split('\n').map(s => s.trim()).filter(Boolean);
+  const respItems = customResp.length ? customResp.map(esc) : (B.code === 'WS' ? [
+    `Collaborating with ${mentorRef} to design, build, and iterate on features for the ${esc(product) || 'company'} platform.`,
+    'Writing clean, efficient, and well-documented front-end and back-end code.',
+    'Integrating AI/ML capabilities into the platform in alignment with product requirements.',
+    'Participating in technical design discussions, code reviews, and sprint planning.',
+    'Conducting research and prototyping new AI-driven features as directed.',
+    'Testing, debugging, and optimizing code for production readiness.',
+    'Communicating progress, blockers, and ideas proactively to your mentor.',
+  ] : [
+    `Carrying out the tasks and projects assigned to you in your role as ${esc(role)}.`,
+    `Collaborating with ${mentorRef} and the wider team.`,
+    'Preparing clear updates, reports, or deliverables as required.',
+    'Participating in team meetings, planning sessions, and reviews.',
+    'Researching, learning, and applying new skills relevant to your role.',
+    'Communicating progress, blockers, and ideas proactively to your mentor.',
+  ]);
+  const respHTML = respItems.map(r => `<li>${r}</li>`).join('\n  ');
 
   const body = `
 <div class="recipient-block">
@@ -733,16 +756,16 @@ export function internshipOfferTemplate(data) {
 </div>
 <div class="subject-line">
   <span class="subject-label">Subject: </span>
-  <span class="subject-text">Internship Offer Letter — ${esc(role)} | ${esc(product)}</span>
+  <span class="subject-text">Internship Offer Letter — ${esc(role)}${product ? ' | ' + esc(product) : ''}</span>
 </div>
 <p class="salutation">Dear ${esc(recipientName)},</p>
-<p class="para">We are thrilled to extend this <strong>Internship Offer</strong> to you at <strong>${B.legal}</strong>, welcoming you as a <strong>${esc(role)}</strong>. At ${B.short}, we firmly believe our people are our greatest asset. We are highly selective in extending internship opportunities, and you have distinguished yourself as one of the best and brightest. We are confident you will play an integral role in shaping the future of <strong>${esc(product)}</strong> — our flagship SaaS product — and we look forward to a productive, impactful, and enriching journey together.</p>
+<p class="para">We are thrilled to extend this <strong>Internship Offer</strong> to you at <strong>${B.legal}</strong>, welcoming you as a <strong>${esc(role)}</strong>. At ${B.short}, we firmly believe our people are our greatest asset. We are highly selective in extending internship opportunities, and you have distinguished yourself as one of the best and brightest. We are confident you will play an integral role in shaping the future of ${(product && B.code === 'WS') ? `<strong>${esc(product)}</strong> — our flagship SaaS product —` : `<strong>${product ? esc(product) : B.short}</strong>,`} and we look forward to a productive, impactful, and enriching journey together.</p>
 
 <div class="section-title">Internship at a Glance</div>
 <table class="highlight-table">
   <tr><td>Role</td><td>${esc(role)}</td></tr>
-  <tr><td>Product</td><td>${esc(product)}</td></tr>
-  <tr><td>Reporting To</td><td>${esc(reportingTo)}</td></tr>
+  ${product ? `<tr><td>Product</td><td>${esc(product)}</td></tr>` : ''}
+  ${reportingTo ? `<tr><td>Reporting To</td><td>${esc(reportingTo)}</td></tr>` : ''}
   <tr><td>Duration</td><td>${esc(duration)}${(startDate && endDate) ? ' ('+fmtDate(startDate)+' – '+fmtDate(endDate)+')' : ''}</td></tr>
   <tr><td>Start Date</td><td>${fmtDate(startDate)}</td></tr>
   <tr><td>Work Mode</td><td>${esc(workMode)}</td></tr>
@@ -752,20 +775,14 @@ export function internshipOfferTemplate(data) {
 
 <div class="section-title">Role &amp; Responsibilities</div>
 <ul class="bullet-list">
-  <li>Collaborating with the Chief Developer to design, build, and iterate on features for the ${esc(product)} SaaS platform.</li>
-  <li>Writing clean, efficient, and well-documented front-end and back-end code.</li>
-  <li>Integrating AI/ML capabilities into the platform in alignment with product requirements.</li>
-  <li>Participating in technical design discussions, code reviews, and sprint planning.</li>
-  <li>Conducting research and prototyping new AI-driven features as directed.</li>
-  <li>Testing, debugging, and optimizing code for production readiness.</li>
-  <li>Communicating progress, blockers, and ideas proactively to your mentor.</li>
+  ${respHTML}
 </ul>
 
 <div class="section-title">Standard Terms &amp; Conditions</div>
 <ul class="bullet-list">
-  <li><strong>Intellectual Property:</strong> All software, code, algorithms, designs, documents, and inventions developed during the internship belong exclusively to ${B.legal}</li>
+  <li><strong>Intellectual Property:</strong> All software, code, algorithms, designs, documents, and inventions developed during the internship belong exclusively to ${B.legalDot}</li>
   <li><strong>Non-Disclosure (NDA):</strong> You shall maintain strict confidentiality regarding all proprietary information, source code, designs, and company communications.</li>
-  <li><strong>Termination:</strong> Either party may terminate the association with 15 days written notice. ${B.legal} reserves the right to terminate immediately for cause.</li>
+  <li><strong>Termination:</strong> Either party may terminate the association by giving written notice of ${esc(noticePeriod)}. ${B.legal} reserves the right to terminate immediately for cause.</li>
 </ul>
 
 <p class="para">Please confirm your acceptance of this offer by signing below and returning a scanned copy to: <strong>${B.email}</strong></p>
@@ -788,26 +805,27 @@ ${signatureBlockHTML()}
   
   <ol class="terms-list" style="padding-left: 18px; margin: 0 0 24px; font-size: 9px; color: #334155; line-height: 1.6; display: flex; flex-direction: column; gap: 6px; list-style-type: decimal;">
     <li>The roles, responsibilities, and duties appropriate to your designation will be specified by the Company from time to time and may be modified at its sole discretion. You may also be required to provide services to the Company's affiliates, contractors, and clients as necessary.</li>
-    <li>The duration of the internship is 2 (two) months with 4–5 working hours each day, commencing ${startDate ? fmtDate(startDate) : '13 May 2026'} and concluding ${endDate ? fmtDate(endDate) : '12 July 2026'}. You are required to devote your time and efforts solely to ${B.legal} work during this period. Please inform your mentor in advance of any upcoming commitments so that work can be planned accordingly.</li>
-    <li>You will work remotely for the entire duration. Regular catch-up calls will be scheduled with the Chief Developer to review progress and overall internship experience.</li>
-    <li>You will be on probation for the first 15 days. Confirmation of continued internship will be based on your mentor's assessment of your performance.</li>
-    <li>All work produced during or in relation to ${B.legal} shall be the exclusive intellectual property of ${B.legal} You are prohibited from storing, copying, selling, sharing, or distributing any such work to third parties. You shall refrain from discussing your work publicly — online (blogs, social media) or offline — without prior written approval from your mentor.</li>
+    <li>The duration of the internship is ${esc(duration)}${workHours ? ` with ${esc(workHours)}` : ''}, ${(startDate && endDate) ? `commencing ${fmtDate(startDate)} and concluding ${fmtDate(endDate)}` : startDate ? `commencing ${fmtDate(startDate)}` : 'commencing on the start date confirmed by the Company'}. You are required to devote your time and efforts solely to ${B.legal} work during this period. Please inform your mentor in advance of any upcoming commitments so that work can be planned accordingly.</li>
+    <li>Your work mode is: ${esc(workMode)}. Regular catch-up calls will be scheduled with ${reportingTo ? esc(reportingTo) : 'your mentor'} to review progress and your overall internship experience.</li>
+    <li>You will be on probation for the first ${esc(probation)}. Confirmation of continued internship will be based on your mentor's assessment of your performance.</li>
+    <li>All work produced during or in relation to ${B.legal} — including software, code, designs, documents, inventions, and any other materials, whether created alone or with others, during or outside working hours — shall be the exclusive intellectual property of ${B.legalDot} You hereby assign all such rights to the Company and waive any moral rights thereto. You are prohibited from storing, copying, selling, sharing, or distributing any such work to third parties, and from discussing your work publicly — online (blogs, social media) or offline — without prior written approval from your mentor.</li>
     <li>Data privacy and security are paramount. All student, customer, client, and company data accessed during your internship must be kept strictly confidential. ${B.legal} operates on a zero-tolerance policy toward any breach of data security. Upon completion of your internship, all Company data stored on your devices must be handed over to your mentor and permanently deleted from your systems.</li>
-    <li>During the internship, you shall not directly or indirectly engage with any other organization (other than your college) in any capacity. Breach of this condition may result in immediate termination and liability for liquidated damages as estimated by the Company.</li>
-    <li>Either party may terminate this internship with 30 days' written notice without assigning any reason. The Company reserves the right to terminate immediately in cases of indiscipline, misconduct, data breach, or any violation of these terms.</li>
+    <li>During the internship, you shall not directly or indirectly engage with any other organization (other than your college) in any capacity that conflicts with your commitments to the Company. Breach of this condition may result in immediate termination, and the Company may pursue any remedies available to it under applicable law.</li>
+    <li>Either party may terminate this internship by giving written notice of ${esc(noticePeriod)}, without assigning any reason. The Company reserves the right to terminate immediately in cases of indiscipline, misconduct, data breach, or any violation of these terms.</li>
     <li>You are expected to conduct yourself with utmost professionalism in all interactions with your mentor, colleagues, clients, and customers.</li>
     <li>You shall receive continuous objective feedback from your mentor and are encouraged to seek and provide feedback at every opportunity. Constructive feedback is central to the ${B.short} culture.</li>
-    <li>This is an unpaid internship.</li>
+    <li>${/^\s*$|unpaid|^\s*(nil|none|no)\b/i.test(stipend) ? 'This is an unpaid internship.' : `You will receive a stipend of ${esc(stipend)}, subject to applicable tax and statutory deductions.`}</li>
     <li>A Certificate of Internship Completion will be issued upon successful completion of the internship period.</li>
     <li>Subject to your overall performance and at the management's discretion, you may receive a Letter of Recommendation.</li>
     <li>A Pre-Placement Offer (PPO) may be extended based on outstanding performance and management's discretion.</li>
-    <li>${B.legal} reserves the right to amend any policy or term at any time. Such changes will be communicated and shall be binding upon you.</li>
+    <li>${B.legal} may update its policies from time to time. Any material change to these terms will be communicated to you in writing.</li>
     <li>The tenure of the internship may be extended or reduced upon mutual consent of both the intern and ${B.legal} management.</li>
     <li>You shall at all times abide by ${B.legal}'s policies and code of conduct throughout your internship.</li>
     <li>You acknowledge that this offer is based on information provided by you. If any discrepancy is discovered, ${B.legal} reserves the right to terminate the internship immediately.</li>
     <li>You shall maintain strict confidentiality regarding all entities related to ${B.legal} during and after your internship. Upon termination or expiry, you shall update all professional and social profiles to reflect that you are no longer associated with the Company.</li>
-    <li>All intellectual property, work product, inventions, designs, software, documentation, or other materials created during or as a consequence of your internship — whether alone or with others, during or outside working hours — shall belong exclusively to ${B.legal} You hereby assign all such rights to the Company and waive any moral rights thereto.</li>
     <li>You agree not to violate or attempt to violate the intellectual property rights of any third party during your internship.</li>
+    <li>This internship is a learning engagement. It does not create an employer–employee relationship, and you are not entitled to employee benefits or any guarantee of future employment.</li>
+    <li>On completion or termination of the internship, you shall promptly return all Company property, accounts, credentials, and access that were provided to you.</li>
     <li>These Terms of Internship shall be governed by and construed in accordance with the Laws of India. This offer letter, together with Annexure A, constitutes the entire agreement between the parties and supersedes all prior discussions and representations.</li>
   </ol>
 
@@ -834,7 +852,7 @@ export function employmentOfferTemplate(data) {
   const {
     refNum='', date='', recipientName='', role='', department='',
     reportingTo='', joiningDate='', workMode='', ctc='',
-    probation='3 Months',
+    probation='3 Months', noticePeriod='60 days', noticeProbation='30 days',
     certId='',
   } = data;
 
@@ -845,7 +863,7 @@ export function employmentOfferTemplate(data) {
   <span class="subject-text">Employment Offer Letter — ${esc(role)}</span>
 </div>
 <p class="salutation">Dear ${esc(recipientName)},</p>
-<p class="para">We are pleased to offer you the position of <strong>${esc(role)}</strong> at <strong>${B.legal}</strong> Following our interview process, we are confident that your skills and experience will be a great addition to our team. We look forward to you joining us and contributing to our mission of <em>${B.tagline}</em>.</p>
+<p class="para">We are pleased to offer you the position of <strong>${esc(role)}</strong> at <strong>${B.legalDot}</strong> Following our interview process, we are confident that your skills and experience will be a great addition to our team. We look forward to you joining us and contributing to the journey of <strong>${B.name}</strong>.</p>
 
 <div class="section-title">Offer at a Glance</div>
 <table class="highlight-table">
@@ -860,10 +878,10 @@ export function employmentOfferTemplate(data) {
 
 <div class="section-title">Standard Terms &amp; Conditions</div>
 <ul class="bullet-list">
-  <li><strong>Probation:</strong> A probation period of ${esc(probation)} during which performance will be evaluated. Notice during probation is 30 days.</li>
-  <li><strong>Intellectual Property Assignment:</strong> All intellectual property, code, patents, and work products created during your employment belong exclusively to ${B.legal}</li>
-  <li><strong>Confidentiality &amp; NDA:</strong> Strict compliance with non-disclosure of proprietary software systems, client logs, and internal algorithms.</li>
-  <li><strong>Termination notice:</strong> Post-confirmation, the notice period required by either party shall be 60 days in writing.</li>
+  <li><strong>Probation:</strong> A probation period of ${esc(probation)} during which performance will be evaluated. Notice during probation is ${esc(noticeProbation)}.</li>
+  <li><strong>Intellectual Property Assignment:</strong> All intellectual property, code, patents, and work products created during your employment belong exclusively to ${B.legalDot}</li>
+  <li><strong>Confidentiality &amp; NDA:</strong> Strict compliance with non-disclosure of proprietary systems, client information, and internal processes.</li>
+  <li><strong>Termination notice:</strong> Post-confirmation, the notice period required by either party shall be ${esc(noticePeriod)} in writing.</li>
 </ul>
 
 <p class="para">Please confirm your acceptance of this offer by signing below and returning a copy to: <strong>${B.email}</strong></p>
@@ -888,24 +906,24 @@ ${signatureBlockHTML()}
     <li>The roles, responsibilities, and duties appropriate to your designation will be specified by the Company from time to time and may be modified at its sole discretion. You may also be required to provide services to the Company's affiliates, contractors, and clients as necessary.</li>
     <li>The duration of your employment is permanent and indefinite, commencing ${joiningDate ? fmtDate(joiningDate) : 'upon joining'}, subject to successful completion of the probation period. You are required to devote your full time, attention, and efforts solely to the business of ${B.legal} during this association.</li>
     <li>You may work remotely or from the office as specified in your offer details. Regular catch-up calls and status syncs will be scheduled to review progress and performance.</li>
-    <li>You will be on probation for a period of ${esc(probation) || '3 Months'}. Confirmation of employment is based on the management's assessment of your performance and conduct during probation.</li>
-    <li>All software, designs, algorithms, code, documentation, and work product produced during or in relation to ${B.legal} shall be the exclusive intellectual property of ${B.legal} You are prohibited from storing, copying, selling, sharing, or distributing any such work to third parties.</li>
+    <li>You will be on probation for a period of ${esc(probation)}. Confirmation of employment is based on the management's assessment of your performance and conduct during probation.</li>
+    <li>All work produced during or in relation to ${B.legal} — including software, code, designs, algorithms, documentation, inventions, and any other materials, whether created alone or with others, during or outside working hours — shall be the exclusive intellectual property of ${B.legalDot} You hereby assign all such rights to the Company. You are prohibited from storing, copying, selling, sharing, or distributing any such work to third parties.</li>
     <li>Data privacy and security are paramount. All customer, client, user, and company data accessed during your employment must be kept strictly confidential. ${B.legal} operates on a zero-tolerance policy toward any breach of data security.</li>
     <li>During your employment, you shall not directly or indirectly engage with any other organization or business in any capacity (including freelance, advisory, or part-time work) without prior written permission from the Company.</li>
-    <li>Post-confirmation, either party may terminate employment with 60 days' written notice (or 30 days during probation) without assigning any reason. The Company reserves the right to terminate immediately for cause, misconduct, or data breach.</li>
+    <li>Post-confirmation, either party may terminate employment by giving written notice of ${esc(noticePeriod)} (or ${esc(noticeProbation)} during probation), without assigning any reason. The Company reserves the right to terminate immediately for cause, misconduct, or data breach.</li>
     <li>You are expected to conduct yourself with utmost professionalism in all interactions with colleagues, mentors, clients, and customers.</li>
     <li>You shall receive continuous feedback from your reporting manager and are encouraged to seek and provide constructive feedback to foster a transparent growth environment.</li>
     <li>You shall receive compensation (CTC) as specified in your offer letter, subject to standard tax and statutory deductions in accordance with local regulations.</li>
     <li>Your performance and package will be reviewed annually in accordance with Company policies and discretionary management reviews.</li>
     <li>Leave allocation, holidays, working hours, and standard employee benefits shall be governed by the ${B.legal} Employee Handbook.</li>
     <li>The Company may provide performance bonuses or incentives based on company discretion and outstanding individual contributions.</li>
-    <li>${B.legal} reserves the right to amend any policy or term at any time. Such changes will be communicated and shall be binding upon you.</li>
+    <li>${B.legal} may update its policies from time to time. Any material change to these terms will be communicated to you in writing.</li>
     <li>Any modification or amendment to your roles, package, designation, or terms must be in writing and signed by both parties.</li>
     <li>You shall at all times abide by ${B.legal}'s policies and code of conduct throughout your employment.</li>
     <li>You acknowledge that this offer is based on information provided by you. If any discrepancy is discovered, ${B.legal} reserves the right to terminate the employment immediately.</li>
     <li>You shall maintain strict confidentiality regarding all entities related to ${B.legal} during and after your employment. Upon termination, you shall update all professional and social profiles to reflect that you are no longer associated with the Company.</li>
-    <li>All intellectual property, work product, inventions, designs, software, documentation, or other materials created during or as a consequence of your employment — whether alone or with others, during or outside working hours — shall belong exclusively to ${B.legal} You hereby assign all such rights to the Company.</li>
     <li>You agree not to violate or attempt to violate the intellectual property rights of any third party during your employment.</li>
+    <li>On separation, you shall promptly return all Company property, accounts, credentials, and access that were provided to you, and complete a proper handover of your work.</li>
     <li>These Terms of Employment shall be governed by and construed in accordance with the Laws of India. This offer letter, together with Annexure A, constitutes the entire agreement between the parties.</li>
   </ol>
 
@@ -947,12 +965,12 @@ export function experienceLetterTemplate(data) {
   <span class="subject-text">Experience / Service Certificate — ${name}</span>
 </div>
 <p class="salutation">To Whomsoever It May Concern,</p>
-<p class="para">This is to certify that <strong>${name}</strong> has been associated with <strong>${B.legal}</strong> as a <strong>${esc(role)}</strong> since <strong>${fmtDate(startDate)}</strong> and continues to be associated with the organisation in the same capacity as on the date of this letter, <strong>${fmtDate(date)}</strong>. Throughout their tenure of service, they have demonstrated high diligence, technical competency, and professional responsibility.</p>
+<p class="para">This is to certify that <strong>${name}</strong> has been associated with <strong>${B.legal}</strong> as a <strong>${esc(role)}</strong> since <strong>${fmtDate(startDate)}</strong> and continues to be associated with the organisation in the same capacity as on the date of this letter, <strong>${fmtDate(date)}</strong>. Throughout their tenure of service, they have demonstrated high diligence, competence, and professional responsibility.</p>
 
-<p class="para">During their association with ${B.legal}, ${name} has made valuable contributions to our engineering and product teams. They are actively involved in code deployment, design optimization, and full-stack development. Their dedication to maintaining clean architecture, resolving complex defects, and collaborating across teams is exemplary.</p>
+<p class="para">During their association with ${B.legal}, ${name} has made valuable contributions to the organisation and carried out the responsibilities of their role with diligence and a strong sense of ownership. Their dedication, willingness to learn, and ability to collaborate across teams is exemplary.</p>
 
 ${responsibilities ? `<p class="para"><strong>Core Responsibilities &amp; Areas of Focus:</strong> ${esc(responsibilities)}</p>` : `
-<p class="para">As a part of their core responsibilities, ${name} works on refining application logic, integrating robust API endpoints, and enhancing UI components, ensuring that all development follows best practices, security protocols, and rigorous quality assurance guidelines.</p>
+
 `}
 
 <p class="para">During their service with ${B.legal} to date, <strong>${name}</strong> has demonstrated <strong>${esc(conduct)}</strong> conduct, maintained a high level of integrity, and exhibited positive interpersonal relationships with peers and management.</p>
@@ -971,12 +989,12 @@ ${signatureBlockHTML()}`;
   <span class="subject-text">Experience / Service Certificate — ${esc(recipientName)}</span>
 </div>
 <p class="salutation">To Whomsoever It May Concern,</p>
-<p class="para">This is to certify that <strong>${esc(recipientName)}</strong> was associated with <strong>${B.legal}</strong> as a <strong>${esc(role)}</strong>${(startDate && endDate) ? ` from <strong>${fmtDate(startDate)}</strong> to <strong>${fmtDate(endDate)}</strong>` : ''}. Throughout their tenure of service, they demonstrated high diligence, technical competency, and professional responsibility.</p>
+<p class="para">This is to certify that <strong>${esc(recipientName)}</strong> was associated with <strong>${B.legal}</strong> as a <strong>${esc(role)}</strong>${(startDate && endDate) ? ` from <strong>${fmtDate(startDate)}</strong> to <strong>${fmtDate(endDate)}</strong>` : ''}. Throughout their tenure of service, they demonstrated high diligence, competence, and professional responsibility.</p>
 
-<p class="para">During their association with ${B.legal}, ${esc(recipientName)} made valuable contributions to our engineering and product teams. They were actively involved in code deployment, design optimization, and full-stack development. Their dedication to maintaining clean architecture, resolving complex defects, and collaborating across teams was exemplary.</p>
+<p class="para">During their association with ${B.legal}, ${esc(recipientName)} made valuable contributions to the organisation and carried out the responsibilities of their role with diligence and a strong sense of ownership. Their dedication, willingness to learn, and ability to collaborate across teams was exemplary.</p>
 
 ${responsibilities ? `<p class="para"><strong>Core Responsibilities &amp; Areas of Focus:</strong> ${esc(responsibilities)}</p>` : `
-<p class="para">As a part of their core responsibilities, ${esc(recipientName)} worked on refining application logic, integrating robust API endpoints, and enhancing UI components. They ensured that all development followed best practices, security protocols, and rigorous quality assurance guidelines.</p>
+
 `}
 
 <p class="para">During the tenure of their service with ${B.legal}, <strong>${esc(recipientName)}</strong> demonstrated <strong>${esc(conduct)}</strong> conduct, maintained a high level of integrity, and exhibited positive interpersonal relationships with peers and management. They completed all their designated handovers, documentation, and asset returns in accordance with company transition policies.</p>
@@ -1002,13 +1020,13 @@ export function relievingLetterTemplate(data) {
   <span class="subject-text">Relieving Letter — ${esc(recipientName)}</span>
 </div>
 <p class="salutation">Dear ${esc(recipientName)},</p>
-<p class="para">We acknowledge the receipt and acceptance of your resignation from the position of <strong>${esc(role)}</strong> at <strong>${B.legal}</strong> This letter serves as formal confirmation that you have been officially relieved from your employment and duties with the company, effective as of the close of business hours on <strong>${fmtDate(relievingDate)}</strong>.</p>
+<p class="para">We acknowledge the receipt and acceptance of your resignation from the position of <strong>${esc(role)}</strong> at <strong>${B.legalDot}</strong> This letter serves as formal confirmation that you have been officially relieved from your employment and duties with the company, effective as of the close of business hours on <strong>${fmtDate(relievingDate)}</strong>.</p>
 
 <p class="para">We confirm that all exit formalities, full and final settlement of accounts, transition of key duties, and handover reports have been completed to the satisfaction of the management. All company assets, including hardware, intellectual property access, database keys, and email accounts in your possession, have been returned and deactivated as per the company's security policy.</p>
 
 <p class="para">Please be reminded that your post-employment obligations, including confidentiality clauses, intellectual property rights covenants, and non-disclosure agreements signed during your onboarding, continue to remain in full force and effect. You are expected to respect and uphold these guidelines as you move forward.</p>
 
-<p class="para">We sincerely appreciate the efforts, dedication, and service you rendered during your tenure with ${B.legal} We wish you great success in all your future professional pursuits and personal endeavors.</p>
+<p class="para">We sincerely appreciate the efforts, dedication, and service you rendered during your tenure with ${B.legalDot} We wish you great success in all your future professional pursuits and personal endeavors.</p>
 
 <p class="para" style="margin-bottom:24px;">For any future verifications or reference checks, please refer to our registry database at <strong>verify.waveseed.app</strong> using your Verification ID, or contact our HR department directly at <strong>${B.email}</strong>.</p>
 
@@ -1029,7 +1047,7 @@ export function terminationLetterTemplate(data) {
   <span class="subject-text">Notice of Termination of Association</span>
 </div>
 <p class="salutation">Dear ${esc(recipientName)},</p>
-<p class="para">This letter serves as formal notification that your association with <strong>${B.legal}</strong> as a <strong>${esc(role)}</strong> is being terminated, with the effective date of release being <strong>${fmtDate(terminationDate)}</strong>. From this date onwards, you will no longer be authorized to represent or perform any duties on behalf of ${B.legal}</p>
+<p class="para">This letter serves as formal notification that your association with <strong>${B.legal}</strong> as a <strong>${esc(role)}</strong> is being terminated, with the effective date of release being <strong>${fmtDate(terminationDate)}</strong>. From this date onwards, you will no longer be authorized to represent or perform any duties on behalf of ${B.legalDot}</p>
 
 ${reason ? `<p class="para"><strong>Reason for Termination / Separation:</strong> ${esc(reason)}</p>` : `
 <p class="para">This decision has been reached after a thorough review of organizational alignment and operational requirements. We appreciate the efforts you put into your work during your time with us and wish you the best in finding opportunities that align with your skillset.</p>
@@ -1063,22 +1081,22 @@ export function lorTemplate(data) {
 
   const body = `
 <p class="salutation" style="margin-bottom:16px;">To Whomsoever It May Concern,</p>
-<p class="para">It is with great pleasure and without reservation that I write this Letter of Recommendation for <strong>${esc(recipientName)}</strong>, ${isOngoing(data) ? `who has been serving as a <strong>${esc(role)}</strong> at <strong>${B.legal}</strong> since <strong>${fmtDate(startDate)}</strong>` : `who served as a <strong>${esc(role)}</strong> at <strong>${B.legal}</strong>${(startDate && endDate) ? ` during the period from <strong>${fmtDate(startDate)}</strong> to <strong>${fmtDate(endDate)}</strong>` : ''}`}. Throughout their tenure with us, they have consistently demonstrated an outstanding work ethic, technical proficiency, and a proactive attitude toward solving complex software challenges.</p>
+<p class="para">It is with great pleasure and without reservation that I write this Letter of Recommendation for <strong>${esc(recipientName)}</strong>, ${isOngoing(data) ? `who has been serving as a <strong>${esc(role)}</strong> at <strong>${B.legal}</strong> since <strong>${fmtDate(startDate)}</strong>` : `who served as a <strong>${esc(role)}</strong> at <strong>${B.legal}</strong>${(startDate && endDate) ? ` during the period from <strong>${fmtDate(startDate)}</strong> to <strong>${fmtDate(endDate)}</strong>` : ''}`}. Throughout their tenure with us, they have consistently demonstrated an outstanding work ethic, strong professionalism, and a proactive attitude toward solving problems.</p>
 
-<p class="para">During their association with ${B.legal}, ${esc(recipientName)} was primarily involved in the design, development, and scaling of our core SaaS applications. They demonstrated high capability in working with modern web technologies, AI integrations, and responsive user interfaces. They did not just write code; they actively participated in sprint planning, architectural design discussions, and code reviews, showing a level of mature thinking and engineering discipline that is rare in a professional cohort.</p>
+<p class="para">During their association with ${B.legal}, ${esc(recipientName)} contributed actively to the work of their team in the role of ${esc(role)}. They approached their responsibilities with ownership, took initiative, and consistently delivered work to a high standard, while collaborating well with colleagues and mentors.</p>
 
-${strengths ? `<p class="para"><strong>Key Strengths &amp; Technical Capabilities:</strong> ${esc(strengths)}</p>` : `
-<p class="para">In terms of technical strengths, ${esc(recipientName)} exhibits exceptional analytical and problem-solving skills. They possess a deep understanding of data structures, algorithms, and modular design. They are quick to grasp complex system architectures and are highly self-driven when it comes to researching, prototyping, and implementing state-of-the-art AI-driven modules.</p>
+${strengths ? `<p class="para"><strong>Key Strengths &amp; Capabilities:</strong> ${esc(strengths)}</p>` : `
+<p class="para">In terms of strengths, ${esc(recipientName)} shows strong analytical and problem-solving skills, learns quickly, and is self-driven when it comes to researching, planning, and carrying tasks through to completion.</p>
 `}
 
 ${achievements ? `<p class="para"><strong>Notable Contributions &amp; Achievements:</strong> ${esc(achievements)}</p>` : `
-<p class="para">Among their notable contributions, ${esc(recipientName)} successfully developed and optimized critical features for our software suite. Their code was consistently well-documented, clean, and highly performant, resulting in smoother user experiences and improved server response times. Their dedication to quality engineering has been a valuable asset to our development cycle.</p>
+<p class="para">Among their contributions, ${esc(recipientName)} completed their assigned responsibilities reliably and with attention to quality, which supported smooth delivery for the team and reflected well on the organisation.</p>
 `}
 
 ${recommendation ? `<p class="para">${esc(recommendation)}</p>` : `
-<p class="para">Beyond their technical expertise, ${esc(recipientName)} is an excellent communicator and a reliable team player. They collaborate seamlessly with cross-functional team members, receive feedback constructively, and support peers. Their enthusiasm, professional maturity, and dedication make them stand out as a promising tech talent.</p>
+<p class="para">Beyond their professional skills, ${esc(recipientName)} is an excellent communicator and a reliable team player. They collaborate seamlessly with cross-functional team members, receive feedback constructively, and support peers. Their enthusiasm, professional maturity, and dedication make them stand out as a promising professional.</p>
 
-<p class="para">I highly recommend <strong>${esc(recipientName)}</strong> for any technical role, academic endeavor, or research project that requires intellectual curiosity, rigorous problem-solving, and dedication. I am confident they will bring the same excellence, energy, and value to your organization as they ${isOngoing(data) ? 'do' : 'did'} to ours. We wish them the absolute best in all their future professional pursuits.</p>
+<p class="para">I highly recommend <strong>${esc(recipientName)}</strong> for any role, academic endeavour, or project that requires intellectual curiosity, sound judgement, and dedication. I am confident they will bring the same excellence, energy, and value to your organization as they ${isOngoing(data) ? 'do' : 'did'} to ours. We wish them the absolute best in all their future professional pursuits.</p>
 `}
 
 <p class="para" style="margin-bottom:24px;">Please feel free to contact me at <strong>${B.email}</strong> if you require any additional information or verification regarding their tenure and contributions.</p>
@@ -1104,7 +1122,7 @@ export function nocTemplate(data) {
   ? `has been associated with <strong>${B.legal}</strong> as a <strong>${esc(role)}</strong> since <strong>${fmtDate(startDate)}</strong> and continues to be associated with the company as on <strong>${fmtDate(date)}</strong>`
   : `is${(startDate && endDate) ? `/was` : ''} associated with <strong>${B.legal}</strong> as a <strong>${esc(role)}</strong>${(startDate && endDate) ? ` during the period from <strong>${fmtDate(startDate)}</strong> to <strong>${fmtDate(endDate)}</strong>` : ''}`}. Throughout their tenure with the company, they have maintained a clean record of service and adhered to all corporate codes of conduct.</p>
 
-<p class="para">During their association, ${esc(recipientName)} has been an integral part of our software engineering workflows. They have consistently demonstrated professional discipline, integrity, and dedication in executing their responsibilities. All their projects and handovers have been documented and handled with high standard compliance.</p>
+<p class="para">During their association, ${esc(recipientName)} has been an integral part of our team. They have consistently demonstrated professional discipline, integrity, and dedication in executing their responsibilities. All their projects and handovers have been documented and handled with high standard compliance.</p>
 
 ${purpose ? `<p class="para">This No Objection Certificate is issued specifically to assist them in: <strong>${esc(purpose)}</strong>.</p>` : `
 <p class="para">This No Objection Certificate is being issued upon their request to facilitate their application for higher studies, external employment opportunities, passport/visa documentation, or other formal verification procedures.</p>
@@ -1229,7 +1247,7 @@ export function salaryRevisionTemplate(data) {
 <p class="salutation">Dear ${esc(recipientName)},</p>
 <p class="para">We are pleased to formally inform you that, in recognition of your outstanding performance, consistent dedication, and significant contributions to <strong>${B.legal}</strong> during the recent appraisal review, your annual compensation structure has been revised, effective from <strong>${fmtDate(effectiveDate)}</strong>.</p>
 
-<p class="para">The details of your revised compensation structure and designation parameters are detailed below. This adjustment reflects our appreciation of your technical growth and our confidence in your ongoing contributions to the development of the company's SaaS solutions.</p>
+<p class="para">The details of your revised compensation structure and designation parameters are detailed below. This adjustment reflects our appreciation of your professional growth and our confidence in your ongoing contributions to the company.</p>
 
 <div class="section-title">Revised Compensation Structure</div>
 <table class="highlight-table">
@@ -1390,7 +1408,7 @@ export function salarySlipTemplate(data) {
 </div>
 <p class="ps-words"><strong>In words:</strong> ${rupeesInWords(net)}</p>
 ${signatureBlockHTML()}
-<p class="ps-note">This is a computer-generated ${isStipend ? 'stipend' : 'salary'} slip issued by ${B.legal} Its authenticity can be verified at verify.waveseed.app using the Verification ID ${esc(certId)}. The contents of this document are confidential.</p>`;
+<p class="ps-note">This is a computer-generated ${isStipend ? 'stipend' : 'salary'} slip issued by ${B.legalDot} Its authenticity can be verified at verify.waveseed.app using the Verification ID ${esc(certId)}. The contents of this document are confidential.</p>`;
 
   return letterWrapper({ title: `${isStipend ? 'Stipend' : 'Salary'} Slip ${fmtMonth(payMonth)} — ${recipientName}`, refNum, date, body, verificationId: certId, docType: 'salary-slip' });
 }

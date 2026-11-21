@@ -48,13 +48,13 @@ const DOC_TYPES = [
     id:'internship-offer', cat:'letter', icon:'📝',
     name:'Internship Offer Letter', color:'#0d1b3e',
     desc:'Official offer letter for interns — with role, duration, stipend & T&C.',
-    fields:['certId','refNum','date','recipientName','recipientCollege','recipientDept','recipientEmail','role','product','reportingTo','startDate','endDate','duration','workHours','workMode','stipend'],
+    fields:['certId','refNum','date','recipientName','recipientCollege','recipientDept','recipientEmail','role','product','reportingTo','startDate','endDate','duration','workHours','workMode','stipend','noticePeriod','responsibilities'],
   },
   {
     id:'employment-offer', cat:'letter', icon:'📋',
     name:'Employment Offer Letter', color:'#1e3264',
     desc:'Full-time employment offer with designation, CTC, and probation terms.',
-    fields:['certId','refNum','date','recipientName','role','department','reportingTo','joiningDate','workMode','ctc','probation'],
+    fields:['certId','refNum','date','recipientName','role','department','reportingTo','joiningDate','workMode','ctc','probation','noticePeriod','noticeProbation'],
   },
   {
     id:'experience-letter', cat:'letter', icon:'📄',
@@ -148,6 +148,8 @@ const FIELD_DEF = {
   joiningDate:     { label:'Date of Joining',       type:'date' },
   ctc:             { label:'CTC / Compensation',    ph:'e.g. ₹4 LPA or ₹25,000/month' },
   probation:       { label:'Probation Period',      ph:'3 Months',                def:'3 Months' },
+  noticePeriod:    { label:'Notice Period',         ph:'e.g. 15 days (intern) / 60 days (employee)', def:'' },
+  noticeProbation: { label:'Notice During Probation', ph:'30 days',               def:'30 days' },
   responsibilities:{ label:'Key Responsibilities',  type:'textarea', ph:'Describe primary responsibilities during tenure' },
   conduct:         { label:'Conduct & Performance', ph:'satisfactory',            def:'satisfactory' },
   relievingDate:   { label:'Relieving Date',        type:'date', req:true },
@@ -211,6 +213,8 @@ const makeRef = (kind, seq) => bizCode() === 'WS'
   ? `WS/${kind}/${new Date().getFullYear()}/AI-FS/${seq}`
   : `${bizCode()}/${kind}/${new Date().getFullYear()}/${seq}`;
 const defaultBizCode = () => (businessesList.find(b => !b.parentId) || {}).code || 'WS';
+// Defaults that name WaveSeed people/roles only make sense for WaveSeed itself
+const fieldDefault = (fid, def) => (fid === 'reportingTo' && bizCode() !== 'WS') ? '' : (def.def || '');
 
 export async function initGeneratePage(mainEl, token) {
   adminToken = token;
@@ -388,6 +392,8 @@ window.wsOpenGenForm = async function(typeId) {
 
   document.getElementById('gen-business')?.addEventListener('change', async (ev) => {
     currentBizCode = ev.target.value;
+    const rt = document.getElementById('f-reportingTo');
+    if (rt && bizCode() !== 'WS' && rt.value === (FIELD_DEF.reportingTo.def || '')) rt.value = '';
     const prodSel = document.getElementById('f-product');
     if (prodSel) {
       const keep = prodSel.value;
@@ -813,7 +819,7 @@ function buildFormFields(docType) {
     return `
 <div class="form-group${full}">
   <label class="form-label">${def.label} ${req}</label>
-  <input id="${inputId}" class="form-input" type="${def.type || 'text'}" placeholder="${def.ph || ''}" value="${def.def || ''}"/>
+  <input id="${inputId}" class="form-input" type="${def.type || 'text'}" placeholder="${def.ph || ''}" value="${fieldDefault(fid, def)}"/>
 </div>`;
   }).join('');
 }

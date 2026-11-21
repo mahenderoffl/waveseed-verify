@@ -13,6 +13,29 @@
     # Network calls only to our own site and the Convex backend (limits data exfiltration)
     Content-Security-Policy = "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; connect-src 'self' https://*.convex.site https://*.convex.cloud"
 
+# Correct type for the web app manifest
+[[headers]]
+  for = "/site.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"
+
+# Built JS/CSS are content-hashed: cache them for a year
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Icons and share image change rarely
+[[headers]]
+  for = "/*.png"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/*.svg"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

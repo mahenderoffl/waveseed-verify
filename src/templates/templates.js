@@ -54,6 +54,7 @@ function buildBrand(snap) {
     color,
     colorLight: color === D.color ? '#1e3264' : lighten(color),   // default keeps the original navy gradient
     logo: (s && okImg(s.logo)) || D.logo,
+    logoHasName: !(s && okImg(s.logo)),   // the bundled WaveSeed logo already carries the wordmark
     seal: (s && okImg(s.seal)) || D.seal,
     sigName: e(sigName),
     sigTitle: e((s && s.sigTitle) || D.sigTitle),
@@ -339,8 +340,10 @@ export function certificateTemplate(data) {
   .watermark{ position:absolute; top:50%; left:50%; transform:translate(-50%,-48%); width:430px; height:430px; background:url("${B.logo}") center/contain no-repeat; opacity:.035; pointer-events:none; }
 
   .content{ position:absolute; left:64px; right:64px; top:70px; bottom:70px; display:flex; flex-direction:column; align-items:center; text-align:center; }
-  .head{ display:flex; flex-direction:column; align-items:center; }
-  .head img{ height:84px; object-fit:contain; margin:-10px 0 -8px; }
+  .head{ display:flex; flex-direction:row; justify-content:space-between; align-items:center; width:100%; }
+  .head img{ height:132px; max-width:300px; object-fit:contain; margin:-24px 0 -22px -12px; }
+  .head .hr{ text-align:right; max-width:340px; }
+  .head .org{ font:700 13px 'Cormorant Garamond',serif; letter-spacing:3px; text-transform:uppercase; color:${NAVY}; margin-bottom:4px; }
   .head .tag{ font-size:8px; font-weight:600; letter-spacing:2.6px; text-transform:uppercase; color:#8a8f9c; }
   .head .vent{ font-size:9px; font-weight:700; letter-spacing:2.2px; text-transform:uppercase; color:#8A6A1C; margin-top:6px; }
   .head .vent span{ color:#8a8f9c; font-weight:600; }
@@ -406,8 +409,11 @@ export function certificateTemplate(data) {
   <div class="content">
     <div class="head">
       <img src="${B.logo}" alt="${B.name} logo"/>
-      ${B.tagline ? `<div class="tag">${B.tagline}</div>` : ''}
-      ${B.venture ? `<div class="vent">${B.venture.name} <span>· A venture of ${B.legal}</span></div>` : ''}
+      <div class="hr">
+        ${B.logoHasName ? '' : `<div class="org">${B.legal}</div>`}
+        ${B.tagline ? `<div class="tag">${B.tagline}</div>` : ''}
+        ${B.venture ? `<div class="vent">${B.venture.name}<br/><span>A venture of ${B.legal}</span></div>` : ''}
+      </div>
     </div>
 
     <div class="title">
@@ -463,7 +469,8 @@ function letterheadHTML() {
   const contact = [
     B.address,
     B.phone && `Tel: ${B.phone}`,
-    [B.email, B.website].filter(Boolean).join(' &nbsp;·&nbsp; '),
+    B.email,
+    B.website,
     B.reg && `CIN: ${B.reg}`,
   ].filter(Boolean).join('<br/>');
   const v = B.venture;
@@ -471,7 +478,7 @@ function letterheadHTML() {
 <header class="lh">
   <div class="lh-brand">
     <img src="${B.logo}" alt="${B.name} logo"/>
-    <div><div class="lh-name">${B.name}</div>${B.tagline ? `<div class="lh-tag">${B.tagline}</div>` : ''}</div>
+    <div class="lh-text">${B.logoHasName ? '' : `<div class="lh-name">${B.name}</div>`}${B.tagline ? `<div class="lh-tag">${B.tagline}</div>` : ''}</div>
   </div>
   <div class="lh-contact">${contact}</div>
 </header>
@@ -522,7 +529,8 @@ function letterWrapper({ title, refNum='', date='', body='', confidential=true, 
   /* Letterhead (first page) */
   .lh{ display:flex; justify-content:space-between; align-items:flex-start; gap:24px; padding-bottom:10px; }
   .lh-brand{ display:flex; align-items:center; gap:12px; min-width:0; }
-  .lh-brand img{ height:46px; width:46px; object-fit:contain; flex:none; }
+  .lh-brand img{ height:84px; max-width:190px; object-fit:contain; flex:none; margin:-8px 0 -6px -6px; }
+  .lh-text{ border-left:1.5px solid #c9a227; padding-left:14px; }
   .lh-name{ font:700 18pt/1.1 'Playfair Display', Georgia, serif; color:var(--navy); letter-spacing:.2px; }
   .lh-tag{ margin-top:3px; font-size:7pt; letter-spacing:.14em; text-transform:uppercase; color:#8a6d12; font-weight:600; }
   .lh-contact{ text-align:right; font-size:7.8pt; line-height:1.6; color:var(--muted); }

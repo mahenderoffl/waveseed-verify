@@ -34,13 +34,15 @@ function csvCell(v) {
 // ─── Entry ─────────────────────────────────────────────────────────────────────
 export async function initReportsPage(mainEl, token) {
   mainEl.innerHTML = `
-<div class="admin-page-header">
+<div class="admin-topbar">
   <div>
     <div class="admin-page-title">📊 Reports</div>
     <div class="admin-page-subtitle">All businesses at a glance: people, certificates and document completeness.</div>
   </div>
 </div>
-<div id="reports-body"><div class="stat-card" style="padding:28px;text-align:center;"><div class="spinner" style="margin:0 auto 10px;"></div>Loading…</div></div>`;
+<div class="admin-content">
+<div id="reports-body"><div class="stat-card" style="padding:28px;text-align:center;"><div class="spinner" style="margin:0 auto 10px;"></div>Loading…</div></div>
+</div>`;
 
   try {
     const [businesses, employees, certs, summary] = await Promise.all([

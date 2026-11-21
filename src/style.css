@@ -889,6 +889,7 @@ a { text-decoration: none; color: inherit; }
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  min-width: 0;            /* let wide tables scroll inside their wrapper instead of widening the page */
 }
 .admin-topbar {
   background: var(--white);

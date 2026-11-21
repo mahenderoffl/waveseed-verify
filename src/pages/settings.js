@@ -55,18 +55,20 @@ const nameOfCode = code => businesses.find(b => b.code === code)?.displayName ||
 export async function initSettingsPage(mainEl, adminToken) {
   token = adminToken;
   mainEl.innerHTML = `
-<div class="admin-page-header">
+<div class="admin-topbar">
   <div>
     <div class="admin-page-title">⚙️ Settings — Businesses</div>
     <div class="admin-page-subtitle">Branding and signatory for WaveSeed and each venture. Ventures inherit anything they leave empty.</div>
   </div>
   <button class="btn-primary" id="btn-add-business" style="width:auto;padding:10px 18px;font-size:0.85rem;">+ Add Business</button>
 </div>
+<div class="admin-content">
 <div id="settings-body" style="display:grid;grid-template-columns:minmax(220px,280px) 1fr;gap:20px;align-items:start;">
   <div id="biz-tree" class="stat-card" style="padding:14px;">Loading…</div>
   <div id="biz-editor" class="stat-card" style="padding:20px;"></div>
 </div>
-<style>@media (max-width:820px){#settings-body{grid-template-columns:1fr !important;}}</style>`;
+<style>@media (max-width:820px){#settings-body{grid-template-columns:1fr !important;}}</style>
+</div>`;
 
   document.getElementById('btn-add-business').addEventListener('click', openAddModal);
   await reload();

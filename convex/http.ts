@@ -633,8 +633,26 @@ http.route({
   method: "GET",
   handler: httpAction(async (ctx, request) => {
     if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
-    const result = await ctx.runQuery(internal.certificates.getNextIds, {});
+    const businessCode = new URL(request.url).searchParams.get("business")?.trim() || undefined;
+    const result = await ctx.runQuery(internal.certificates.getNextIds, { businessCode });
     return json(result);
+  }),
+});
+
+// ─── Businesses (read-only for now; editing arrives with the Settings page) ───
+http.route({
+  path: "/admin/businesses",
+  method: "OPTIONS",
+  handler: httpAction(async () => preflight()),
+});
+
+http.route({
+  path: "/admin/businesses",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
+    const rows = await ctx.runQuery(internal.businesses.list, {});
+    return json({ businesses: rows.map((b) => ({ id: b._id, code: b.code, slug: b.slug, parentId: b.parentId ?? null, displayName: b.displayName, active: b.active })) });
   }),
 });
 

@@ -43,6 +43,7 @@ export default defineSchema({
     templateData: v.optional(v.string()), // JSON string — full set of fields used to generate the document
     signedUrl: v.optional(v.string()),    // URL to the uploaded signed document copy
     signedAt: v.optional(v.string()),     // Timestamp when the signed document was uploaded
+    businessId: v.optional(v.id("businesses")),   // issuing business (absent on legacy rows = WaveSeed)
     verificationCount: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -51,7 +52,34 @@ export default defineSchema({
     .index("by_reference_number", ["referenceNumber"])
     .index("by_holder_name", ["holderName"])
     .index("by_status", ["status"])
-    .index("by_type", ["certificateType"]),
+    .index("by_type", ["certificateType"])
+    .index("by_business", ["businessId"]),
+
+  // ── Businesses: parent company + ventures (tree via parentId) ──────────────
+  // Optional branding fields mean "inherit from parent".
+  businesses: defineTable({
+    code:        v.string(),                       // WS, WSG … unique; never change once IDs are issued
+    slug:        v.string(),                       // url-safe: "waveseed-growth"
+    parentId:    v.optional(v.id("businesses")),   // absent = top-level (parent company)
+    displayName: v.string(),
+    tagline:     v.optional(v.string()),
+    legalName:   v.optional(v.string()),
+    address:     v.optional(v.string()),
+    website:     v.optional(v.string()),
+    email:       v.optional(v.string()),
+    brandColor:  v.optional(v.string()),
+    logoStorageId:      v.optional(v.string()),
+    sealStorageId:      v.optional(v.string()),
+    signatureStorageId: v.optional(v.string()),
+    signatoryName:  v.optional(v.string()),
+    signatoryTitle: v.optional(v.string()),
+    active:      v.boolean(),
+    createdAt:   v.number(),
+    updatedAt:   v.number(),
+  })
+    .index("by_code", ["code"])
+    .index("by_slug", ["slug"])
+    .index("by_parent", ["parentId"]),
 
   employees: defineTable({
     name: v.string(),
@@ -67,12 +95,14 @@ export default defineSchema({
     employeeType: v.string(), // "intern" | "employee"
     status: v.string(),       // "active" | "former"
     meta: v.optional(v.string()), // JSON string with extended profile data
+    businessId: v.optional(v.id("businesses")),   // which business this person belongs to
     empCode: v.optional(v.string()), // WS-INT-2026-0001 / WS-EMP-2026-0001 (set at creation; absent on legacy profiles)
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_name", ["name"])
     .index("by_emp_code", ["empCode"])
+    .index("by_business", ["businessId"])
     .index("by_type", ["employeeType"])
     .index("by_status", ["status"]),
 

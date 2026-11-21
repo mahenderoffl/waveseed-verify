@@ -1,5 +1,6 @@
 import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+import { resolveBusiness, getBusinessByCode, PARENT_CODE } from "./businesses";
 
 // ─── Public Lookups (called from HTTP actions) ────────────────────────────────
 
@@ -87,8 +88,11 @@ export const insertCertificate = internalMutation({
     notes: v.optional(v.string()),
     nameFont: v.optional(v.string()),
     templateData: v.optional(v.string()),  // JSON string of all original form fields
+    businessId: v.optional(v.id("businesses")),
   },
   handler: async (ctx, args) => {
+    const biz = await resolveBusiness(ctx, args.businessId);
+
     // Prevent duplicate certificate IDs
     const existing = await ctx.db
       .query("certificates")
@@ -100,6 +104,7 @@ export const insertCertificate = internalMutation({
 
     return await ctx.db.insert("certificates", {
       ...args,
+      businessId: biz?._id,
       status: "active",
       verificationCount: 0,
       createdAt: Date.now(),
@@ -225,33 +230,37 @@ export const seedSample = internalMutation({
 
 // ─── Next ID Auto-generation ──────────────────────────────────────────────────
 export const getNextIds = internalQuery({
-  args: {},
-  handler: async (ctx) => {
-    const certs = await ctx.db.query("certificates").collect();
+  args: { businessCode: v.optional(v.string()) },
+  handler: async (ctx, { businessCode }) => {
+    const code = (businessCode ?? PARENT_CODE).toUpperCase();
+    const biz = await getBusinessByCode(ctx, code);
+    const parent = await getBusinessByCode(ctx, PARENT_CODE);
+
+    // Only this business's certificates count toward its sequence.
+    // Legacy rows without a businessId belong to the parent company.
+    const certs = (await ctx.db.query("certificates").collect()).filter((c) => {
+      const owner = c.businessId ?? parent?._id;
+      return !biz || owner === biz._id;
+    });
+
     let maxSeq = 0;
-    
-    // Scan for highest suffix sequence across all certificates
     for (const c of certs) {
       const match = c.certificateId.match(/(?:CERT|EMP|COURSE|PART|REF|INT)-\d+-(\d+)/) || c.certificateId.match(/-\d+-(\d+)$/);
-      if (match) {
-        const seq = parseInt(match[1], 10);
-        if (seq > maxSeq) maxSeq = seq;
-      }
-      
+      if (match) maxSeq = Math.max(maxSeq, parseInt(match[1], 10));
       const refMatch = c.referenceNumber.match(/\/(\d+)$/);
-      if (refMatch) {
-        const seq = parseInt(refMatch[1], 10);
-        if (seq > maxSeq) maxSeq = seq;
-      }
+      if (refMatch) maxSeq = Math.max(maxSeq, parseInt(refMatch[1], 10));
     }
 
-    const nextSeq = maxSeq === 0 ? 43 : maxSeq + 1; // default start at 0043 if no records
-    const nextSeqStr = String(nextSeq).padStart(4, "0");
-    const nextSeqShort = String(nextSeq).padStart(3, "0");
+    // WaveSeed's legacy numbering starts at 0043; new businesses start at 0001.
+    const nextSeq = maxSeq === 0 ? (code === PARENT_CODE ? 43 : 1) : maxSeq + 1;
+    const year = new Date().getFullYear();
+    const long = String(nextSeq).padStart(4, "0");
+    const short = String(nextSeq).padStart(3, "0");
 
     return {
-      nextCertId: `WS-CERT-2026-${nextSeqStr}`,
-      nextRefNum: `WS/INT/2026/AI-FS/${nextSeqShort}`
+      businessCode: code,
+      nextCertId: `${code}-CERT-${year}-${long}`,
+      nextRefNum: code === PARENT_CODE ? `WS/INT/${year}/AI-FS/${short}` : `${code}/INT/${year}/${short}`,
     };
   },
 });
@@ -286,13 +295,16 @@ export const insertEmployee = internalMutation({
     reportingTo: v.optional(v.string()),
     employeeType: v.string(),
     meta: v.optional(v.string()),
+    businessId: v.optional(v.id("businesses")),
   },
   handler: async (ctx, args) => {
+    const biz = await resolveBusiness(ctx, args.businessId);
+    const bizCode = biz?.code ?? PARENT_CODE;
     // Sequential, collision-free ID: WS-INT-2026-0001 (interns) / WS-EMP-2026-0001 (employees).
     // Mutations are serialised by Convex, so read-increment-write on the counter is atomic.
     const kind = args.employeeType === "intern" ? "INT" : "EMP";
     const year = new Date().getFullYear();
-    const counterKey = `emp:${kind}:${year}`;
+    const counterKey = `emp:${bizCode}:${kind}:${year}`;
     const counter = await ctx.db.query("counters").withIndex("by_key", (q) => q.eq("key", counterKey)).first();
     let seq: number;
     if (counter) {
@@ -302,15 +314,58 @@ export const insertEmployee = internalMutation({
       seq = 1;
       await ctx.db.insert("counters", { key: counterKey, value: seq });
     }
-    const empCode = `WS-${kind}-${year}-${String(seq).padStart(4, "0")}`;
+    const empCode = `${bizCode}-${kind}-${year}-${String(seq).padStart(4, "0")}`;
 
     return await ctx.db.insert("employees", {
       ...args,
+      businessId: biz?._id,
       empCode,
       status: "active",
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
+  },
+});
+
+// One-off: give an ID to profiles created before IDs existed.
+// Oldest first, year taken from each profile's creation date, continuing any existing counter.
+// Run with { dryRun: true } first to preview.
+export const assignMissingCodes = internalMutation({
+  args: { dryRun: v.boolean() },
+  handler: async (ctx, { dryRun }) => {
+    const missing = (await ctx.db.query("employees").collect())
+      .filter((e) => !e.empCode)
+      .sort((a, b) => a.createdAt - b.createdAt);
+
+    const parent = await getBusinessByCode(ctx, PARENT_CODE);
+    const values = new Map<string, number>();
+    const result: { name: string; type: string; code: string }[] = [];
+
+    for (const e of missing) {
+      const kind = e.employeeType === "intern" ? "INT" : "EMP";
+      const year = new Date(e.createdAt).getFullYear();
+      const owner = e.businessId ? await ctx.db.get(e.businessId) : parent;
+      const bizCode = owner?.code ?? PARENT_CODE;
+      const key = `emp:${bizCode}:${kind}:${year}`;
+      if (!values.has(key)) {
+        const row = await ctx.db.query("counters").withIndex("by_key", (q) => q.eq("key", key)).first();
+        values.set(key, row?.value ?? 0);
+      }
+      const seq = values.get(key)! + 1;
+      values.set(key, seq);
+      const code = `${bizCode}-${kind}-${year}-${String(seq).padStart(4, "0")}`;
+      result.push({ name: e.name, type: e.employeeType, code });
+      if (!dryRun) await ctx.db.patch(e._id, { empCode: code });
+    }
+
+    if (!dryRun) {
+      for (const [key, value] of values) {
+        const row = await ctx.db.query("counters").withIndex("by_key", (q) => q.eq("key", key)).first();
+        if (row) await ctx.db.patch(row._id, { value });
+        else await ctx.db.insert("counters", { key, value });
+      }
+    }
+    return { dryRun, count: result.length, result };
   },
 });
 

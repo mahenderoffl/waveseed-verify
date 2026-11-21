@@ -472,26 +472,8 @@ window.wsIssueFromEmp = (id) => {
     return;
   }
 
-  // Closes the current modal if open
   document.getElementById('add-emp-modal')?.remove();
-
-  // Switches navigation to certificates view and triggers add cert modal
-  document.getElementById('nav-certs')?.click();
-
-  // Wait for cert screen to render
-  setTimeout(() => {
-    const addBtn = document.getElementById('btn-add');
-    if (addBtn) {
-      addBtn.click();
-      setTimeout(() => {
-        const select = document.getElementById('cert-emp-select');
-        if (select) {
-          select.value = id;
-          select.dispatchEvent(new Event('change'));
-        }
-      }, 100);
-    }
-  }, 100);
+  window.location.hash = `#admin/create?person=${encodeURIComponent(id)}`;   // new editor, pre-filled from this person
 };
 
 // ─── Documents Viewer ──────────────────────────────────────────────────────────

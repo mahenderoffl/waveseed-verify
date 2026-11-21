@@ -8,13 +8,14 @@ import { session, can, landingFor, ROLE_LABEL, data, load, invalidate, getScope,
 import { parse, go, href } from './router.js';
 import { renderLogin } from './login.js';
 import { openPalette } from './palette.js';
+import { docType } from '../utils/docTypes.js';
 
 const PAGES = {
   home:      () => import('./pages/home.js').then(m => m.default),
   people:    () => import('./pages/legacy.js').then(m => m.peoplePage),
   person:    () => import('./pages/person.js').then(m => m.default),
   documents: () => import('./pages/legacy.js').then(m => m.documentsPage),
-  create:    () => import('./pages/legacy.js').then(m => m.createPage),
+  create:    () => import('./pages/create.js').then(m => m.default),
   reports:   () => import('./pages/legacy.js').then(m => m.reportsPage),
   settings:  () => import('./pages/legacy.js').then(m => m.settingsPage),
 };
@@ -223,8 +224,13 @@ async function renderRoute() {
   if (!p[section]) { section = landingFor(session.role); go(section, '', { replace: true }); return; }
 
   const key = section === 'people' && id ? 'person' : section;
-  const view = app.querySelector('#view');
   if (unmountPage) { try { unmountPage(); } catch { /* ignore */ } unmountPage = null; }
+  // Every page gets a brand-new container. Pages attach click handlers to it; reusing the same
+  // element would leave the previous pages' handlers alive and fire them on later clicks
+  // (that once let a stale "Issue" handler save a document from a page already left).
+  const old = app.querySelector('#view');
+  const view = old.cloneNode(false);
+  old.replaceWith(view);
   view.className = 'content';
   view.innerHTML = '<div class="col" style="padding:8px 0">' + Array.from({ length: 3 }, () => '<div class="skeleton" style="height:84px"></div>').join('') + '</div>';
   renderChrome();
@@ -253,6 +259,8 @@ function renderCrumbs(section, id) {
   if (section === 'people' && id) {
     const emp = data.employees.find(e => e._id === id);
     el.innerHTML = `<div class="crumbs"><a href="${href('people')}">People</a>${icon('chevron-right', { size: 14 })}<b>${esc(emp ? emp.name : 'Profile')}</b></div>`;
+  } else if (section === 'create' && id && docType(id)) {
+    el.innerHTML = `<div class="crumbs"><a href="${href('create')}">Create</a>${icon('chevron-right', { size: 14 })}<b>${esc(docType(id).name)}</b></div>`;
   } else {
     el.innerHTML = `<div class="crumbs"><b>${esc(TITLES[section] || 'Admin')}</b></div>`;
   }

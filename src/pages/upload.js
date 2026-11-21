@@ -2,23 +2,7 @@
 import { publicDocGetUploadUrl, publicDocUploadBlob, publicDocConfirm } from '../api.js';
 import { compressFile, fmtKB } from '../utils/compress.js';
 
-// Document slots definition: intern vs employee shown by type
-const INTERN_DOCS = [
-  { type: 'govt_id',    label: 'Government Photo ID', hint: 'Aadhaar / Passport / Voter ID', required: true },
-  { type: 'college_id', label: 'College ID Card',     hint: 'Your institution student ID',   required: false },
-  { type: 'marksheet',  label: 'Latest Marksheet',    hint: 'Mark sheet / Transcript',        required: false },
-  { type: 'photo',      label: 'Passport-size Photo', hint: 'Clear face photo on white bg',  required: true },
-  { type: 'bank',       label: 'Bank Account Proof',  hint: 'Cancelled cheque / Passbook front', required: false },
-];
-
-const EMPLOYEE_DOCS = [
-  { type: 'govt_id',    label: 'Government Photo ID', hint: 'Aadhaar / Passport',            required: true },
-  { type: 'pan',        label: 'PAN Card',            hint: 'PAN card scan / photo',          required: true },
-  { type: 'degree',     label: 'Degree Certificate',  hint: 'Highest qualification',          required: false },
-  { type: 'photo',      label: 'Passport-size Photo', hint: 'Clear face photo on white bg',  required: true },
-  { type: 'bank',       label: 'Bank Account Proof',  hint: 'Cancelled cheque / Passbook front', required: false },
-  { type: 'experience', label: 'Experience Letter',   hint: 'From previous employer (if any)',required: false },
-];
+import { slotsFor, GROUPS } from './../utils/docCatalog.js';
 
 export function initUploadPage(app) {
   app.innerHTML = buildUploadHTML();
@@ -64,7 +48,7 @@ function buildUploadHTML() {
     <div id="upload-docs-section" style="display:none;">
       <div class="onboard-section-title" style="margin-top:24px;">📄 Upload Your Documents</div>
       <p style="font-size:0.85rem;color:var(--gray-500);margin-bottom:16px;">
-        Files are auto-compressed in your browser before upload. Accepted: JPG, PNG, WebP, PDF. Max 1.5 MB each.
+        Upload what you have — ID and photo are required; education certificates (10th, 12th, graduation / ITI / PG, dual degree) help HR complete your verification. Files are auto-compressed in your browser. Accepted: JPG, PNG, WebP, PDF. Max 1.5 MB each.
       </p>
       <div id="upl-slots"></div>
       <div style="margin-top:24px;text-align:center;">
@@ -105,7 +89,7 @@ function attachUploadEvents(app) {
       // Success — show upload slots
       document.getElementById('upload-auth-section').style.display = 'none';
       document.getElementById('upload-docs-section').style.display = '';
-      buildDocSlots(ref, dob, type === 'employee' ? EMPLOYEE_DOCS : INTERN_DOCS);
+      buildDocSlots(ref, dob, slotsFor(type));
     } catch (e) {
       errEl.textContent = e.message;
       btn.disabled = false;
@@ -116,7 +100,7 @@ function attachUploadEvents(app) {
 
 function buildDocSlots(ref, dob, slots) {
   const container = document.getElementById('upl-slots');
-  container.innerHTML = slots.map(s => `
+  const slotHTML = s => `
 <div class="doc-slot" id="slot-${s.type}" style="
   border:1px solid var(--gray-200,#e2e8f0);
   border-radius:10px;padding:16px 20px;margin-bottom:12px;
@@ -145,7 +129,19 @@ function buildDocSlots(ref, dob, slots) {
     <div id="slot-bar-label-${s.type}" style="font-size:0.78rem;color:var(--gray-500);margin-top:4px;"></div>
   </div>
   <div id="slot-err-${s.type}" style="font-size:0.82rem;color:var(--red);margin-top:6px;min-height:14px;"></div>
-</div>`).join('');
+</div>`;
+
+  const required = slots.filter(s => s.required).length;
+  container.innerHTML = `
+<div id="upl-progress" style="font-size:0.85rem;font-weight:600;color:var(--navy);margin-bottom:14px;">0 of ${required} required documents uploaded</div>` +
+    GROUPS.map(g => {
+      const items = slots.filter(s => s.group === g.id);
+      if (!items.length) return '';
+      return `<div style="font-size:0.8rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--gray-600);margin:20px 0 10px;">${g.title}</div>` + items.map(slotHTML).join('');
+    }).join('');
+
+  window._uplRequired = slots.filter(s => s.required).map(s => s.type);
+  window._uplDone = new Set();
 
   // Global upload handler
   window._handleDocFile = async (docType, ref, dob) => {
@@ -204,6 +200,9 @@ function buildDocSlots(ref, dob, slots) {
         const st = document.getElementById(`slot-status-${s.type}`);
         return st?.textContent?.startsWith('✅');
       });
+      const doneCount = allRequired.filter(s => document.getElementById(`slot-status-${s.type}`)?.textContent?.startsWith('✅')).length;
+      const prog = document.getElementById('upl-progress');
+      if (prog) prog.textContent = `${doneCount} of ${allRequired.length} required documents uploaded`;
       if (allDone) {
         document.getElementById('upl-global-ok').textContent = '🎉 All required documents uploaded! HR will verify them shortly.';
       }

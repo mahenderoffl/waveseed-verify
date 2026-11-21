@@ -1,9 +1,10 @@
 // ─── employees.js — Employees Management Workspace ────────────────────────────
 import {
   adminGetEmployees, adminAddEmployee, adminDeleteEmployee,
-  adminGetDocuments, adminDeleteDocument,
+  adminGetDocuments, adminDeleteDocument, adminVerifyDocument,
 } from '../api.js';
 import { productDropdownHTML, tableSkeletonHTML } from './shared.js';
+import { DOC_TYPES, GROUPS, slotsFor } from '../utils/docCatalog.js';
 
 
 let employeesList = [];
@@ -412,16 +413,6 @@ window.wsIssueFromEmp = (id) => {
 };
 
 // ─── Documents Viewer ──────────────────────────────────────────────────────────
-const DOC_LABELS = {
-  govt_id:    '🪪 Government ID',
-  college_id: '🎓 College ID Card',
-  marksheet:  '📄 Marksheet',
-  photo:      '🖼️ Passport Photo',
-  bank:       '🏦 Bank Proof',
-  pan:        '🪪 PAN Card',
-  degree:     '📜 Degree Certificate',
-  experience: '💼 Experience Letter',
-};
 
 window.wsViewEmpDocs = async (id) => {
   const emp = employeesList.find(e => e._id === id);
@@ -432,7 +423,7 @@ window.wsViewEmpDocs = async (id) => {
   overlay.className = 'modal-overlay';
   overlay.id = 'docs-modal';
   overlay.innerHTML = `
-<div class="modal-box" style="max-width:580px;">
+<div class="modal-box" style="max-width:640px;max-height:90vh;overflow:auto;">
   <div class="modal-header">
     <h2 class="modal-title">📁 Documents — ${esc(emp.name)}</h2>
     <button class="modal-close" onclick="document.getElementById('docs-modal').remove()">✕</button>
@@ -455,31 +446,42 @@ window.wsViewEmpDocs = async (id) => {
   try {
     const { documents } = await adminGetDocuments(token, id);
 
-    if (!documents.length) {
-      body.innerHTML = `
-<div style="text-align:center;padding:32px;color:var(--gray-400);">
-  <div style="font-size:2.5rem;margin-bottom:12px;">📭</div>
-  <p>No documents uploaded yet.</p>
-  <p style="font-size:0.82rem;margin-top:8px;">Ask the person to visit <strong>verify.waveseed.app/#upload</strong></p>
+    const slots = slotsFor(emp.employeeType);
+    const byType = Object.fromEntries(documents.map(d => [d.docType, d]));
+    const reqSlots = slots.filter(s => s.required);
+    const reqDone = reqSlots.filter(s => byType[s.type]).length;
+    const verifiedCount = documents.filter(d => d.verified).length;
+    // Uploads under types not in this person's list (e.g. older uploads)
+    const extra = documents.filter(d => !slots.some(s => s.type === d.docType));
+
+    const row = (label, d, required) => d ? `
+<div style="display:flex;align-items:center;justify-content:space-between;border:1px solid ${d.verified ? '#86efac' : 'var(--gray-200)'};border-radius:8px;padding:10px 14px;margin-bottom:6px;background:${d.verified ? '#f0fdf4' : '#fafafa'};gap:10px;flex-wrap:wrap;">
+  <div>
+    <div style="font-weight:600;color:var(--navy);font-size:0.88rem;">✅ ${esc(label)}${d.verified ? ' <span style="color:#16a34a;font-size:0.75rem;">· Verified</span>' : ''}</div>
+    <div style="font-size:0.76rem;color:var(--gray-500);margin-top:2px;">${esc(d.fileName)} · ${fmtBytes(d.sizeBytes)} · ${formatDateShort(new Date(d.uploadedAt).toISOString().slice(0,10))}</div>
+  </div>
+  <div style="display:flex;gap:6px;align-items:center;">
+    ${d.url ? `<a href="${esc(d.url)}" target="_blank" rel="noopener" class="btn-action view" style="text-decoration:none;">👁 View</a>` : ''}
+    <button class="btn-action" onclick="window._wsVerifyDoc('${d.id}',${!d.verified},'${id}')">${d.verified ? '↩ Unverify' : '✔ Verify'}</button>
+    <button class="btn-action delete" onclick="window._wsDeleteDoc('${d.id}','${id}')">🗑</button>
+  </div>
+</div>` : `
+<div style="display:flex;align-items:center;border:1px dashed var(--gray-200);border-radius:8px;padding:8px 14px;margin-bottom:6px;color:var(--gray-500);font-size:0.85rem;">
+  ${required ? '❌' : '⬜'} ${esc(label)} <span style="margin-left:6px;font-size:0.75rem;">${required ? '(required — missing)' : '(not uploaded)'}</span>
 </div>`;
-      return;
-    }
+
+    const groupTitle = t => `<div style="font-size:0.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--gray-600);margin:16px 0 8px;">${t}</div>`;
 
     body.innerHTML = `
-<div style="font-size:0.82rem;color:var(--gray-500);margin-bottom:14px;">
-  ${documents.length} document${documents.length !== 1 ? 's' : ''} uploaded. Click to preview or download.
+<div style="font-size:0.85rem;color:var(--gray-600);margin-bottom:6px;font-weight:600;">
+  Required: ${reqDone}/${reqSlots.length} · Uploaded: ${documents.length} · Verified: ${verifiedCount}
 </div>
-${documents.map(d => `
-<div style="display:flex;align-items:center;justify-content:space-between;border:1px solid var(--gray-200);border-radius:8px;padding:12px 14px;margin-bottom:8px;background:#fafafa;gap:10px;flex-wrap:wrap;">
-  <div>
-    <div style="font-weight:600;color:var(--navy);font-size:0.9rem;">${DOC_LABELS[d.docType] || d.docType}</div>
-    <div style="font-size:0.76rem;color:var(--gray-400);margin-top:2px;">${esc(d.fileName)} · ${fmtBytes(d.sizeBytes)} · ${formatDateShort(new Date(d.uploadedAt).toISOString().slice(0,10))}</div>
-  </div>
-  <div style="display:flex;gap:8px;align-items:center;">
-    ${d.url ? `<a href="${esc(d.url)}" target="_blank" class="btn-action view" style="text-decoration:none;">👁 View</a>` : ''}
-    <button class="btn-action delete" onclick="window._wsDeleteDoc('${d.id}','${id}')">🗑 Delete</button>
-  </div>
-</div>`).join('')}`;
+${documents.length ? '' : '<p style="font-size:0.82rem;color:var(--gray-500);margin-bottom:8px;">Nothing uploaded yet. Ask the person to open the <strong>#upload</strong> page on the verification site with their Reference Number and Date of Birth.</p>'}
+${GROUPS.map(g => {
+  const items = slots.filter(s => s.group === g.id);
+  return items.length ? groupTitle(g.title) + items.map(s => row(s.label, byType[s.type], s.required)).join('') : '';
+}).join('')}
+${extra.length ? groupTitle('Other') + extra.map(d => row(DOC_TYPES[d.docType]?.label || d.docType, d, false)).join('') : ''}`;
 
   } catch (e) {
     body.innerHTML = `<p style="color:var(--red);padding:16px;">❌ Failed to load documents: ${esc(e.message)}</p>`;
@@ -492,6 +494,17 @@ function fmtBytes(b) {
   if (b < 1024 * 1024) return Math.round(b / 1024) + ' KB';
   return (b / (1024 * 1024)).toFixed(2) + ' MB';
 }
+
+window._wsVerifyDoc = async (docId, verified, empId) => {
+  const token = sessionStorage.getItem('ws_admin_token');
+  try {
+    await adminVerifyDocument(token, docId, verified);
+    document.getElementById('docs-modal')?.remove();
+    window.wsViewEmpDocs(empId);
+  } catch (e) {
+    showToast('❌ ' + e.message, 'error');
+  }
+};
 
 window._wsDeleteDoc = async (docId, empId) => {
   if (!confirm('Delete this document? This cannot be undone.')) return;

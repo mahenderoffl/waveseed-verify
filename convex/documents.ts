@@ -63,6 +63,8 @@ export const upsertDocument = internalMutation({
         sizeBytes:    args.sizeBytes,
         uploadedAt:   Date.now(),
         uploadedByIp: args.uploadedByIp,
+        verified:     false,   // a re-upload must be re-checked
+        verifiedAt:   undefined,
       });
       return existing._id;
     }
@@ -87,5 +89,15 @@ export const deleteDocument = internalMutation({
     if (!doc) return;
     try { await ctx.storage.delete(doc.storageId as any); } catch {}
     await ctx.db.delete(args.id);
+  },
+});
+
+export const setVerified = internalMutation({
+  args: { id: v.id("documents"), verified: v.boolean() },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, {
+      verified: args.verified,
+      verifiedAt: args.verified ? Date.now() : undefined,
+    });
   },
 });

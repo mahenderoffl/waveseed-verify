@@ -2,16 +2,11 @@
 // Images are compressed via Canvas API (no libraries needed).
 // PDFs cannot be compressed client-side — we just validate size.
 
-const TARGET_SIZES = {
-  photo:      100 * 1024,   // 100 KB
-  govt_id:    300 * 1024,   // 300 KB
-  college_id: 200 * 1024,   // 200 KB
-  marksheet:  400 * 1024,   // 400 KB
-  bank:       300 * 1024,   // 300 KB
-  pan:        200 * 1024,   // 200 KB
-  degree:     400 * 1024,   // 400 KB
-  experience: 400 * 1024,   // 400 KB
-};
+import { DOC_TYPES } from './docCatalog.js';
+
+const TARGET_SIZES = Object.fromEntries(
+  Object.entries(DOC_TYPES).map(([k, v]) => [k, v.kb * 1024])
+);
 
 const HARD_MAX = 1.5 * 1024 * 1024; // 1.5 MB absolute max
 

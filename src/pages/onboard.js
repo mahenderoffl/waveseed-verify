@@ -169,17 +169,8 @@ function buildOnboardHTML() {
     <p style="font-size:0.85rem;color:var(--gray-500);margin:-8px 0 16px;">
       Upload documents after submitting your profile below using your Reference Number and Date of Birth on the
       <a href="#upload" style="color:var(--indigo);text-decoration:underline;">Document Upload page</a>.
-      You can also upload directly here if you have your documents ready.
+      Keep your 10th, 12th, graduation / ITI / diploma, and ID documents ready — scanned or photographed clearly.
     </p>
-    <div id="onb-docs-section" style="display:none;">
-      <div id="onb-doc-slots" class="onboard-form-grid"></div>
-      <p style="font-size:0.8rem;color:var(--gray-400);margin-top:8px;">📌 Govt. ID and Passport Photo are required. Other documents speed up HR verification.</p>
-    </div>
-    <div style="margin-top:12px;margin-bottom:4px;">
-      <button type="button" id="btn-toggle-docs" class="btn-secondary" style="font-size:0.85rem;padding:8px 18px;">
-        📎 Upload Documents Now (optional)
-      </button>
-    </div>
 
     <div style="margin-top:24px;text-align:center;">
       <p id="onb-error" style="color:var(--red);font-size:0.85rem;margin-bottom:10px;min-height:20px;"></p>
@@ -195,17 +186,6 @@ function attachOnboardEvents() {
       const hasPrev = document.getElementById('onb-prev-yes').checked;
       document.getElementById('prev-emp-section').style.display = hasPrev ? '' : 'none';
     });
-  });
-
-  // Toggle inline document uploads section
-  document.getElementById('btn-toggle-docs').addEventListener('click', () => {
-    const sec = document.getElementById('onb-docs-section');
-    const isVisible = sec.style.display !== 'none';
-    sec.style.display = isVisible ? 'none' : '';
-    if (!isVisible && !sec.dataset.built) {
-      buildDocSlots();
-      sec.dataset.built = '1';
-    }
   });
 
   document.getElementById('btn-onboard-submit').addEventListener('click', async () => {

@@ -233,6 +233,17 @@ export async function adminGetDocuments(token, employeeId) {
   return res.json(); // { documents: [...] }
 }
 
+export async function adminVerifyDocument(token, id, verified) {
+  const res = await fetch(`${HTTP_URL}/admin/docs/verify`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ id, verified }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to update document');
+  return data;
+}
+
 export async function adminDeleteDocument(token, id) {
   const res = await fetch(`${HTTP_URL}/admin/docs/delete`, {
     method: 'POST',

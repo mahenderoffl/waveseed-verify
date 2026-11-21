@@ -85,6 +85,8 @@ export default defineSchema({
     sizeBytes:    v.number(),           // compressed size
     uploadedAt:   v.number(),
     uploadedByIp: v.optional(v.string()),
+    verified:     v.optional(v.boolean()),   // HR has checked this document
+    verifiedAt:   v.optional(v.number()),
   })
     .index("by_employee",   ["employeeId"])
     .index("by_emp_type",   ["employeeId", "docType"]),

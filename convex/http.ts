@@ -877,9 +877,12 @@ http.route({
 // DOCUMENT UPLOADS (KYC / Onboarding Documents)
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Keep in sync with src/utils/docCatalog.js
 const ALLOWED_DOC_TYPES = new Set([
-  "govt_id", "college_id", "marksheet", "photo",
-  "bank", "pan", "degree", "experience",
+  "govt_id", "pan", "photo", "bank", "college_id",
+  "tenth", "twelfth", "iti_diploma", "graduation", "postgrad", "dual_degree",
+  "other_cert", "marksheet", "degree",
+  "experience", "relieving", "payslip",
 ]);
 
 // Max 1.5 MB per file (after client-side compression)
@@ -1049,6 +1052,29 @@ http.route({
     }));
 
     return json({ documents: withUrls });
+  }),
+});
+
+// ── Admin: mark a document verified / unverified ─────────────────────────────
+http.route({
+  path: "/admin/docs/verify",
+  method: "OPTIONS",
+  handler: httpAction(async () => preflight()),
+});
+
+http.route({
+  path: "/admin/docs/verify",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
+    if (!(await checkRole(ctx, request, "admin", "hr"))) return forbidden();
+
+    let body: { id?: string; verified?: boolean };
+    try { body = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+    if (!body.id || typeof body.verified !== "boolean") return json({ error: "Provide id and verified" }, 400);
+
+    await ctx.runMutation(internal.documents.setVerified, { id: body.id as any, verified: body.verified });
+    return json({ success: true });
   }),
 });
 

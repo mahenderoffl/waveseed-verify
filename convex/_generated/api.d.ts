@@ -9,7 +9,9 @@
  */
 
 import type * as certificates from "../certificates.js";
+import type * as documents from "../documents.js";
 import type * as http from "../http.js";
+import type * as security from "../security.js";
 
 import type {
   ApiFromModules,
@@ -19,7 +21,9 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   certificates: typeof certificates;
+  documents: typeof documents;
   http: typeof http;
+  security: typeof security;
 }>;
 
 /**

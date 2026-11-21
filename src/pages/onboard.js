@@ -9,8 +9,9 @@ let onboardBusiness = '';   // business code from the link (#onboard/wsg); '' = 
 export async function initOnboardPage(app, businessCode = '') {
   onboardBusiness = businessCode.toUpperCase();
   let brand = null;
+  const info = await publicGetBusiness(onboardBusiness || 'WS');   // also supplies the product list
   if (onboardBusiness) {
-    brand = await publicGetBusiness(onboardBusiness);
+    brand = info;
     if (!brand) {
       app.innerHTML = `<div class="onboard-wrap"><div class="onboard-card" style="max-width:520px;text-align:center;padding:48px 24px;">
         <div style="font-size:3rem;margin-bottom:12px;">🔗</div>
@@ -20,11 +21,11 @@ export async function initOnboardPage(app, businessCode = '') {
     }
     document.title = `Onboarding — ${brand.name}`;
   }
-  app.innerHTML = buildOnboardHTML(brand);
+  app.innerHTML = buildOnboardHTML(brand, info && Array.isArray(info.products) ? info.products : null);
   attachOnboardEvents();
 }
 
-function buildOnboardHTML(brand) {
+function buildOnboardHTML(brand, products) {
   const bName = esc(brand?.name || 'WaveSeed Co.');
   const bLogo = esc(brand?.logoUrl || LOGO_BASE64);
   return `
@@ -157,7 +158,7 @@ function buildOnboardHTML(brand) {
       </div>
       <div class="form-group">
         <label class="form-label">Project / Product Name <span class="req">*</span></label>
-        ${productDropdownHTML('onb-product')}
+        ${productDropdownHTML('onb-product', '', products)}
       </div>
       <div class="form-group">
         <label class="form-label">Work Mode <span class="req">*</span></label>

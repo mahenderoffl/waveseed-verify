@@ -1,7 +1,8 @@
 // ─── generate.js — Document Generation Dashboard ──────────────────────────────
 import { generateDocument, payslipTotals, inr, brandSnapshot } from '../templates/templates.js';
 import { adminGetAll, adminGetEmployees, adminGetNextIds, adminAddCertificate, adminGetBusinesses } from '../api.js';
-import { productDropdownHTML, purposeDropdownHTML } from './shared.js';
+import { productDropdownHTML, productOptionsHTML, purposeDropdownHTML } from './shared.js';
+import { productsByCode } from '../utils/businesses.js';
 
 // ─── Document Type Catalogue ───────────────────────────────────────────────────
 const DOC_TYPES = [
@@ -387,6 +388,13 @@ window.wsOpenGenForm = async function(typeId) {
 
   document.getElementById('gen-business')?.addEventListener('change', async (ev) => {
     currentBizCode = ev.target.value;
+    const prodSel = document.getElementById('f-product');
+    if (prodSel) {
+      const keep = prodSel.value;
+      prodSel.innerHTML = productOptionsHTML(productsByCode(businessesList, bizCode()), keep);
+      const custom = document.getElementById('f-product-custom');
+      if (custom) custom.style.display = prodSel.value === '__custom__' ? 'block' : 'none';
+    }
     const certEl = document.getElementById('f-certId');
     const refEl = document.getElementById('f-refNum');
     if (!certEl && !refEl) return;
@@ -771,7 +779,7 @@ function buildFormFields(docType) {
       return `
 <div class="form-group${full}">
   <label class="form-label">${def.label} ${req}</label>
-  ${productDropdownHTML(inputId, def.def || '')}
+  ${productDropdownHTML(inputId, bizCode() === 'WS' ? (def.def || '') : '', productsByCode(businessesList, bizCode()))}
 </div>`;
     }
 

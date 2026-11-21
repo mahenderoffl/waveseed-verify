@@ -39,3 +39,15 @@ export function matchesBusiness(list, businessId, selectedId) {
   const b = bizOf(list, businessId);
   return !!b && b.id === selectedId;
 }
+
+/** Product list for a business (by id; legacy rows -> parent). null = unknown, caller falls back to the built-in list. */
+export function productsOf(list, businessId) {
+  const b = bizOf(list, businessId);
+  return b && b.effective && Array.isArray(b.effective.products) ? b.effective.products : null;
+}
+
+/** Same, by business code. */
+export function productsByCode(list, code) {
+  const b = list.find(x => x.code === code);
+  return b && b.effective && Array.isArray(b.effective.products) ? b.effective.products : null;
+}

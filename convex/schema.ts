@@ -75,6 +75,7 @@ export default defineSchema({
     signatureStorageId: v.optional(v.string()),
     signatoryName:  v.optional(v.string()),
     signatoryTitle: v.optional(v.string()),
+    products:    v.optional(v.array(v.string())),   // product / project names offered in forms (NOT inherited)
     active:      v.boolean(),
     createdAt:   v.number(),
     updatedAt:   v.number(),

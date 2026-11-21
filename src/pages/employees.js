@@ -5,7 +5,8 @@ import {
   adminGetDocSummary, adminOpenDocument, adminGetDocLog, adminGetAll, adminGetBusinesses,
 } from '../api.js';
 import { productDropdownHTML, tableSkeletonHTML } from './shared.js';
-import { loadBusinessList, bizBadge, fillBusinessFilter, matchesBusiness } from '../utils/businesses.js';
+import { loadBusinessList, bizBadge, fillBusinessFilter, matchesBusiness, productsOf } from '../utils/businesses.js';
+import { productOptionsHTML } from './shared.js';
 import { DOC_TYPES, GROUPS, slotsFor, requirementProgress } from '../utils/docCatalog.js';
 
 
@@ -288,10 +289,16 @@ function openAddEmployeeModal(token) {
     try {
       const { businesses } = await adminGetBusinesses(token);
       const active = businesses.filter(b => b.active);
+      const parent = active.find(b => !b.parentId);
+      const setProducts = (businessId) => {
+        const ps = document.getElementById('emp-f-product');
+        if (ps) ps.innerHTML = productOptionsHTML(productsOf(businesses, businessId), '');
+      };
+      if (parent) setProducts(parent.id);
       const sel = document.getElementById('emp-f-business');
       if (!sel || active.length < 2) return;
-      const parent = active.find(b => !b.parentId);
       sel.innerHTML = active.map(b => `<option value="${esc(b.id)}" ${parent && b.id === parent.id ? 'selected' : ''}>${esc(b.displayName)} (${esc(b.code)})</option>`).join('');
+      sel.addEventListener('change', () => setProducts(sel.value));
       document.getElementById('emp-biz-group').style.display = '';
     } catch { /* single-business fallback: server defaults to the parent company */ }
   })();

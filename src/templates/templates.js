@@ -188,7 +188,7 @@ export function purposeClause(purpose, ongoing) {
 export function certificateTemplate(data) {
   const {
     certId='', refNum='', holderName='', holderInstitution='', holderDepartment='',
-    certType='internship', role='', product='WaveBase AI', workMode='', reportingTo='',
+    certType='internship', role='', product=(B.code === 'WS' ? 'WaveBase AI' : ''), workMode='', reportingTo='',
     startDate='', endDate='', issuedDate='', issuerName=B.sigName,
     issuerTitle=`${B.sigTitle}, ${B.legal}`, customMessage='', nameFont='cursive',
   } = data;
@@ -715,7 +715,7 @@ ${verificationId ? `
 export function internshipOfferTemplate(data) {
   const {
     refNum='', date='', recipientName='', recipientCollege='', recipientDept='',
-    recipientEmail='', role='', product='WaveBase AI', reportingTo=`Chief Developer, ${B.legal}`,
+    recipientEmail='', role='', product=(B.code === 'WS' ? 'WaveBase AI' : ''), reportingTo=`Chief Developer, ${B.legal}`,
     startDate='', endDate='', duration='2 Months', workHours='4–5 Hours per Day',
     workMode='Remote (Work From Home)', stipend='Unpaid Internship',
     certId='',

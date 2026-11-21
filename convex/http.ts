@@ -302,7 +302,7 @@ http.route({
     if (!code || code.length > 8) return json({ error: "Provide ?code=" }, 400);
     const b = await ctx.runQuery(internal.businesses.getPublicByCode, { code });
     if (!b) return json({ found: false }, 404);
-    return json({ found: true, code: b.code, name: b.name, legal: b.legal, tagline: b.tagline, logoUrl: b.logoUrl, email: b.email });
+    return json({ found: true, code: b.code, name: b.name, legal: b.legal, tagline: b.tagline, logoUrl: b.logoUrl, email: b.email, products: b.products });
   }),
 });
 
@@ -723,7 +723,7 @@ http.route({
     try { body = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
     if (!body.id) return json({ error: "Provide id" }, 400);
 
-    const allowed = ["displayName", "legalName", "tagline", "address", "website", "email", "brandColor", "signatoryName", "signatoryTitle", "active"];
+    const allowed = ["displayName", "legalName", "tagline", "address", "website", "email", "brandColor", "signatoryName", "signatoryTitle", "products", "active"];
     const args: Record<string, unknown> = { id: body.id, role };
     for (const k of allowed) if (k in body) args[k] = body[k];
     try {

@@ -8,7 +8,8 @@ import { initGeneratePage } from './generate.js';
 import { initEmployeesPage } from './employees.js';
 import { initSettingsPage } from './settings.js';
 import { initReportsPage } from './reports.js';
-import { loadBusinessList, bizBadge, fillBusinessFilter, matchesBusiness } from '../utils/businesses.js';
+import { loadBusinessList, bizBadge, fillBusinessFilter, matchesBusiness, productsOf, productsByCode } from '../utils/businesses.js';
+import { productOptionsHTML } from './shared.js';
 import { productDropdownHTML, purposeDropdownHTML, tableSkeletonHTML, safeUrl } from './shared.js';
 
 // Document types whose tenure can still be running (see generate.js "currentlyWorking")
@@ -841,7 +842,7 @@ async function openAddModal() {
       </div>
       <div class="form-group">
         <label class="form-label">Product / Project</label>
-        ${productDropdownHTML('f-product')}
+        ${productDropdownHTML('f-product', '', productsByCode(bizList, addBizCode))}
       </div>
       <div class="form-group">
         <label class="form-label">Reporting To</label>
@@ -945,6 +946,12 @@ async function openAddModal() {
 
   document.getElementById('cert-biz-select')?.addEventListener('change', (ev) => {
     addBizCode = ev.target.value;
+    const prodSel = document.getElementById('f-product');
+    if (prodSel) {
+      prodSel.innerHTML = productOptionsHTML(productsByCode(bizList, addBizCode), prodSel.value);
+      const custom = document.getElementById('f-product-custom');
+      if (custom) custom.style.display = prodSel.value === '__custom__' ? 'block' : 'none';
+    }
     const empId = document.getElementById('cert-emp-select')?.value;
     const emp = employees.find(e => e._id === empId);
     applyIdsFor(emp ? emp.employeeType : 'intern');
@@ -1091,7 +1098,7 @@ function openEditModal(id) {
       </div>
       <div class="form-group">
         <label class="form-label">Product / Project</label>
-        ${productDropdownHTML('e-product', cert.product)}
+        ${productDropdownHTML('e-product', cert.product, productsOf(certBizList, cert.businessId))}
       </div>
       <div class="form-group">
         <label class="form-label">Reporting To</label>

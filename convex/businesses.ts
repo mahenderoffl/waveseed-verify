@@ -136,9 +136,11 @@ export const listResolved = internalQuery({
           signatoryName: biz.signatoryName ?? "", signatoryTitle: biz.signatoryTitle ?? "",
           logoUrl: await url(biz.logoStorageId), sealUrl: await url(biz.sealStorageId),
           signatureUrl: await url(biz.signatureStorageId),
+          products: biz.products ?? [],
         },
         effective: {
           ...effective,
+          products: biz.products ?? [],
           signatory: {
             name: signer?.signatoryName ?? null,
             title: signer?.signatoryTitle ?? null,
@@ -200,6 +202,7 @@ export const updateBusiness = internalMutation({
     legalName: nullableStr, tagline: nullableStr, address: nullableStr,
     website: nullableStr, email: nullableStr, brandColor: nullableStr,
     signatoryName: nullableStr, signatoryTitle: nullableStr,
+    products: v.optional(v.union(v.array(v.string()), v.null())),
     active: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
@@ -220,6 +223,14 @@ export const updateBusiness = internalMutation({
       const cleaned = incoming === null ? "" : validateField(f, incoming);
       const current = ((biz as any)[f] as string | undefined) ?? "";
       if (cleaned !== current) { patch[f] = cleaned === "" ? undefined : cleaned; changed.push(f); }
+    }
+    if (args.products !== undefined) {
+      const cleaned = [...new Set((args.products ?? []).map((p) => cleanText("Product name", p, 60)).filter(Boolean))];
+      if (cleaned.length > 30) throw new Error("At most 30 products per business");
+      if (JSON.stringify(cleaned) !== JSON.stringify(biz.products ?? [])) {
+        patch.products = cleaned.length ? cleaned : undefined;
+        changed.push("products");
+      }
     }
     if (args.active !== undefined && args.active !== biz.active) {
       if (!biz.parentId && !args.active) throw new Error("The parent company cannot be deactivated");
@@ -311,6 +322,7 @@ async function publicBranding(ctx: { db: DatabaseReader; storage: StorageReader 
     website: text("website"),
     color: text("brandColor"),
     logoUrl: logoOwner ? await url(logoOwner.logoStorageId) : null,
+    products: biz.products ?? [],
     sigName: signer?.signatoryName ?? null,
     sigTitle: signer?.signatoryTitle ?? null,
   };
@@ -332,5 +344,17 @@ export const getPublicForCertificate = internalQuery({
     const biz = businessId ? await ctx.db.get(businessId) : await getBusinessByCode(ctx, PARENT_CODE);
     if (!biz) return null;
     return await publicBranding(ctx, biz);
+  },
+});
+
+/** One-off: give WaveSeed Co. its original product list (only if it has none yet). */
+export const seedWaveSeedProducts = internalMutation({
+  args: { products: v.array(v.string()) },
+  handler: async (ctx, { products }) => {
+    const ws = await getBusinessByCode(ctx, PARENT_CODE);
+    if (!ws) throw new Error("WaveSeed not found");
+    if (ws.products && ws.products.length) return { skipped: true, count: ws.products.length };
+    await ctx.db.patch(ws._id, { products, updatedAt: Date.now() });
+    return { skipped: false, count: products.length };
   },
 });

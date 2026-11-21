@@ -26,7 +26,7 @@ const IMAGE_LABELS = {
 const ACTION_LABELS = { create: 'created the business', update: 'changed', image_set: 'uploaded', image_clear: 'removed' };
 const FIELD_LABELS = {
   displayName: 'display name', legalName: 'legal name', tagline: 'tagline', address: 'address', website: 'website',
-  email: 'email', brandColor: 'brand colour', signatoryName: 'signatory name', signatoryTitle: 'signatory title',
+  email: 'email', brandColor: 'brand colour', products: 'product list', signatoryName: 'signatory name', signatoryTitle: 'signatory title',
   active: 'active status', code: 'code', logo: 'logo', seal: 'seal', signature: 'signature image',
 };
 
@@ -204,6 +204,13 @@ ${TEXT_FIELDS.map(f => `
   ${imageBlock(b, 'logo')}${imageBlock(b, 'seal')}
 </div>
 
+${sectionTitle('Products / projects')}
+<div class="form-group" style="margin-bottom:12px;">
+  <label class="form-label">Offered in forms and letters (one per line)</label>
+  <textarea id="bz-products" class="form-textarea" rows="5" placeholder="e.g. WaveBase AI&#10;Client Portal App" ${dis}>${esc((b.own.products || []).join('\n'))}</textarea>
+  <div style="font-size:0.72rem;color:var(--gray-500);margin-top:3px;">Not inherited — each business has its own list. Max 30. Leave empty if this business has no named products.</div>
+</div>
+
 ${sectionTitle('Signatory')}
 <div style="font-size:0.82rem;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 12px;color:var(--gray-800);margin-bottom:12px;">
   Letters from <strong>${esc(b.displayName)}</strong> are signed by
@@ -260,6 +267,8 @@ function wireEditor(b) {
     for (const k of ['legalName', 'tagline', 'website', 'email', 'address', 'brandColor', 'signatoryName', 'signatoryTitle']) {
       payload[k] = val(`bz-${k}`).trim() === '' ? null : val(`bz-${k}`);
     }
+    payload.products = val('bz-products').split('\n').map(s => s.trim()).filter(Boolean);
+    if (!payload.products.length) payload.products = null;
     const active = document.getElementById('bz-active');
     if (active) payload.active = active.checked;
 

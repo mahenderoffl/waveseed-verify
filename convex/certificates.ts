@@ -338,6 +338,19 @@ export const linkCertificatesToEmployees = internalMutation({
   },
 });
 
+/** Manually link one certificate to a person (by their ID code), for cases the automatic match cannot decide. */
+export const linkCertificateToPerson = internalMutation({
+  args: { certificateId: v.string(), empCode: v.string() },
+  handler: async (ctx, { certificateId, empCode }) => {
+    const cert = await ctx.db.query("certificates").withIndex("by_certificate_id", (q) => q.eq("certificateId", certificateId)).unique();
+    if (!cert) throw new Error(`Certificate ${certificateId} not found`);
+    const person = await ctx.db.query("employees").withIndex("by_emp_code", (q) => q.eq("empCode", empCode)).first();
+    if (!person) throw new Error(`Person ${empCode} not found`);
+    await ctx.db.patch(cert._id, { employeeId: person._id });
+    return { certificateId, linkedTo: person.empCode, name: person.name };
+  },
+});
+
 export const getEmployeeByEmail = internalQuery({
   args: { email: v.string() },
   handler: async (ctx, { email }) => {

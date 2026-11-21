@@ -1020,7 +1020,7 @@ a { text-decoration: none; color: inherit; }
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--gray-200);
-  overflow: hidden;
+  overflow-x: auto;       /* wide tables scroll instead of hiding their last columns */
   min-height: 320px;
 }
 .cert-table {

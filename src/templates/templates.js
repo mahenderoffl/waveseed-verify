@@ -467,6 +467,9 @@ const plain = s => String(s == null ? '' : s).replace(/&#039;/g, "'").replace(/&
 const VERIFY_ORIGIN = 'https://verify.waveseed.app';
 const aHref = (href, text) => `<a href="${href}">${text}</a>`;
 const mailLink = () => B.email ? `<a href="mailto:${B.email}">${B.email}</a>` : '';
+// Signed offers go to the recruitment mailbox, not the general support address
+const RECRUITMENT_EMAIL = 'careers@waveseed.app';
+const recruitLink = () => `<a href="mailto:${RECRUITMENT_EMAIL}">${RECRUITMENT_EMAIL}</a>`;
 const siteLink = () => B.website ? `<a href="${B.siteUrl}">${B.website}</a>` : '';
 const verifyLink = (path = '') => aHref(VERIFY_ORIGIN + (path ? '/' + path : ''), 'verify.waveseed.app' + (path ? '/' + path : ''));
 const acceptUrl = (ref) => VERIFY_ORIGIN + '/#accept' + (ref ? '?ref=' + encodeURIComponent(ref) : '');
@@ -733,7 +736,7 @@ ${extraBlock('Additional Terms &amp; Conditions')}
 <div class="section-title">Accepting this Offer &amp; Joining Formalities</div>
 <p class="para">${offerValidity ? `This offer is valid until <strong>${fmtDate(offerValidity)}</strong>. ` : ''}Please complete these steps in order:</p>
 <ol class="terms-list" style="font-size:inherit;color:inherit;">
-  <li><strong>Accept this offer.</strong> The quickest way is online at <strong>${aHref(acceptUrl(refNum), 'verify.waveseed.app/#accept')}</strong>. Sign in with your reference number and date of birth, read this letter and accept it with your electronic signature. If you prefer, sign the acknowledgement on the last page and upload the signed copy at the same link, or email it to <strong>${mailLink()}</strong>.</li>
+  <li><strong>Accept this offer.</strong> The quickest way is online at <strong>${aHref(acceptUrl(refNum), 'verify.waveseed.app/#accept')}</strong>. Sign in with your reference number and date of birth, read this letter and accept it with your electronic signature. If you prefer, sign the acknowledgement on the last page and upload the signed copy at the same link, or email it to <strong>${recruitLink()}</strong>.</li>
   <li><strong>Upload your documents.</strong> Straight after you accept, you will be taken to the upload page for your government photo ID, passport-size photograph, college ID card, and your 10th and 12th marksheets. You can also upload them at any time at <strong>${aHref(VERIFY_ORIGIN + '/#upload', 'verify.waveseed.app/#upload')}</strong>, using your reference number and date of birth.</li>
   <li><strong>Complete your onboarding profile</strong> at <strong>${aHref(VERIFY_ORIGIN + '/#onboard/' + B.code.toLowerCase(), 'verify.waveseed.app/#onboard/' + B.code.toLowerCase())}</strong>.</li>
   <li>Keep the originals ready for verification, where required.</li>
@@ -832,7 +835,7 @@ ${extraBlock('Additional Terms &amp; Conditions')}
 <div class="section-title">Accepting this Offer &amp; Joining Formalities</div>
 <p class="para">${offerValidity ? `This offer is valid until <strong>${fmtDate(offerValidity)}</strong>. ` : ''}Please complete these steps in order:</p>
 <ol class="terms-list" style="font-size:inherit;color:inherit;">
-  <li><strong>Accept this offer.</strong> The quickest way is online at <strong>${aHref(acceptUrl(refNum), 'verify.waveseed.app/#accept')}</strong>. Sign in with your reference number and date of birth, read this letter and accept it with your electronic signature. If you prefer, sign the acknowledgement on the last page and upload the signed copy at the same link, or email it to <strong>${mailLink()}</strong>.</li>
+  <li><strong>Accept this offer.</strong> The quickest way is online at <strong>${aHref(acceptUrl(refNum), 'verify.waveseed.app/#accept')}</strong>. Sign in with your reference number and date of birth, read this letter and accept it with your electronic signature. If you prefer, sign the acknowledgement on the last page and upload the signed copy at the same link, or email it to <strong>${recruitLink()}</strong>.</li>
   <li><strong>Upload your documents.</strong> Straight after you accept, you will be taken to the upload page for your government photo ID, PAN, passport-size photograph, 10th and 12th marksheets, highest qualification certificate and any previous experience letters. You can also upload them at any time at <strong>${aHref(VERIFY_ORIGIN + '/#upload', 'verify.waveseed.app/#upload')}</strong>, using your reference number and date of birth.</li>
   <li><strong>Complete your onboarding profile</strong> at <strong>${aHref(VERIFY_ORIGIN + '/#onboard/' + B.code.toLowerCase(), 'verify.waveseed.app/#onboard/' + B.code.toLowerCase())}</strong>.</li>
   <li>Bring the originals for verification on your date of joining.</li>

@@ -486,8 +486,19 @@ function letterheadHTML() {
 ${v ? `<div class="venture">${v.logo ? `<img src="${v.logo}" alt=""/>` : ''}<span><b>${v.name}</b> &nbsp;A venture of ${B.legal}</span>${v.tagline ? `<em>${v.tagline}</em>` : ''}</div>` : ''}`;
 }
 
+// Free-text extra terms/notes from the form: one point per line. Printed once per document.
+let EXTRA = '', EXTRA_USED = false;
+function extraBlock(heading) {
+  if (EXTRA_USED || !EXTRA.trim()) return '';
+  EXTRA_USED = true;
+  const lines = EXTRA.split(/\r?\n/).map(l => l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim()).filter(Boolean);
+  const body = lines.length === 1 ? `<p class="para">${esc(lines[0])}</p>` : `<ul class="bullet-list">${lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>`;
+  return `<div class="section-title">${heading}</div>\n${body}`;
+}
+
 export function signatureBlockHTML() {
   return `
+${extraBlock('Additional Notes')}
 <div class="sign">
   <p class="sign-close">Yours sincerely,</p>
   <p class="sign-for">For <b>${B.legal}</b></p>
@@ -709,6 +720,7 @@ export function internshipOfferTemplate(data) {
   <li><strong>Termination:</strong> Either party may terminate the association by giving written notice of ${esc(noticePeriod)}. ${B.legal} reserves the right to terminate immediately for cause.</li>
 </ul>
 
+${extraBlock('Additional Terms &amp; Conditions')}
 <div class="section-title">Joining Formalities</div>
 <ul class="bullet-list">
   <li>Complete your onboarding profile at <strong>verify.waveseed.app/#onboard/${B.code.toLowerCase()}</strong>.</li>
@@ -803,6 +815,7 @@ export function employmentOfferTemplate(data) {
   <li><strong>Termination notice:</strong> Post-confirmation, the notice period required by either party shall be ${esc(noticePeriod)} in writing.</li>
 </ul>
 
+${extraBlock('Additional Terms &amp; Conditions')}
 <div class="section-title">Joining Formalities</div>
 <ul class="bullet-list">
   <li>Complete your onboarding profile at <strong>verify.waveseed.app/#onboard/${B.code.toLowerCase()}</strong>.</li>
@@ -1400,10 +1413,11 @@ function renderDocument(type, data) {
 export function generateDocument(type, data) {
   setBrand(data && data.brand);
   EMP_CODE = esc((data && (data.empCode || data.employeeCode)) || '');
+  EXTRA = String((data && data.additionalTerms) || '').slice(0, 2000); EXTRA_USED = false;
   try {
     return renderDocument(type, data);
   } finally {
     setBrand(null);
-    EMP_CODE = '';
+    EMP_CODE = ''; EXTRA = ''; EXTRA_USED = false;
   }
 }

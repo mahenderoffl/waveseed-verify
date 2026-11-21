@@ -130,6 +130,7 @@ export const FIELD_DEF = {
   endDate:         { label:'End Date',              type:'date' },
   currentlyWorking:{ label:'Currently working here (no end date — reads "since … till date")', type:'checkbox' },
   issuedDate:      { label:'Date of Issue',         type:'date', req:true },
+  additionalTerms: { label:'Additional terms / special conditions (optional)', type:'textarea', ph:'Anything extra to state in this letter, one point per line. It is printed under "Additional Terms & Conditions" (offer letters) or "Additional Notes" (other letters).' },
   customMessage:   { label:'Custom Body Text (optional)', type:'textarea', ph:'Leave blank for auto-generated text' },
   // Letter-specific
   date:            { label:'Letter Date',           type:'date', req:true },
@@ -233,6 +234,8 @@ const DESC = {
   'volunteer-cert':    'Certificate recognising volunteer contributions.',
 };
 
+// Every letter (not certificates or payslips) can carry extra terms / notes
+for (const d of RAW_DOC_TYPES) if (d.cat !== 'certificate' && d.id !== 'salary-slip' && !d.fields.includes('additionalTerms')) d.fields.push('additionalTerms');
 export const DOC_TYPES = RAW_DOC_TYPES.map(d => ({ ...d, ...LOOK[d.id], desc: DESC[d.id] || d.desc }));
 export const docType = (id) => DOC_TYPES.find(d => d.id === id) || null;
 
@@ -247,7 +250,7 @@ export const FIELD_GROUPS = [
   { id: 'pay',       title: 'Compensation', icon: 'receipt',
     fields: ['stipend', 'ctc', 'newCtc', 'oldSalary', 'newSalary', 'monthlyGross', 'monthlyNet', 'annualCtc', 'payslipType', 'payMonth', 'splitHelper', 'basicPay', 'hra', 'specialAllowance', 'conveyance', 'bonus', 'otherEarnings', 'pfDeduction', 'professionalTax', 'tds', 'lopDeduction', 'otherDeductions', 'pan', 'uan', 'bankName', 'bankAccount', 'paymentMode', 'paymentDate', 'workingDays', 'paidDays'] },
   { id: 'content',   title: 'Content', icon: 'pencil',
-    fields: ['letterPurpose', 'purpose', 'responsibilities', 'conduct', 'strengths', 'achievements', 'recommendation', 'warningType', 'incident', 'responseDeadline', 'reason', 'finalSettlement', 'customMessage'] },
+    fields: ['letterPurpose', 'purpose', 'responsibilities', 'conduct', 'strengths', 'achievements', 'recommendation', 'warningType', 'incident', 'responseDeadline', 'reason', 'finalSettlement', 'additionalTerms', 'customMessage'] },
 ];
 
 /** The form sections for one document type: [{ id, title, icon, fields: [fieldId…] }] */

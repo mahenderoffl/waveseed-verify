@@ -873,4 +873,200 @@ http.route({
   }),
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DOCUMENT UPLOADS (KYC / Onboarding Documents)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const ALLOWED_DOC_TYPES = new Set([
+  "govt_id", "college_id", "marksheet", "photo",
+  "bank", "pan", "degree", "experience",
+]);
+
+// Max 1.5 MB per file (after client-side compression)
+const DOC_MAX_BYTES = 1.5 * 1024 * 1024;
+
+// Allowed MIME types for documents
+const ALLOWED_DOC_MIMES = new Set([
+  "image/jpeg", "image/png", "image/webp", "application/pdf",
+]);
+
+// Magic bytes for type detection
+function detectMime(bytes: Uint8Array): string | null {
+  // PDF: %PDF
+  if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) return "application/pdf";
+  // JPEG: FF D8 FF
+  if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) return "image/jpeg";
+  // PNG: 89 50 4E 47
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) return "image/png";
+  // WebP: RIFF....WEBP
+  if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+      bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) return "image/webp";
+  return null;
+}
+
+// ── Public: request an upload URL (authenticated by reference + DOB) ─────────
+http.route({
+  path: "/public/docs/upload-url",
+  method: "OPTIONS",
+  handler: httpAction(async () => preflight()),
+});
+
+http.route({
+  path: "/public/docs/upload-url",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const ip = clientIp(request);
+    const rlKey = `doc-upload:${ip}`;
+    const locked = await ctx.runQuery(internal.security.lockedFor, { key: rlKey });
+    if (locked > 0) return tooMany(locked);
+
+    let body: { ref?: string; dob?: string; docType?: string; fileName?: string; mimeType?: string; sizeBytes?: number };
+    try { body = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+
+    const { ref, dob, docType, fileName, mimeType, sizeBytes } = body ?? {};
+
+    if (!ref || !dob || !docType || !fileName || !mimeType || !sizeBytes) {
+      return json({ error: "Missing required fields: ref, dob, docType, fileName, mimeType, sizeBytes" }, 400);
+    }
+    if (!ALLOWED_DOC_TYPES.has(docType)) {
+      return json({ error: "Invalid document type" }, 400);
+    }
+    if (!ALLOWED_DOC_MIMES.has(mimeType)) {
+      return json({ error: "File type not allowed. Use JPG, PNG, WebP, or PDF." }, 400);
+    }
+    if (sizeBytes > DOC_MAX_BYTES) {
+      return json({ error: `File too large. Max 1.5 MB after compression (got ${Math.round(sizeBytes / 1024)} KB).` }, 413);
+    }
+
+    // Look up employee by reference number on a certificate
+    const cert = await ctx.runQuery(internal.certificates.getByReferenceNumber, { referenceNumber: ref.trim() });
+    if (!cert) return json({ error: "Reference number not found" }, 404);
+
+    // DOB check
+    const denied = await verifyHolderDob(ctx, cert, dob.trim());
+    if (denied) return denied;
+
+    // Find employee record by email
+    if (!cert.holderEmail) return json({ error: "No employee record linked to this certificate." }, 404);
+    const emp = await ctx.runQuery(internal.certificates.getEmployeeByEmail, { email: cert.holderEmail });
+    if (!emp) return json({ error: "Employee profile not found." }, 404);
+
+    // Generate a Convex upload URL (short-lived, single-use)
+    const uploadUrl = await ctx.storage.generateUploadUrl();
+    return json({ uploadUrl, employeeId: emp._id });
+  }),
+});
+
+// ── Public: confirm upload (save storageId to documents table) ────────────────
+http.route({
+  path: "/public/docs/confirm",
+  method: "OPTIONS",
+  handler: httpAction(async () => preflight()),
+});
+
+http.route({
+  path: "/public/docs/confirm",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const ip = clientIp(request);
+
+    let body: { ref?: string; dob?: string; employeeId?: string; docType?: string; storageId?: string; fileName?: string; mimeType?: string; sizeBytes?: number };
+    try { body = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+
+    const { ref, dob, employeeId, docType, storageId, fileName, mimeType, sizeBytes } = body ?? {};
+
+    if (!ref || !dob || !employeeId || !docType || !storageId || !fileName || !mimeType || !sizeBytes) {
+      return json({ error: "Missing required fields" }, 400);
+    }
+    if (!ALLOWED_DOC_TYPES.has(docType)) return json({ error: "Invalid document type" }, 400);
+    if (!ALLOWED_DOC_MIMES.has(mimeType)) return json({ error: "File type not allowed" }, 400);
+    if (sizeBytes > DOC_MAX_BYTES) return json({ error: "File too large" }, 413);
+
+    // Re-verify DOB before committing
+    const cert = await ctx.runQuery(internal.certificates.getByReferenceNumber, { referenceNumber: ref.trim() });
+    if (!cert) return json({ error: "Reference not found" }, 404);
+    const denied = await verifyHolderDob(ctx, cert, dob.trim());
+    if (denied) return denied;
+
+    // Validate magic bytes from storage
+    const stored = await ctx.storage.get(storageId as any);
+    if (!stored) return json({ error: "Upload not found in storage" }, 404);
+    const peek = new Uint8Array(await stored.slice(0, 12).arrayBuffer());
+    const detectedMime = detectMime(peek);
+    if (!detectedMime || !ALLOWED_DOC_MIMES.has(detectedMime)) {
+      await ctx.storage.delete(storageId as any);
+      return json({ error: "File content does not match allowed types (JPG/PNG/WebP/PDF)" }, 415);
+    }
+
+    // Sanitise filename
+    const safeName = fileName.replace(/[^a-zA-Z0-9._\-\s]/g, "").trim().slice(0, 120) || "document";
+
+    await ctx.runMutation(internal.documents.upsertDocument, {
+      employeeId: employeeId as any,
+      docType,
+      storageId,
+      fileName: safeName,
+      mimeType: detectedMime,
+      sizeBytes,
+      uploadedByIp: ip,
+    });
+
+    return json({ success: true });
+  }),
+});
+
+// ── Admin: list documents for an employee ────────────────────────────────────
+http.route({
+  path: "/admin/docs",
+  method: "OPTIONS",
+  handler: httpAction(async () => preflight()),
+});
+
+http.route({
+  path: "/admin/docs",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
+
+    const url = new URL(request.url);
+    const employeeId = url.searchParams.get("employeeId")?.trim();
+    if (!employeeId) return json({ error: "Provide employeeId parameter" }, 400);
+
+    const docs = await ctx.runQuery(internal.documents.getByEmployee, { employeeId: employeeId as any });
+
+    // Attach a short-lived signed URL to each document
+    const withUrls = await Promise.all(docs.map(async (d) => {
+      const url = await ctx.storage.getUrl(d.storageId as any);
+      return {
+        id: d._id,
+        docType: d.docType,
+        fileName: d.fileName,
+        mimeType: d.mimeType,
+        sizeBytes: d.sizeBytes,
+        uploadedAt: d.uploadedAt,
+        url,
+      };
+    }));
+
+    return json({ documents: withUrls });
+  }),
+});
+
+// ── Admin: delete a document ──────────────────────────────────────────────────
+http.route({
+  path: "/admin/docs/delete",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    if (!(await checkAuth(ctx, request))) return json({ error: "Unauthorized" }, 401);
+    if (!(await checkRole(ctx, request, "admin", "hr"))) return forbidden();
+
+    let body: { id?: string };
+    try { body = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+    if (!body.id) return json({ error: "Provide document id" }, 400);
+
+    await ctx.runMutation(internal.documents.deleteDocument, { id: body.id as any });
+    return json({ success: true });
+  }),
+});
+
 export default http;

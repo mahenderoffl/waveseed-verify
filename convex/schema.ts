@@ -74,6 +74,21 @@ export default defineSchema({
     .index("by_type", ["employeeType"])
     .index("by_status", ["status"]),
 
+  // ── Uploaded KYC / onboarding documents ──────────────────────────────────
+  documents: defineTable({
+    employeeId:   v.id("employees"),    // links to employees table
+    // docType values: govt_id | college_id | marksheet | photo | bank | pan | degree | experience
+    docType:      v.string(),
+    storageId:    v.string(),           // Convex file storage ID
+    fileName:     v.string(),           // original filename (sanitised)
+    mimeType:     v.string(),
+    sizeBytes:    v.number(),           // compressed size
+    uploadedAt:   v.number(),
+    uploadedByIp: v.optional(v.string()),
+  })
+    .index("by_employee",   ["employeeId"])
+    .index("by_emp_type",   ["employeeId", "docType"]),
+
   // Admin portal sessions — only the SHA-256 hash of the token is stored
   sessions: defineTable({
     tokenHash: v.string(),

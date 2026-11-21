@@ -1,7 +1,8 @@
 // ─── onboard.js — Public Onboarding Form ─────────────────────────────────────
-import { publicOnboardEmployee } from '../api.js';
+import { publicOnboardEmployee, publicDocGetUploadUrl, publicDocUploadBlob, publicDocConfirm } from '../api.js';
 import { LOGO_BASE64 } from '../templates/assets.js';
 import { productDropdownHTML } from './shared.js';
+import { compressFile, fmtKB } from '../utils/compress.js';
 
 export function initOnboardPage(app) {
   app.innerHTML = buildOnboardHTML();
@@ -163,13 +164,29 @@ function buildOnboardHTML() {
       </div>
     </div>
 
+    <!-- SECTION 5: Document Uploads -->
+    <div class="onboard-section-title">📁 Document Upload <span style="font-size:0.8rem;font-weight:400;color:var(--gray-500);">(Secure · Auto-compressed · Max 1.5 MB each)</span></div>
+    <p style="font-size:0.85rem;color:var(--gray-500);margin:-8px 0 16px;">
+      Upload documents after submitting your profile below using your Reference Number and Date of Birth on the
+      <a href="#upload" style="color:var(--indigo);text-decoration:underline;">Document Upload page</a>.
+      You can also upload directly here if you have your documents ready.
+    </p>
+    <div id="onb-docs-section" style="display:none;">
+      <div id="onb-doc-slots" class="onboard-form-grid"></div>
+      <p style="font-size:0.8rem;color:var(--gray-400);margin-top:8px;">📌 Govt. ID and Passport Photo are required. Other documents speed up HR verification.</p>
+    </div>
+    <div style="margin-top:12px;margin-bottom:4px;">
+      <button type="button" id="btn-toggle-docs" class="btn-secondary" style="font-size:0.85rem;padding:8px 18px;">
+        📎 Upload Documents Now (optional)
+      </button>
+    </div>
+
     <div style="margin-top:24px;text-align:center;">
       <p id="onb-error" style="color:var(--red);font-size:0.85rem;margin-bottom:10px;min-height:20px;"></p>
       <button class="btn-primary" id="btn-onboard-submit" style="width:100%;max-width:280px;padding:14px 24px;font-size:1rem;">Submit Profile →</button>
     </div>
   </div>
-</div>`;
-}
+</div>`;}
 
 function attachOnboardEvents() {
   // Toggle previous employment section
@@ -178,6 +195,17 @@ function attachOnboardEvents() {
       const hasPrev = document.getElementById('onb-prev-yes').checked;
       document.getElementById('prev-emp-section').style.display = hasPrev ? '' : 'none';
     });
+  });
+
+  // Toggle inline document uploads section
+  document.getElementById('btn-toggle-docs').addEventListener('click', () => {
+    const sec = document.getElementById('onb-docs-section');
+    const isVisible = sec.style.display !== 'none';
+    sec.style.display = isVisible ? 'none' : '';
+    if (!isVisible && !sec.dataset.built) {
+      buildDocSlots();
+      sec.dataset.built = '1';
+    }
   });
 
   document.getElementById('btn-onboard-submit').addEventListener('click', async () => {
@@ -248,7 +276,7 @@ function attachOnboardEvents() {
         meta: JSON.stringify(meta),
       });
 
-      // Show success
+      // Show success with doc upload CTA
       document.querySelector('.onboard-card').innerHTML = `
 <div style="text-align:center;padding:48px 20px;">
   <div style="font-size:4rem;margin-bottom:16px;">🎉</div>
@@ -257,7 +285,12 @@ function attachOnboardEvents() {
     Hi <strong>${esc(name)}</strong>, your onboarding details have been securely saved to the WaveSeed registry.<br><br>
     Our HR team will review your profile and reach out to you at <strong>${esc(email)}</strong> shortly.
   </p>
-  <button class="btn-primary" onclick="window.location.reload()" style="padding:12px 24px;">Submit Another Profile</button>
+  <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:20px 24px;max-width:440px;margin:0 auto 24px;text-align:left;">
+    <div style="font-weight:600;color:#0369a1;margin-bottom:8px;">📁 Upload Your Documents</div>
+    <p style="font-size:0.88rem;color:#374151;margin:0 0 12px;">Speed up your HR verification by uploading your KYC documents. You'll need your <strong>Reference Number</strong> (provided by HR) and <strong>Date of Birth</strong>.</p>
+    <a href="#upload" class="btn-primary" style="display:inline-block;padding:10px 20px;font-size:0.9rem;">Upload Documents →</a>
+  </div>
+  <button class="btn-secondary" onclick="window.location.reload()" style="padding:12px 24px;">Submit Another Profile</button>
 </div>`;
     } catch (e) {
       err.textContent = e.message;

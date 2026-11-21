@@ -177,6 +177,73 @@ export async function adminDeleteEmployee(token, id) {
   return json;
 }
 
+// ── Public: Document Uploads (KYC) ─────────────────────────────────────────────
+
+/**
+ * Step 1: Get a short-lived upload URL from Convex.
+ * Authenticates via reference number + date of birth.
+ */
+export async function publicDocGetUploadUrl({ ref, dob, docType, fileName, mimeType, sizeBytes }) {
+  const res = await fetch(`${HTTP_URL}/public/docs/upload-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ref, dob, docType, fileName, mimeType, sizeBytes }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to get upload URL');
+  return data; // { uploadUrl, employeeId }
+}
+
+/**
+ * Step 2: Upload the blob directly to Convex storage.
+ * Returns { storageId } from Convex.
+ */
+export async function publicDocUploadBlob(uploadUrl, blob) {
+  const res = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': blob.type || 'application/octet-stream' },
+    body: blob,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Upload failed');
+  return data; // { storageId }
+}
+
+/**
+ * Step 3: Confirm the upload — saves metadata to the documents table.
+ */
+export async function publicDocConfirm({ ref, dob, employeeId, docType, storageId, fileName, mimeType, sizeBytes }) {
+  const res = await fetch(`${HTTP_URL}/public/docs/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ref, dob, employeeId, docType, storageId, fileName, mimeType, sizeBytes }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to confirm upload');
+  return data;
+}
+
+// ── Admin: Document Management ─────────────────────────────────────────────────
+
+export async function adminGetDocuments(token, employeeId) {
+  const res = await fetch(`${HTTP_URL}/admin/docs?employeeId=${encodeURIComponent(employeeId)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Failed to fetch documents');
+  return res.json(); // { documents: [...] }
+}
+
+export async function adminDeleteDocument(token, id) {
+  const res = await fetch(`${HTTP_URL}/admin/docs/delete`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ id }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to delete document');
+  return data;
+}
+
 export async function publicOnboardEmployee(data) {
   const res = await fetch(`${HTTP_URL}/public/onboard`, {
     method: 'POST',

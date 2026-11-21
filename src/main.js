@@ -4,6 +4,7 @@ import { initVerifyPage }   from './pages/verify.js';
 import { initAdminPage }    from './pages/admin.js';
 import { initOnboardPage }  from './pages/onboard.js';
 import { initDownloadPage } from './pages/download.js';
+import { initUploadPage }   from './pages/upload.js';
 
 function route() {
   const app  = document.getElementById('app');
@@ -18,6 +19,9 @@ function route() {
   } else if (hash === '#onboard') {
     document.title = 'Employee Onboarding — WaveSeed Co.';
     initOnboardPage(app);
+  } else if (hash === '#upload') {
+    document.title = 'Document Upload — WaveSeed Co.';
+    initUploadPage(app);
   } else if (hash === '#download') {
     document.title = 'Access Your Document — WaveSeed Co.';
     initDownloadPage(app);

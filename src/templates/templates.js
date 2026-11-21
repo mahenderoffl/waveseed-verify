@@ -58,6 +58,9 @@ function buildBrand(snap) {
 let B = buildBrand(null);
 function setBrand(snap) { B = buildBrand(snap); }
 
+// Intern / Employee ID of the person the letter is for (printed next to the reference number when known)
+let EMP_CODE = '';
+
 /**
  * Build the snapshot to store with a document from a business record returned by
  * the admin businesses API (uses its resolved, inherited values).
@@ -354,9 +357,9 @@ export function certificateTemplate(data) {
   .body-block { text-align:center; width:100%; z-index: 2; }
   .certify-text { font-size:12px; font-weight: 600; color:#888; letter-spacing:3px; text-transform:uppercase; margin-bottom:4px; }
   .holder-name { font-family: ${nameFontFamily}; font-size: ${nameFontSize}; font-weight: ${nameFontWeight}; font-style: ${nameFontStyle}; letter-spacing: ${nameLetterSpacing}; color:#0B1F3A; line-height:1.1; margin:6px 0; border-bottom: 2px solid #C9A34A; display: inline-block; padding-bottom: 4px; }
-  .body-text { font-size:13.5px; color:#111111; line-height:1.6; max-width:680px; margin:16px auto 0; font-family: 'Montserrat', sans-serif; }
+  .body-text { font-size:15.5px; font-weight:500; color:#111111; line-height:1.65; max-width:680px; margin:16px auto 0; font-family: 'Montserrat', sans-serif; }
   .body-text strong { color:#0B1F3A; font-weight:700; }
-  .body-subtext { font-size:11px; color:#777; margin-top:10px; line-height:1.5; font-weight: 500; }
+  .body-subtext { font-size:12.5px; color:#666; margin-top:12px; line-height:1.5; font-weight: 500; }
 
   /* Bottom Row */
   .bottom-row { width:100%; display:flex; justify-content:space-between; align-items:flex-end; z-index: 2; }
@@ -676,7 +679,7 @@ function letterWrapper({ title, refNum='', date='', body='', confidential=true, 
   <div class="letter-watermark"></div>
   <div style="position:relative; z-index:1;">
     <div class="ref-date">
-      <span>${refNum ? `Ref: ${esc(refNum)}` : ''}</span>
+      <span>${refNum ? `Ref: ${esc(refNum)}` : ''}${EMP_CODE ? `${refNum ? ' &nbsp;|&nbsp; ' : ''}ID: ${EMP_CODE}` : ''}</span>
       <span style="text-align:right;">
         ${verificationId ? `Verification ID: <strong>${esc(verificationId)}</strong><br/>` : ''}
         Date: ${/^\d{4}-\d{2}-\d{2}$/.test(date) ? fmtDate(date) : (esc(date) || today())}
@@ -1468,9 +1471,11 @@ function renderDocument(type, data) {
 /** Render any document. The brand snapshot stored in data.brand decides the issuer identity. */
 export function generateDocument(type, data) {
   setBrand(data && data.brand);
+  EMP_CODE = esc((data && (data.empCode || data.employeeCode)) || '');
   try {
     return renderDocument(type, data);
   } finally {
     setBrand(null);
+    EMP_CODE = '';
   }
 }

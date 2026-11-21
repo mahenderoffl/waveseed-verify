@@ -516,6 +516,7 @@ window.wsViewEmpDocs = async (id) => {
     </div>
   </div>
   <div class="modal-footer">
+    <button class="btn-secondary" id="docs-zip-btn" style="display:none;" onclick="window._wsZipDocs('${id}')">⬇ Download all (ZIP)</button>
     <button class="btn-secondary" onclick="document.getElementById('docs-modal').remove()">Close</button>
   </div>
 </div>`;
@@ -527,6 +528,7 @@ window.wsViewEmpDocs = async (id) => {
 
   try {
     const { documents } = await adminGetDocuments(token, id);
+    if (documents.length) document.getElementById('docs-zip-btn').style.display = '';
 
     const slots = slotsFor(emp.employeeType);
     const byType = Object.fromEntries(documents.map(d => [d.docType, d]));
@@ -586,6 +588,55 @@ function fmtBytes(b) {
   if (b < 1024 * 1024) return Math.round(b / 1024) + ' KB';
   return (b / (1024 * 1024)).toFixed(2) + ' MB';
 }
+
+// All of a person's documents in one ZIP. Each file goes through the logged "open" route,
+// so every download appears in the access log.
+window._wsZipDocs = async (empId) => {
+  const token = sessionStorage.getItem('ws_admin_token');
+  const emp = employeesList.find(e => e._id === empId);
+  const btn = document.getElementById('docs-zip-btn');
+  const original = btn.textContent;
+  btn.disabled = true;
+  try {
+    const { documents } = await adminGetDocuments(token, empId);
+    const { zipSync } = await import('fflate');
+    const EXT = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'application/pdf': '.pdf' };
+    const files = {};
+    const failed = [];
+    let n = 0;
+    for (const d of documents) {
+      n++;
+      btn.textContent = `Preparing ${n}/${documents.length}…`;
+      const label = (DOC_TYPES[d.docType]?.label || d.docType);
+      try {
+        const url = await adminOpenDocument(token, d.id);
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const base = label.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+        const ext = EXT[d.mimeType] || '';
+        let name = base + ext;
+        for (let i = 2; files[name]; i++) name = `${base}_${i}${ext}`;
+        files[name] = new Uint8Array(await res.arrayBuffer());
+      } catch { failed.push(label); }
+    }
+    if (!Object.keys(files).length) throw new Error('No files could be downloaded');
+    const zip = zipSync(files, { level: 0 });   // images / PDFs are already compressed
+    const who = (emp?.empCode || emp?.name || 'person').replace(/[^A-Za-z0-9_-]+/g, '_');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([zip], { type: 'application/zip' }));
+    a.download = `${who}-documents.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    showToast(failed.length ? `⚠ ZIP created without: ${failed.join(', ')}` : '✅ ZIP downloaded', failed.length ? 'error' : 'success');
+  } catch (err) {
+    showToast('❌ ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+};
 
 window._wsOpenDoc = async (docId) => {
   const token = sessionStorage.getItem('ws_admin_token');

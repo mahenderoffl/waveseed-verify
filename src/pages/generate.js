@@ -587,6 +587,8 @@ window.wsGenerate = async function(typeId) {
   const data = collectFormData(docType);
   const issuingBiz = businessesList.find(b => b.code === bizCode());
   data.brand = brandSnapshot(issuingBiz);   // stored with the document so it re-renders exactly as issued
+  const selectedEmp = existingEmployees.find(e => e._id === document.getElementById('gen-emp-autofill')?.value);
+  if (selectedEmp && selectedEmp.empCode) data.empCode = selectedEmp.empCode;   // printed on letters
 
   // Validate required fields
   const missing = docType.fields.filter(fid => {

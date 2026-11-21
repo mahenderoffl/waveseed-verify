@@ -8,7 +8,7 @@ import { LOGO_URL, SIG_URL, STAMP_URL } from './assets.js';
 const DEFAULT_BRAND = {
   code: 'WS', name: 'WaveSeed Co.', legal: 'WaveSeed Co.',
   tagline: "Building Tomorrow's Wave, Today",
-  website: 'www.waveseed.app', email: 'careers@waveseed.app', address: '',
+  website: 'www.waveseed.co', email: 'support@waveseed.co', address: '',
   color: '#0d1b3e',
   logo: LOGO_URL, seal: STAMP_URL, sigImage: SIG_URL,
   sigName: 'Mahender Banoth', sigTitle: 'Founder, CEO',
@@ -85,8 +85,8 @@ export function brandSnapshot(business, parent) {
     name: p.displayName,
     legal: val(ep, 'legalName') || p.displayName,
     tagline: val(ep, 'tagline'),
-    website: val(ep, 'website'),
-    email: val(ep, 'email'),
+    website: val(eb, 'website') || val(ep, 'website'),   // a venture shows its own site (falls back to the parent's)
+    email: val(eb, 'email') || val(ep, 'email'),
     address: val(ep, 'address'),
     phone: val(ep, 'phone'),
     reg: val(ep, 'registrationNo'),

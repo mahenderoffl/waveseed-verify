@@ -925,7 +925,7 @@ http.route({
       const existing = await ctx.runQuery(internal.certificates.getEmployeeByEmail, { email });
       if (existing) {
         return json({
-          error: "A profile with this email already exists in the WaveSeed registry. Please contact HR at careers@waveseed.app if you believe this is a mistake."
+          error: "A profile with this email already exists in the WaveSeed registry. Please contact HR at support@waveseed.co if you believe this is a mistake."
         }, 409);
       }
     }

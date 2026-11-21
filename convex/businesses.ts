@@ -53,7 +53,7 @@ export const seedAndBackfill = internalMutation({
           code: "WS", slug: "waveseed", displayName: "WaveSeed Co.",
           legalName: "WaveSeed Co.",
           tagline: "Building Tomorrow's Wave, Today",
-          website: "www.waveseed.app", email: "careers@waveseed.app",
+          website: "www.waveseed.co", email: "support@waveseed.co",
           signatoryName: "Mahender Banoth", signatoryTitle: "Founder, CEO",
           active: true, createdAt: now, updatedAt: now,
         });

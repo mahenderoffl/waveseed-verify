@@ -1518,7 +1518,7 @@ async function openEmailModal(certId) {
       <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.88rem; border-top: 1px dashed var(--gray-200); padding-top:6px;">
         <div style="flex:1; display:flex; align-items:center; gap:8px;">
           <strong style="min-width:60px;">CC:</strong>
-          <input id="m-cc" class="form-input" style="flex:1; border:none; padding:4px 8px; font-size:0.88rem; background:transparent; font-weight:600; color:var(--navy);" value="careers@waveseed.app" placeholder="e.g. HR copy" />
+          <input id="m-cc" class="form-input" style="flex:1; border:none; padding:4px 8px; font-size:0.88rem; background:transparent; font-weight:600; color:var(--navy);" value="support@waveseed.co" placeholder="e.g. HR copy" />
         </div>
         <button class="btn-primary" onclick="window.wsCopyInput('m-cc', 'CC Address')" style="padding:4px 8px; font-size:0.75rem;">📋 Copy</button>
       </div>
@@ -1645,8 +1645,8 @@ function generateEmailTemplate(cert, email, downloadLink) {
       `Mahender Banoth\n` +
       `Founder, CEO & Building WaveSeed Co.\n` +
       `Indian Institute of Technology Patna.                                                                   Copy to: WaveSeed Careers.\n` +
-      `📧 mahender@waveseed.app                                                                                                careers@waveseed.app\n` +
-      `🌐 www.waveseed.app\n\n` +
+      `📧 mahender@waveseed.app                                                                                                support@waveseed.co\n` +
+      `🌐 www.waveseed.co\n\n` +
       `─────────────────────────────────────────\n` +
       `This email and any attachments are strictly private and confidential.\n` +
       `Intended solely for the named recipient. If received in error, please notify us immediately.`;
@@ -1677,8 +1677,8 @@ function generateEmailTemplate(cert, email, downloadLink) {
         Founder, CEO & Building WaveSeed Co.<br>
         Indian Institute of Technology Patna.<br>
         <span style="color:#94a3b8; font-size:0.75rem; float:right;">Copy to: WaveSeed Careers.</span>
-        📧 <a href="mailto:mahender@waveseed.app" style="color: #0d1b3e;">mahender@waveseed.app</a> | <a href="mailto:careers@waveseed.app" style="color: #0d1b3e;">careers@waveseed.app</a><br>
-        🌐 <a href="https://www.waveseed.app" style="color: #c9a227;">www.waveseed.app</a>
+        📧 <a href="mailto:mahender@waveseed.app" style="color: #0d1b3e;">mahender@waveseed.app</a> | <a href="mailto:support@waveseed.co" style="color: #0d1b3e;">support@waveseed.co</a><br>
+        🌐 <a href="https://www.waveseed.co" style="color: #c9a227;">www.waveseed.co</a>
       </p>
       <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0 10px;">
       <p style="font-size: 0.72rem; color: #94a3b8; line-height: 1.4;">

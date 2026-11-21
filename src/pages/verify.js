@@ -91,8 +91,8 @@ function buildVerifyHTML() {
 
   <!-- Footer -->
   <footer class="site-footer">
-    <span>© 2026 WaveSeed Co. — <a href="https://waveseed.app" target="_blank">waveseed.app</a></span>
-    <span>All certificates are cryptographically tracked · <a href="mailto:careers@waveseed.app">careers@waveseed.app</a></span>
+    <span>© 2026 WaveSeed Co. — <a href="https://waveseed.co" target="_blank">waveseed.co</a></span>
+    <span>All certificates are cryptographically tracked · <a href="mailto:support@waveseed.co">support@waveseed.co</a></span>
   </footer>
 </div>`;
 }
@@ -184,7 +184,7 @@ function iss(d) {
     tagline: i.tagline !== undefined && i.tagline !== null ? i.tagline : "Building Tomorrow's Wave, Today",
     venture: i.venture && i.venture.name ? i.venture : null,
     logo: i.logoUrl || LOGO_URL,
-    email: i.email || 'careers@waveseed.app',
+    email: i.email || 'support@waveseed.co',
     sigName: i.sigName || 'Mahender Banoth',
     sigTitle: i.sigTitle || 'Founder, CEO',
     isDefaultSigner: !i.sigName || i.sigName === 'Mahender Banoth',
@@ -310,7 +310,7 @@ function renderValid(d) {
           <div style="font-size:0.55rem; color:#94a3b8; font-weight:500; position:relative; z-index:2;">Building ${esc(I.legal)}</div>
         </div>
         <div class="cert-footer-domain">
-          🌐 waveseed.app
+          🌐 waveseed.co
         </div>
       </div>
     </div>
@@ -382,7 +382,7 @@ function renderNotFound(query) {
     <h2 class="error-title">Certificate Not Found</h2>
     <p class="error-msg">
       No certificate matching <strong>"${esc(query)}"</strong> exists in the WaveSeed registry.<br><br>
-      Please double-check the Certificate ID or Reference Number. If you believe this is an error, contact <a href="mailto:careers@waveseed.app" style="color:#c9a227;">careers@waveseed.app</a>
+      Please double-check the Certificate ID or Reference Number. If you believe this is an error, contact <a href="mailto:support@waveseed.co" style="color:#c9a227;">support@waveseed.co</a>
     </p>
   </div>
 </div>`;

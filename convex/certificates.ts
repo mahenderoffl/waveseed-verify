@@ -472,9 +472,23 @@ export const patchEmployee = internalMutation({
   },
 });
 
+/**
+ * Delete a person AND everything personal that hangs off them: uploaded KYC files (storage +
+ * records) and the access log. Certificates that were already issued stay valid and verifiable;
+ * they are simply unlinked from the deleted profile.
+ */
 export const deleteEmployee = internalMutation({
   args: { id: v.id("employees") },
   handler: async (ctx, args) => {
+    const docs = await ctx.db.query("documents").withIndex("by_employee", (q) => q.eq("employeeId", args.id)).collect();
+    for (const d of docs) {
+      try { await ctx.storage.delete(d.storageId as any); } catch { /* already gone */ }
+      await ctx.db.delete(d._id);
+    }
+    const logs = await ctx.db.query("docAccessLogs").withIndex("by_employee", (q) => q.eq("employeeId", args.id)).collect();
+    for (const l of logs) await ctx.db.delete(l._id);
+    const certs = await ctx.db.query("certificates").withIndex("by_employee", (q) => q.eq("employeeId", args.id)).collect();
+    for (const c of certs) await ctx.db.patch(c._id, { employeeId: undefined });
     await ctx.db.delete(args.id);
   },
 });

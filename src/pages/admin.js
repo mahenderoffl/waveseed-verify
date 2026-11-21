@@ -34,6 +34,23 @@ let certBizList = [];   // businesses, for the Business column / filter
 let statsData = {};
 let rootApp = null;
 
+/**
+ * Render the certificate registry (stats, filters, table and all its actions) into an
+ * element owned by the new admin shell. The old sidebar and login are not used any more.
+ */
+export async function mountRegistry(mainEl, sessionToken, role) {
+  token = sessionToken;
+  currentRole = role || 'admin';
+  rootApp = mainEl;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = buildDashboardHTML();
+  const main = tmp.querySelector('.admin-main');
+  mainEl.innerHTML = '';
+  while (main.firstChild) mainEl.appendChild(main.firstChild);
+  attachDashboardEvents(mainEl);
+  await loadData();
+}
+
 export function initAdminPage(app) {
   rootApp = app;
   if (token) {
@@ -577,15 +594,13 @@ function renderTable() {
 // Expose handlers on window for inline onclick (no framework)
 // ─── View actual document (admin-only) ─────────────────────────────────────────────────────────────
 window.wsViewCert = (id) => {
-  // Find the certificate in memory
   const cert = allCerts.find(c => c._id === id);
-  const certId = cert?.certificateId || '';
-  if (!cert) {
-    // Fallback: open public verify page if cert not found in memory
-    window.open(`/?id=${certId}`, '_blank');
-    return;
-  }
+  if (!cert) return;
+  openCertificateDocument(cert);
+};
 
+/** Re-render a stored certificate / letter and open it in a new window (also used by the Person page). */
+export function openCertificateDocument(cert) {
   // Attempt to reconstruct full template data
   let data = {};
 
@@ -639,7 +654,7 @@ window.wsViewCert = (id) => {
   win.document.open();
   win.document.write(html);
   win.document.close();
-};
+}
 
 window.wsRevokeModal = (id) => openRevokeModal(id, certName(id));
 window.wsEditModal   = (id)       => openEditModal(id);

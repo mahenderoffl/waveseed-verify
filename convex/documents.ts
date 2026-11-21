@@ -109,9 +109,9 @@ export const getSummary = internalQuery({
   args: {},
   handler: async (ctx) => {
     const all = await ctx.db.query("documents").collect();
-    const out: Record<string, { docType: string; verified: boolean }[]> = {};
+    const out: Record<string, { docType: string; verified: boolean; at: number }[]> = {};
     for (const d of all) {
-      (out[d.employeeId] ??= []).push({ docType: d.docType, verified: d.verified ?? false });
+      (out[d.employeeId] ??= []).push({ docType: d.docType, verified: d.verified ?? false, at: d.uploadedAt });
     }
     return out;
   },

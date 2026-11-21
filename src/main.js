@@ -2,16 +2,22 @@
 // Every page is loaded on demand, so visitors to the public verification page do not
 // download the admin application (or anything else they never open).
 import './style.css';
+import './styles/design.css';
+import './styles/admin.css';
 
 const PAGES = {
   verify:   () => import('./pages/verify.js').then(m => m.initVerifyPage),
-  admin:    () => import('./pages/admin.js').then(m => m.initAdminPage),
+  admin:    () => import('./admin/app.js').then(m => m.initAdminApp),
   onboard:  () => import('./pages/onboard.js').then(m => m.initOnboardPage),
   upload:   () => import('./pages/upload.js').then(m => m.initUploadPage),
   download: () => import('./pages/download.js').then(m => m.initDownloadPage),
+  ui:       () => import('./pages/styleguide.js').then(m => m.initStyleGuidePage),
+  // Safety net: the previous admin, reachable at #admin-classic while the new one settles in
+  classic:  () => import('./pages/admin.js').then(m => m.initAdminPage),
 };
 
 let routeToken = 0;   // guards against a slow page finishing after the user already moved on
+let currentKey = '';  // which top-level page is mounted ('admin', 'verify', …)
 
 function splash(app) {
   app.innerHTML = '<div class="app-splash" role="status" aria-live="polite"><div class="spinner"></div><span class="sr-only">Loading…</span></div>';
@@ -24,7 +30,7 @@ async function route() {
   const onboardMatch = hash.match(/^#onboard(?:\/([A-Za-z]{2,6}))?$/);   // #onboard or #onboard/wsg
 
   // Kill any open modals from previous page
-  document.querySelectorAll('.modal-overlay, .login-overlay').forEach(el => el.remove());
+  document.querySelectorAll('.modal-overlay, .login-overlay, .ws-modal, .palette, .menu[data-pop]').forEach(el => el.remove());
 
   let key, title, args = [];
   if (hash === '#admin' || hash.startsWith('#admin/')) {
@@ -33,11 +39,19 @@ async function route() {
     key = 'onboard';  title = 'Onboarding — WaveSeed';  args = [onboardMatch[1] || ''];
   } else if (hash === '#upload') {
     key = 'upload';   title = 'Document Upload — WaveSeed Co.';
+  } else if (hash === '#admin-classic') {
+    key = 'classic';  title = 'Admin (classic) — WaveSeed';
+  } else if (hash === '#ui') {
+    key = 'ui';       title = 'Design system — WaveSeed';
   } else if (hash === '#download') {
     key = 'download'; title = 'Access Your Document — WaveSeed Co.';
   } else {
     key = 'verify';   title = 'WaveSeed Certificate Verification | verify.waveseed.app';
   }
+
+  // Moving between admin screens is handled inside the admin app (no full re-mount).
+  if (key === 'admin' && currentKey === 'admin') return;
+  currentKey = key;
 
   document.title = title;
   splash(app);

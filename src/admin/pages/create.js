@@ -3,7 +3,8 @@
 //   #admin/create/<type>     editor: form on the left, the real document on the right
 //   (optional ?person=<id> pre-fills from a person)
 import { icon } from '../../ui/icons.js';
-import { esc, badge, button, empty, openModal, onAction } from '../../ui/components.js';
+import { esc, badge, button, empty, openModal, onAction, fmtDate } from '../../ui/components.js';
+import { mountCombobox } from '../../ui/combobox.js';
 import { DOC_TYPES, CATEGORIES, FIELD_DEF, docType, sectionsFor, idPrefixFor } from '../../utils/docTypes.js';
 import { generateDocument, brandSnapshot, payslipTotals, inr } from '../../templates/templates.js';
 import { adminGetNextIds, adminAddCertificate } from '../../api.js';
@@ -128,10 +129,8 @@ function editor(el, ctx, doc, query) {
       <section class="card fsec">
         <div class="fsec-title">${icon('wand', { size: 18 })} Start from</div>
         <div class="form-2col">
-          <div class="field"><label for="pick-person">A person</label>
-            <select class="select" id="pick-person"><option value="">— Fill in manually —</option>${people.map(p => `<option value="${esc(p._id)}">${esc(p.name)}${p.empCode ? ' · ' + esc(p.empCode) : ''}</option>`).join('')}</select></div>
-          <div class="field"><label for="pick-doc">An earlier document</label>
-            <select class="select" id="pick-doc"><option value="">— None —</option>${sameType.map(c => `<option value="${esc(c._id)}">${esc(c.holderName)} · ${esc(c.certificateId)}</option>`).join('')}</select></div>
+          <div class="field"><label>A person</label><div id="pick-person"></div></div>
+          <div class="field"><label>An earlier document</label><div id="pick-doc"></div></div>
         </div>
         ${bizList.length > 1 ? `<div class="field" style="margin-top:14px"><label for="pick-biz">Issued by</label>
           <select class="select" id="pick-biz">${bizList.map(b => `<option value="${esc(b.id)}">${esc(b.displayName)} (${esc(b.code)})</option>`).join('')}</select>
@@ -393,8 +392,16 @@ function editor(el, ctx, doc, query) {
   form.addEventListener('input', onField);
   form.addEventListener('change', onField);
 
-  $('#pick-person').addEventListener('change', (e) => applyPerson(store.employees.find(p => p._id === e.target.value)));
-  $('#pick-doc').addEventListener('change', (e) => { const c = store.certs.find(x => x._id === e.target.value); if (c) applyDoc(c); });
+  const personBox = mountCombobox($('#pick-person'), {
+    placeholder: 'Search by name, ID or email…', label: 'Person', emptyText: 'No one matches that search',
+    items: people.map(p => ({ value: p._id, label: p.name, sub: [p.empCode, p.role].filter(Boolean).join(' · '), avatar: p.name, key: `${p.email || ''} ${p.institution || ''} ${p.department || ''}` })),
+    onSelect: (v) => applyPerson(v ? store.employees.find(p => p._id === v) : null),
+  });
+  mountCombobox($('#pick-doc'), {
+    placeholder: sameType.length ? 'Search by name or document ID…' : 'No earlier documents of this type', label: 'Earlier document', emptyText: 'No document matches that search',
+    items: sameType.map(c => ({ value: c._id, label: c.holderName, sub: `${c.certificateId} · ${fmtDate(c.issuedDate)}`, key: c.referenceNumber })),
+    onSelect: (v) => { const c = v && store.certs.find(x => x._id === v); if (c) applyDoc(c); },
+  });
   $('#pick-biz')?.addEventListener('change', (e) => {
     // Defaults that belong to one business (e.g. WaveSeed's "Chief Developer") must not leak into another
     const old = {}; ['reportingTo', 'product'].forEach(f => { if (f in values) old[f] = defaultFor(f); });
@@ -424,7 +431,7 @@ function editor(el, ctx, doc, query) {
   renderSections();
   updateIssuingLine();
   const preselect = query.get('person') && store.employees.find(p => p._id === query.get('person'));
-  if (preselect) { $('#pick-person').value = preselect._id; applyPerson(preselect); } else renewIds();
+  if (preselect) { personBox.setValue(preselect._id); applyPerson(preselect); } else renewIds();
   if ($('#pick-biz')) $('#pick-biz').value = bizId;
   renderPreview();
 

@@ -5,10 +5,12 @@ import {
   adminGetDocSummary, adminOpenDocument, adminGetDocLog, adminGetAll, adminGetBusinesses,
 } from '../api.js';
 import { productDropdownHTML, tableSkeletonHTML } from './shared.js';
+import { loadBusinessList, bizBadge, fillBusinessFilter, matchesBusiness } from '../utils/businesses.js';
 import { DOC_TYPES, GROUPS, slotsFor, requirementProgress } from '../utils/docCatalog.js';
 
 
 let employeesList = [];
+let bizList = [];       // businesses, for the Business column / filter
 let docSummary = {};   // employeeId -> [{ docType, verified }]
 
 // Document completeness for one person: { done, total, missing }
@@ -51,6 +53,7 @@ function buildEmployeesHTML() {
       <option value="intern">Interns</option>
       <option value="employee">Employees</option>
     </select>
+    <select id="emp-filter-biz" class="filter-select" style="display:none;"><option value="">All Businesses</option></select>
     <select id="emp-filter-docs" class="filter-select">
       <option value="">Documents: All</option>
       <option value="incomplete">⚠ Incomplete documents</option>
@@ -67,6 +70,7 @@ function buildEmployeesHTML() {
           <th>Role / Project</th>
           <th>Contact</th>
           <th>Type</th>
+          <th>Business</th>
           <th>Institution / Department</th>
           <th>Tenure</th>
           <th>Documents</th>
@@ -74,7 +78,7 @@ function buildEmployeesHTML() {
         </tr>
       </thead>
       <tbody id="emp-tbody">
-        <tr><td colspan="8" class="empty-table"><div class="spinner" style="margin:0 auto 10px;"></div><p>Loading directory…</p></td></tr>
+        <tr><td colspan="9" class="empty-table"><div class="spinner" style="margin:0 auto 10px;"></div><p>Loading directory…</p></td></tr>
       </tbody>
     </table>
   </div>
@@ -90,17 +94,20 @@ function attachEmployeesEvents(mainEl, token) {
   document.getElementById('emp-search').addEventListener('input', () => renderEmployeesTable(token));
   document.getElementById('emp-filter-type').addEventListener('change', () => renderEmployeesTable(token));
   document.getElementById('emp-filter-docs').addEventListener('change', () => renderEmployeesTable(token));
+  document.getElementById('emp-filter-biz').addEventListener('change', () => renderEmployeesTable(token));
 }
 
 // ─── Load Data ─────────────────────────────────────────────────────────────────
 async function loadEmployees(token) {
   const tbody = document.getElementById('emp-tbody');
   if (tbody) {
-    tbody.innerHTML = tableSkeletonHTML(8, 5);
+    tbody.innerHTML = tableSkeletonHTML(9, 5);
   }
   try {
     employeesList = await adminGetEmployees(token);
     try { docSummary = await adminGetDocSummary(token); } catch { docSummary = {}; }
+    bizList = await loadBusinessList(token);
+    fillBusinessFilter(document.getElementById('emp-filter-biz'), bizList);
     renderEmployeesTable(token);
   } catch (err) {
     console.error('loadEmployees error:', err);
@@ -113,7 +120,7 @@ async function loadEmployees(token) {
     if (tbody) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="8">
+          <td colspan="9">
             <div class="error-fallback-box">
               <h3>⚠️ Unable to Load Profiles</h3>
               <p>Could not connect to the employee directory database. Please check your connection and try again.</p>
@@ -138,14 +145,15 @@ function renderEmployeesTable(token) {
     const docF = document.getElementById('emp-filter-docs')?.value || '';
     const p = docProgress(emp);
     const matchD = !docF || (docF === 'incomplete' ? p.done < p.total : p.done === p.total);
-    return matchQ && matchT && matchD;
+    const matchB = matchesBusiness(bizList, emp.businessId, document.getElementById('emp-filter-biz')?.value || '');
+    return matchQ && matchT && matchD && matchB;
   });
 
   const tbody = document.getElementById('emp-tbody');
   if (!tbody) return;
 
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-table"><div class="empty-icon">👥</div><p>No profiles found</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-table"><div class="empty-icon">👥</div><p>No profiles found</p></div></td></tr>`;
     return;
   }
 
@@ -172,6 +180,7 @@ function renderEmployeesTable(token) {
     ${dob ? `<div style="font-size:0.7rem;color:var(--gray-400);margin-top:1px;">DOB: ${formatDateShort(dob)}</div>` : ''}
   </td>
   <td><span class="type-pill ${emp.employeeType === 'intern' ? 'internship' : 'employment'}">${emp.employeeType === 'intern' ? 'Intern' : 'Employee'}</span></td>
+  <td>${bizBadge(bizList, emp.businessId)}</td>
   <td>
     <div style="font-size:0.8rem;font-weight:600;color:var(--navy);">${esc(emp.institution || '—')}</div>
     <div style="font-size:0.72rem;color:var(--gray-400);">${esc(emp.department || '—')}</div>

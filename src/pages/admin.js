@@ -7,6 +7,8 @@ import {
 import { initGeneratePage } from './generate.js';
 import { initEmployeesPage } from './employees.js';
 import { initSettingsPage } from './settings.js';
+import { initReportsPage } from './reports.js';
+import { loadBusinessList, bizBadge, fillBusinessFilter, matchesBusiness } from '../utils/businesses.js';
 import { productDropdownHTML, purposeDropdownHTML, tableSkeletonHTML, safeUrl } from './shared.js';
 
 // Document types whose tenure can still be running (see generate.js "currentlyWorking")
@@ -27,6 +29,7 @@ if (token && !/^[0-9a-f]{64}$/.test(token)) {
 }
 let currentRole = sessionStorage.getItem('ws_admin_role') || 'admin';
 let allCerts = [];
+let certBizList = [];   // businesses, for the Business column / filter
 let statsData = {};
 let rootApp = null;
 
@@ -158,6 +161,11 @@ function buildDashboardHTML() {
         Generate Docs
       </button>` : ''}
       ${(currentRole === 'admin' || currentRole === 'hr') ? `
+      <button class="admin-nav-item" data-section="reports" id="nav-reports">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Reports
+      </button>` : ''}
+      ${(currentRole === 'admin' || currentRole === 'hr') ? `
       <button class="admin-nav-item" data-section="settings" id="nav-settings">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         Settings
@@ -237,6 +245,7 @@ function buildDashboardHTML() {
             <option value="warning-letter">Warning Notice</option>
           </optgroup>
         </select>
+        <select id="filter-business" class="filter-select" style="display:none;"><option value="">All Businesses</option></select>
         <select id="filter-status" class="filter-select">
           <option value="">All Status</option>
           <option value="active">Active</option>
@@ -253,6 +262,7 @@ function buildDashboardHTML() {
               <th>Holder Name</th>
               <th>Role</th>
               <th>Type</th>
+              <th>Business</th>
               <th>Issued</th>
               <th>Status</th>
               <th>Verifications</th>
@@ -260,7 +270,7 @@ function buildDashboardHTML() {
             </tr>
           </thead>
           <tbody id="cert-tbody">
-            <tr><td colspan="8" class="empty-table"><div class="spinner" style="margin:0 auto 10px;"></div><p>Loading certificates…</p></td></tr>
+            <tr><td colspan="9" class="empty-table"><div class="spinner" style="margin:0 auto 10px;"></div><p>Loading certificates…</p></td></tr>
           </tbody>
         </table>
       </div>
@@ -322,6 +332,17 @@ function attachDashboardEvents(app) {
     }
   });
 
+  // Reports (cross-business overview)
+  document.getElementById('nav-reports')?.addEventListener('click', () => {
+    document.querySelectorAll('.admin-nav-item').forEach(b => b.classList.remove('active'));
+    document.getElementById('nav-reports')?.classList.add('active');
+    const mainEl = document.querySelector('.admin-main');
+    if (mainEl) {
+      mainEl.innerHTML = '';
+      initReportsPage(mainEl, token);
+    }
+  });
+
   // Settings (businesses, branding, signatory)
   document.getElementById('nav-settings')?.addEventListener('click', () => {
     document.querySelectorAll('.admin-nav-item').forEach(b => b.classList.remove('active'));
@@ -355,13 +376,14 @@ function attachDashboardEvents(app) {
   document.getElementById('admin-search')?.addEventListener('input', renderTable);
   document.getElementById('filter-type')?.addEventListener('change', renderTable);
   document.getElementById('filter-status')?.addEventListener('change', renderTable);
+  document.getElementById('filter-business')?.addEventListener('change', renderTable);
 }
 
 // ─── Data Loading ──────────────────────────────────────────────────────────────
 async function loadData() {
   const tbody = document.getElementById('cert-tbody');
   if (tbody) {
-    tbody.innerHTML = tableSkeletonHTML(8, 5);
+    tbody.innerHTML = tableSkeletonHTML(9, 5);
   }
   try {
     const [certs, stats] = await Promise.all([
@@ -370,6 +392,8 @@ async function loadData() {
     ]);
     allCerts = certs;
     statsData = stats;
+    certBizList = await loadBusinessList(token);
+    fillBusinessFilter(document.getElementById('filter-business'), certBizList);
     renderStats(stats);
     renderTable();
   } catch (err) {
@@ -386,7 +410,7 @@ async function loadData() {
     if (tbody) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="8">
+          <td colspan="9">
             <div class="error-fallback-box">
               <h3>⚠️ Unable to Load Certificates</h3>
               <p>The system was unable to reach the verification server. Please check your connection and try again.</p>
@@ -449,18 +473,20 @@ function renderTable() {
   const query     = (document.getElementById('admin-search')?.value || '').toLowerCase();
   const typeF     = document.getElementById('filter-type')?.value || '';
   const statusF   = document.getElementById('filter-status')?.value || '';
+  const bizF      = document.getElementById('filter-business')?.value || '';
 
   const filtered = allCerts.filter(c => {
     const matchQ = !query || [c.holderName, c.certificateId, c.role, c.referenceNumber]
       .join(' ').toLowerCase().includes(query);
     const matchT = !typeF   || c.certificateType === typeF;
     const matchS = !statusF || c.status === statusF;
-    return matchQ && matchT && matchS;
+    const matchB = matchesBusiness(certBizList, c.businessId, bizF);
+    return matchQ && matchT && matchS && matchB;
   });
 
   const tbody = document.getElementById('cert-tbody');
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-table"><div class="empty-icon">📭</div><p>No certificates found</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-table"><div class="empty-icon">📭</div><p>No certificates found</p></div></td></tr>`;
     return;
   }
 
@@ -484,6 +510,7 @@ function renderTable() {
   </td>
   <td><div class="td-role">${esc(c.role)}</div></td>
   <td><span class="type-pill ${esc(cssToken(c.certificateType))}">${esc(getNiceTypeLabel(c.certificateType))}</span></td>
+  <td>${bizBadge(certBizList, c.businessId)}</td>
   <td style="white-space:nowrap;font-size:0.8rem;">${formatDateShort(c.issuedDate)}</td>
   <td><span class="status-pill ${esc(cssToken(c.status))}"><span class="dot"></span>${esc(c.status)}</span></td>
   <td style="text-align:center;font-weight:700;color:var(--navy);">${Number(c.verificationCount) || 0}</td>

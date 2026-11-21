@@ -264,25 +264,51 @@ export function certificateTemplate(data) {
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(verificationUrl)}`;
 
   const sealBottom = t.of === t.badge ? 'CERTIFIED' : t.of;
-  const NAVY = '#0B1F3A', GOLD = '#B8913A';
+  const NAVY = '#0B1F3A', GOLD = '#B8913A', INK = '#1a2433';
   const addrLine = [plain(B.address.replace(/<br\s*\/?>/g, ', ')), B.phone ? 'Tel ' + B.phone : '', B.reg ? 'CIN ' + B.reg : ''].filter(Boolean).join('  ·  ');
 
+  // Guilloche wave band: dozens of interleaved sine lines, the brand's wave drawn as a security pattern
+  const guilloche = (flip) => {
+    const lines = [];
+    for (let k = 0; k < 22; k++) {
+      let d = '';
+      for (let x = 0; x <= 1000; x += 8) {
+        const env = 0.5 + 0.5 * Math.sin((x / 1000) * Math.PI * 3 + k * 0.17);
+        const y = 22 + (7 + 11 * env) * Math.sin((x / 1000) * Math.PI * 14 + k * 0.29) * (k % 2 ? 0.92 : 1);
+        d += (x ? 'L' : 'M') + x + ' ' + y.toFixed(1) + ' ';
+      }
+      lines.push(`<path d="${d}" fill="none" stroke="${k % 3 === 0 ? GOLD : NAVY}" stroke-width=".55" opacity="${k % 3 === 0 ? '.75' : '.42'}"/>`);
+    }
+    return `<svg class="band ${flip ? 'bot' : 'top'}" viewBox="0 0 1000 44" preserveAspectRatio="none">${lines.join('')}</svg>`;
+  };
+  const micro = `${B.name} · VERIFIED CREDENTIAL · `.toUpperCase().repeat(14);
+
   const sealHTML = `
-  <svg viewBox="0 0 120 120" width="112" height="112">
-    <defs><linearGradient id="gd" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E9CF8C"/><stop offset=".5" stop-color="#C9A34A"/><stop offset="1" stop-color="#A47E28"/></linearGradient></defs>
-    <circle cx="60" cy="60" r="57" fill="url(#gd)"/>
-    <circle cx="60" cy="60" r="53" fill="none" stroke="#fff" stroke-width=".8" stroke-dasharray="1.6 2.2" opacity=".85"/>
-    <circle cx="60" cy="60" r="47" fill="#fffdf6" stroke="#A47E28" stroke-width=".8"/>
-    <circle cx="60" cy="60" r="30" fill="none" stroke="#C9A34A" stroke-width=".7"/>
-    <path id="stp" d="M 17,60 A 43,43 0 0,1 103,60" fill="none"/>
-    <path id="sbp" d="M 13,60 A 47,47 0 0,0 107,60" fill="none"/>
-    <text font-family="Montserrat,sans-serif" font-weight="700" font-size="7.4" fill="#8A6A1C" letter-spacing="1.6"><textPath href="#stp" startOffset="50%" text-anchor="middle">${esc(t.badge)}</textPath></text>
-    <text font-family="Montserrat,sans-serif" font-weight="700" font-size="7.4" fill="#8A6A1C" letter-spacing="1.6"><textPath href="#sbp" startOffset="50%" text-anchor="middle" dominant-baseline="hanging">${esc(sealBottom)}</textPath></text>
-    <polygon points="60,38 64.4,50.6 77.5,50.8 67,58.8 70.9,71.4 60,63.8 49.1,71.4 53,58.8 42.5,50.8 55.6,50.6" fill="#B8913A"/>
-    <path d="M 40,76 C 46,86 54,88 60,88 C 66,88 74,86 80,76" fill="none" stroke="#B8913A" stroke-width="1.4" stroke-linecap="round"/>
+  <svg viewBox="0 0 130 150" width="94" height="108" style="filter:drop-shadow(0 2px 3px rgba(120,90,20,.35))">
+    <defs>
+      <linearGradient id="gf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F3DFA0"/><stop offset=".45" stop-color="#C9A34A"/><stop offset="1" stop-color="#8F6D1E"/></linearGradient>
+      <linearGradient id="rb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#14305c"/><stop offset="1" stop-color="#0B1F3A"/></linearGradient>
+    </defs>
+    <path d="M38 96 L26 148 L46 138 L56 150 L64 104 Z" fill="url(#rb)"/>
+    <path d="M92 96 L104 148 L84 138 L74 150 L66 104 Z" fill="url(#rb)"/>
+    <circle cx="65" cy="62" r="60" fill="url(#gf)"/>
+    <circle cx="65" cy="62" r="56" fill="none" stroke="#fff6d8" stroke-width="1" stroke-dasharray="1.4 2.4" opacity=".9"/>
+    <circle cx="65" cy="62" r="49" fill="none" stroke="#7a5c14" stroke-width=".6" opacity=".6"/>
+    <circle cx="65" cy="62" r="33" fill="#fbf2d4" stroke="#8F6D1E" stroke-width=".8"/>
+    <path id="s1" d="M 20,62 A 45,45 0 0,1 110,62" fill="none"/>
+    <path id="s2" d="M 16,62 A 49,49 0 0,0 114,62" fill="none"/>
+    <text font-family="Montserrat,sans-serif" font-weight="800" font-size="7.2" fill="#5b430c" letter-spacing="1.8"><textPath href="#s1" startOffset="50%" text-anchor="middle">${esc(t.badge)}</textPath></text>
+    <text font-family="Montserrat,sans-serif" font-weight="800" font-size="7.2" fill="#5b430c" letter-spacing="1.8"><textPath href="#s2" startOffset="50%" text-anchor="middle" dominant-baseline="hanging">${esc(sealBottom)}</textPath></text>
+    <polygon points="65,40 70.2,55 86,55.2 73.4,64.6 78,79.6 65,70.6 52,79.6 56.6,64.6 44,55.2 59.8,55" fill="#8F6D1E"/>
   </svg>`;
 
-  const corner = (pos) => `<svg class="corner ${pos}" viewBox="0 0 70 70" width="62" height="62"><path d="M3 67 V3 H67" fill="none" stroke="${GOLD}" stroke-width="2.2"/><path d="M11 67 V11 H67" fill="none" stroke="${GOLD}" stroke-width=".8" opacity=".7"/><rect x="0.5" y="0.5" width="9" height="9" fill="${NAVY}"/></svg>`;
+  const facts = [
+    role ? ['Role', esc(role)] : null,
+    (!isOngoing(data) && startDate && endDate) ? ['Period', `${fmtDate(startDate)} – ${fmtDate(endDate)}`] : (isOngoing(data) && startDate ? ['Since', fmtDate(startDate)] : null),
+    ['Date of issue', fmtDate(issuedDate || startDate)],
+    ['Certificate no.', esc(certId)],
+  ].filter(Boolean);
+  const factsHTML = facts.map(([k, v]) => `<div class="f${k === 'Period' || k === 'Role' ? ' w' : ''}"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -290,63 +316,74 @@ export function certificateTemplate(data) {
 <meta charset="UTF-8"/>
 <title>Certificate — ${esc(holderName)} — ${B.name}</title>
 <link href="${GF}" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet"/>
 <style>
   @page { size: A4 landscape; margin: 0; }
   *{ box-sizing:border-box; margin:0; padding:0; }
   html,body{ width:100%; min-height:100vh; background:#0b1326; font-family:'Montserrat',Arial,sans-serif; -webkit-print-color-adjust:exact; print-color-adjust:exact; display:flex; align-items:center; justify-content:center; }
   body{ position:relative; padding:20px; overflow-y:auto; overflow-x:hidden; }
 
-  .cert-paper{ width:297mm; height:210mm; flex-shrink:0; position:relative; background:#fffefb; border:3px solid ${NAVY}; padding:14px; box-shadow:0 20px 50px rgba(0,0,0,.45); }
-  .cert-inner{ position:relative; height:100%; border:1.5px solid ${GOLD}; padding:26px 64px 18px; display:flex; flex-direction:column; align-items:center; text-align:center; overflow:hidden; }
+  .cert-paper{ width:297mm; height:210mm; flex-shrink:0; position:relative; overflow:hidden; background:radial-gradient(ellipse at 50% 42%, #ffffff 0%, #fffdf7 55%, #f8f2e2 100%); box-shadow:0 20px 50px rgba(0,0,0,.45); }
   @media (max-width:1200px){ .cert-paper{ transform:scale(.85); } }
   @media (max-width:1000px){ .cert-paper{ transform:scale(.7); } }
   @media (max-width:800px){ .cert-paper{ transform:scale(.55); } }
   @media (max-width:600px){ .cert-paper{ transform:scale(.42); } }
 
-  .corner{ position:absolute; z-index:3; }
-  .corner.tl{ top:6px; left:6px; } .corner.tr{ top:6px; right:6px; transform:scaleX(-1); }
-  .corner.bl{ bottom:6px; left:6px; transform:scaleY(-1); } .corner.br{ bottom:6px; right:6px; transform:scale(-1,-1); }
-  .watermark{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:380px; height:380px; background:url("${B.logo}") center/contain no-repeat; opacity:.04; pointer-events:none; }
+  /* frame: navy keyline, gold keyline */
+  .frame1{ position:absolute; inset:12px; border:2px solid ${NAVY}; pointer-events:none; }
+  .frame2{ position:absolute; inset:18px; border:.75px solid ${GOLD}; pointer-events:none; }
+  .band{ position:absolute; left:19px; right:19px; width:calc(100% - 38px); height:40px; }
+  .band.top{ top:19px; } .band.bot{ bottom:19px; transform:scaleY(-1); }
+  .micro{ position:absolute; left:24px; right:24px; font-size:4.6px; letter-spacing:1.6px; color:${GOLD}; white-space:nowrap; overflow:hidden; font-weight:600; opacity:.85; line-height:1; }
+  .micro.t{ top:62px; } .micro.b{ bottom:62px; }
+  .watermark{ position:absolute; top:50%; left:50%; transform:translate(-50%,-48%); width:430px; height:430px; background:url("${B.logo}") center/contain no-repeat; opacity:.035; pointer-events:none; }
 
-  .head{ display:flex; flex-direction:column; align-items:center; z-index:2; }
-  .head img{ height:104px; margin-top:-8px; object-fit:contain; }
-  .head .org{ font-size:12px; font-weight:700; letter-spacing:4px; text-transform:uppercase; color:${NAVY}; margin-top:0; }
-  .head .tag{ font-size:8.5px; font-weight:600; letter-spacing:2.2px; text-transform:uppercase; color:#8a8f9c; margin-top:4px; }
-  .head .vent{ font-size:9.5px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#8A6A1C; margin-top:7px; padding-top:6px; border-top:1px solid #e6d9b3; }
+  .content{ position:absolute; left:64px; right:64px; top:70px; bottom:70px; display:flex; flex-direction:column; align-items:center; text-align:center; }
+  .head{ display:flex; flex-direction:column; align-items:center; }
+  .head img{ height:84px; object-fit:contain; margin:-10px 0 -8px; }
+  .head .tag{ font-size:8px; font-weight:600; letter-spacing:2.6px; text-transform:uppercase; color:#8a8f9c; }
+  .head .vent{ font-size:9px; font-weight:700; letter-spacing:2.2px; text-transform:uppercase; color:#8A6A1C; margin-top:6px; }
   .head .vent span{ color:#8a8f9c; font-weight:600; }
 
-  .title{ margin-top:24px; z-index:2; }
-  .title h1{ font-family:'Cinzel',serif; font-size:48px; font-weight:700; letter-spacing:12px; padding-left:12px; color:${NAVY}; line-height:1; text-transform:uppercase; }
-  .of{ display:flex; align-items:center; justify-content:center; gap:16px; margin-top:10px; }
-  .of i{ display:block; width:90px; height:1px; background:${GOLD}; }
-  .of b{ font-size:14px; font-weight:700; letter-spacing:7px; padding-left:7px; text-transform:uppercase; color:#8A6A1C; }
+  .title{ margin-top:8px; }
+  .title h1{ font-family:'Cormorant Garamond','Cinzel',serif; font-size:34px; font-weight:700; letter-spacing:11px; padding-left:11px; color:${NAVY}; line-height:1; text-transform:uppercase; }
+  .title .of{ display:flex; align-items:center; justify-content:center; gap:14px; margin-top:8px; }
+  .title .of i{ display:block; width:70px; height:1px; background:linear-gradient(90deg,transparent,${GOLD}); }
+  .title .of i:last-child{ background:linear-gradient(270deg,transparent,${GOLD}); }
+  .title .of b{ font-size:11px; font-weight:700; letter-spacing:6px; padding-left:6px; text-transform:uppercase; color:#8A6A1C; }
 
-  .mid{ z-index:2; margin-top:14px; width:100%; flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; }
-  .certify{ font-size:10.5px; font-weight:600; color:#8a8f9c; letter-spacing:3.5px; text-transform:uppercase; }
-  .name{ display:inline-block; min-width:48%; max-width:90%; font-family:${nameFontFamily}; font-size:${nameFontSize}; font-weight:${nameFontWeight}; font-style:${nameFontStyle}; letter-spacing:${nameLetterSpacing}; color:${NAVY}; line-height:1.15; margin-top:4px; padding:0 24px 4px; border-bottom:1.5px solid ${GOLD}; }
-  .text{ font-size:16px; font-weight:500; color:#222; line-height:1.75; max-width:800px; margin:20px auto 0; }
-  .text strong{ color:${NAVY}; font-weight:700; }
-  .sub{ font-size:12px; color:#6b7280; margin-top:12px; font-weight:500; }
+  .mid{ flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; width:100%; }
+  .certify{ font-family:'Cormorant Garamond',serif; font-style:italic; font-size:15px; font-weight:500; color:#6b7280; letter-spacing:.5px; }
+  .name{ display:inline-block; max-width:94%; font-family:${nameFontFamily}; font-size:${nameFontSize}; font-weight:${nameFontWeight}; font-style:${nameFontStyle}; letter-spacing:${nameLetterSpacing}; color:${NAVY}; line-height:1.15; margin-top:2px; padding:0 8px; }
+  .rule{ width:300px; height:1.5px; margin:4px auto 0; background:linear-gradient(90deg,transparent,${GOLD} 20%,${GOLD} 80%,transparent); }
+  .text{ text-wrap:balance; font-size:14px; font-weight:500; color:${INK}; line-height:1.75; max-width:760px; margin:14px auto 0; }
+  .text strong{ color:${NAVY}; font-weight:700; white-space:nowrap; }
+  .sub{ font-family:'Cormorant Garamond',serif; font-style:italic; font-size:14.5px; color:#6b7280; margin-top:6px; }
 
-  .base{ margin-top:0; width:100%; display:grid; grid-template-columns:1fr auto 1fr; align-items:end; z-index:2; padding-bottom:6px; }
-  .col-l{ display:flex; align-items:flex-end; gap:14px; text-align:left; }
-  .qr{ width:66px; height:66px; border:1px solid ${GOLD}; padding:3px; background:#fff; }
-  .meta .k{ font-size:7px; font-weight:700; letter-spacing:1.4px; text-transform:uppercase; color:#8A6A1C; }
-  .meta .v{ font-size:10.5px; font-weight:700; color:${NAVY}; margin:2px 0 7px; }
-  .meta .v.id{ font-size:9.5px; letter-spacing:.3px; margin-bottom:0; }
-  .meta .hint{ font-size:6.8px; color:#8a8f9c; margin-top:3px; letter-spacing:.4px; }
-  .col-c{ display:flex; justify-content:center; padding:0 28px; }
+  .facts{ display:flex; justify-content:center; width:100%; max-width:860px; border-top:1px solid #e3d6ad; border-bottom:1px solid #e3d6ad; padding:9px 0; }
+  .facts .f{ flex:1; white-space:nowrap; padding:0 14px; border-left:1px solid #eadfbd; }
+  .facts .f:first-child{ border-left:0; }
+  .facts .f.w{ flex:1.6; }
+  .facts .k{ font-size:6.8px; font-weight:700; letter-spacing:1.8px; text-transform:uppercase; color:#8A6A1C; }
+  .facts .v{ font-size:10.5px; font-weight:700; color:${NAVY}; margin-top:3px; }
+
+  .base{ margin-top:10px; width:100%; display:grid; grid-template-columns:1fr auto 1fr; align-items:end; }
+  .col-l{ display:flex; align-items:flex-end; gap:12px; text-align:left; }
+  .qr{ width:70px; height:70px; padding:4px; background:#fff; border:1px solid ${GOLD}; }
+  .ver .k{ font-size:7px; font-weight:800; letter-spacing:1.6px; text-transform:uppercase; color:${NAVY}; }
+  .ver .v{ font-size:7.6px; color:#6b7280; line-height:1.5; margin-top:3px; }
+  .col-c{ display:flex; justify-content:center; padding:0 30px; margin-bottom:0; }
   .col-r{ display:flex; justify-content:flex-end; }
-  .sig{ position:relative; width:230px; text-align:center; }
+  .sig{ position:relative; width:236px; text-align:center; }
   .sig .img{ height:46px; display:flex; align-items:flex-end; justify-content:center; }
   .sig .img img{ height:44px; object-fit:contain; }
-  .sig .stamp{ position:absolute; right:-34px; bottom:12px; width:92px; height:92px; object-fit:contain; transform:rotate(-8deg); opacity:.9; }
-  .sig .ln{ height:1px; background:${NAVY}; margin:4px 0 5px; opacity:.55; }
-  .sig .n{ font-size:10.5px; font-weight:700; letter-spacing:.8px; text-transform:uppercase; color:${NAVY}; }
-  .sig .r{ font-size:8.5px; color:#555; margin-top:2px; font-weight:500; }
+  .sig .stamp{ position:absolute; right:-38px; bottom:6px; width:96px; height:96px; object-fit:contain; transform:rotate(-8deg); opacity:.88; mix-blend-mode:multiply; }
+  .sig .ln{ height:1px; background:${NAVY}; margin:4px 0 5px; opacity:.5; }
+  .sig .n{ font-size:10.5px; font-weight:700; letter-spacing:.9px; text-transform:uppercase; color:${NAVY}; }
+  .sig .r{ font-size:8.4px; color:#555; margin-top:2px; font-weight:500; }
 
-  .foot{ z-index:2; width:100%; border-top:1px solid #e6d9b3; padding-top:6px; margin-top:6px; padding-left:56px; padding-right:56px; font-size:8px; color:#6b7280; line-height:1.5; }
-  .foot b{ color:${NAVY}; font-weight:600; }
+  .foot{ margin-top:10px; font-size:7.4px; color:#7b8290; line-height:1.5; }
+  .foot b{ color:${NAVY}; font-weight:700; }
 
   @media print{
     html,body{ width:297mm; height:210mm; background:#fff; padding:0; margin:0; display:block; }
@@ -361,60 +398,59 @@ export function certificateTemplate(data) {
 <button class="print-btn no-print" onclick="window.print()">PRINT / SAVE PDF</button>
 
 <div class="cert-paper">
- <div class="cert-inner">
-  ${corner('tl')}${corner('tr')}${corner('bl')}${corner('br')}
   <div class="watermark"></div>
+  <div class="frame1"></div><div class="frame2"></div>
+  ${guilloche(false)}${guilloche(true)}
+  <div class="micro t">${micro}</div><div class="micro b">${micro}</div>
 
-  <div class="head">
-    <img src="${B.logo}" alt="${B.name} logo"/>
-    <div class="org">${B.legal}</div>
-    ${B.tagline ? `<div class="tag">${B.tagline}</div>` : ''}
-    ${B.venture ? `<div class="vent">${B.venture.name} <span>· A venture of ${B.legal}</span></div>` : ''}
-  </div>
+  <div class="content">
+    <div class="head">
+      <img src="${B.logo}" alt="${B.name} logo"/>
+      ${B.tagline ? `<div class="tag">${B.tagline}</div>` : ''}
+      ${B.venture ? `<div class="vent">${B.venture.name} <span>· A venture of ${B.legal}</span></div>` : ''}
+    </div>
 
-  <div class="title">
-    <h1>Certificate</h1>
-    <div class="of"><i></i><b>of ${esc(t.of)}</b><i></i></div>
-  </div>
+    <div class="title">
+      <h1>Certificate</h1>
+      <div class="of"><i></i><b>of ${esc(t.of)}</b><i></i></div>
+    </div>
 
-  <div class="mid">
-    <p class="certify">This is to certify that</p>
-    <h2 class="name">${esc(holderName)}</h2>
-    <p class="text">${bodyText}${holderInstitution ? ` (${esc(holderInstitution)}${holderDepartment ? ', '+esc(holderDepartment) : ''})` : ''}</p>
-    <p class="sub">We appreciate their dedication, commitment and valuable contributions to the projects and the team.</p>
-  </div>
+    <div class="mid">
+      <p class="certify">This is to certify that</p>
+      <h2 class="name">${esc(holderName)}</h2>
+      <div class="rule"></div>
+      <p class="text">${bodyText}${holderInstitution ? ` (${esc(holderInstitution)}${holderDepartment ? ', '+esc(holderDepartment) : ''})` : ''}</p>
+      <p class="sub">in recognition of their dedication, commitment and valuable contributions.</p>
+    </div>
 
-  <div class="base">
-    <div class="col-l">
-      <div>
+    <div class="facts">${factsHTML}</div>
+
+    <div class="base">
+      <div class="col-l">
         <img class="qr" src="${qrCodeUrl}" alt="Verification QR code"/>
+        <div class="ver">
+          <div class="k">Verified credential</div>
+          <div class="v">Scan to confirm authenticity<br/>verify.waveseed.app${refNum ? `<br/>Ref ${esc(refNum)}` : ''}</div>
+        </div>
       </div>
-      <div class="meta">
-        <div class="k">Date of issue</div><div class="v">${fmtDate(issuedDate || startDate)}</div>
-        <div class="k">Certificate no.</div><div class="v id">${esc(certId)}</div>
-        ${refNum ? `<div class="hint">Ref: ${esc(refNum)}</div>` : ''}
-        <div class="hint">Scan to verify · verify.waveseed.app</div>
-      </div>
-    </div>
-    <div class="col-c">${sealHTML}</div>
-    <div class="col-r">
-      <div class="sig">
-        ${B.seal ? `<img class="stamp" src="${B.seal}" alt="Company stamp"/>` : ''}
-        <div class="img">${B.sigImage ? `<img src="${B.sigImage}" alt="Signature"/>` : ''}</div>
-        <div class="ln"></div>
-        <div class="n">${B.sigName}</div>
-        <div class="r">${B.sigTitle}, ${B.legal}</div>
+      <div class="col-c">${sealHTML}</div>
+      <div class="col-r">
+        <div class="sig">
+          ${B.seal ? `<img class="stamp" src="${B.seal}" alt="Company stamp"/>` : ''}
+          <div class="img">${B.sigImage ? `<img src="${B.sigImage}" alt="Signature"/>` : ''}</div>
+          <div class="ln"></div>
+          <div class="n">${B.sigName}</div>
+          <div class="r">${B.sigTitle}, ${B.legal}</div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div class="foot"><b>${B.website}</b> &nbsp;·&nbsp; ${B.email}${addrLine ? `<br/>${esc(addrLine)}` : ''}</div>
- </div>
+    <div class="foot"><b>${B.website}</b> &nbsp;·&nbsp; ${B.email}${addrLine ? ` &nbsp;·&nbsp; ${esc(addrLine)}` : ''}</div>
+  </div>
 </div>
 </body>
 </html>`;
 }
-
 
 // ─── Letter frame ─────────────────────────────────────────────────────────────
 // Standard business-letter layout: letterhead of the PARENT company (with the venture as a

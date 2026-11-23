@@ -102,11 +102,14 @@ export default defineSchema({
     meta: v.optional(v.string()), // JSON string with extended profile data
     businessId: v.optional(v.id("businesses")),   // which business this person belongs to
     empCode: v.optional(v.string()), // WS-INT-2026-0001 / WS-EMP-2026-0001 (set at creation; absent on legacy profiles)
+    employeeId: v.optional(v.string()),     // permanent Employee ID, e.g. WS-0001: one per person, never changes or gets reused
+    cliqAssignedAt: v.optional(v.number()), // set once the person has been given an account in the Cliq workspace
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_name", ["name"])
     .index("by_emp_code", ["empCode"])
+    .index("by_employee_id", ["employeeId"])
     .index("by_business", ["businessId"])
     .index("by_type", ["employeeType"])
     .index("by_status", ["status"]),

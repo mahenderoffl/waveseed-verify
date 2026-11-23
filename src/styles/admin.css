@@ -194,6 +194,10 @@
 .person-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; padding: 24px; }
 .person-id { display: flex; align-items: center; gap: 20px; min-width: 0; flex: 1; }
 .person-name { font-size: 28px; letter-spacing: -.03em; }
+.eid-chip { display: inline-flex !important; align-items: center; gap: 8px; padding: 3px 4px 3px 10px; border-radius: var(--r-pill); background: var(--gold-50); border: 1px solid var(--gold-100); color: var(--gold-600); font-size: 12.5px; }
+.eid-chip b { color: var(--ink); font-size: 13.5px; letter-spacing: .03em; }
+.eid-chip button { display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 50%; background: #fff; color: var(--navy-700); cursor: pointer; }
+.eid-chip button:hover { background: var(--navy-50); }
 .person-contact { margin-top: 10px; color: var(--ink-2); font-size: 13.5px; }
 .person-contact span { display: inline-flex; align-items: center; gap: 6px; }
 .person-actions { display: flex; gap: 10px; align-items: center; }

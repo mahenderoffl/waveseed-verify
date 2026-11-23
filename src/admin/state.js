@@ -38,7 +38,7 @@ export const session = {
 
 // ── Data cache ───────────────────────────────────────────────────────────────
 export const data = { businesses: [], employees: [], certs: [], acceptances: [], summary: {}, stats: {}, loadedAt: 0 };
-function resetData() { Object.assign(data, { businesses: [], employees: [], certs: [], summary: {}, stats: {}, loadedAt: 0 }); }
+function resetData() { Object.assign(data, { businesses: [], employees: [], certs: [], acceptances: [], summary: {}, stats: {}, loadedAt: 0 }); }
 
 const listeners = new Set();
 export const onChange = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };

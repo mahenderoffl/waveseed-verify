@@ -151,6 +151,16 @@ export const patchCertificate = internalMutation({
   },
 });
 
+/** Correct a reference number (used to tidy legacy formats). Must stay unique. */
+export const setReferenceNumber = internalMutation({
+  args: { id: v.id("certificates"), referenceNumber: v.string() },
+  handler: async (ctx, { id, referenceNumber }) => {
+    const clash = await ctx.db.query("certificates").withIndex("by_reference_number", (q) => q.eq("referenceNumber", referenceNumber)).first();
+    if (clash && clash._id !== id) throw new Error("Reference number already in use");
+    await ctx.db.patch(id, { referenceNumber, updatedAt: Date.now() });
+  },
+});
+
 export const doRevoke = internalMutation({
   args: {
     id: v.id("certificates"),
@@ -362,6 +372,44 @@ export const getEmployeeByEmail = internalQuery({
   },
 });
 
+/** Next permanent Employee ID for a business: WS-0001, WS-0002 ... (never reused, even if a profile is deleted). */
+async function nextEmployeeId(ctx: any, bizCode: string): Promise<string> {
+  const key = `eid:${bizCode}`;
+  const counter = await ctx.db.query("counters").withIndex("by_key", (q: any) => q.eq("key", key)).first();
+  let seq: number;
+  if (counter) { seq = counter.value + 1; await ctx.db.patch(counter._id, { value: seq }); }
+  else { seq = 1; await ctx.db.insert("counters", { key, value: seq }); }
+  return `${bizCode}-${String(seq).padStart(4, "0")}`;
+}
+
+/** One-off: give every existing person a permanent Employee ID, oldest profile first. Safe to re-run. */
+export const assignEmployeeIds = internalMutation({
+  args: { dryRun: v.boolean(), firstEmpCode: v.optional(v.string()) },   // firstEmpCode: this person gets the lowest number (the founder)
+  handler: async (ctx, { dryRun, firstEmpCode }) => {
+    const people = (await ctx.db.query("employees").collect()).filter((e) => !e.employeeId)
+      .sort((a, b) => (a.empCode === firstEmpCode ? -1 : b.empCode === firstEmpCode ? 1 : a.createdAt - b.createdAt));
+    const out: { name: string; employeeId: string }[] = [];
+    const next: Record<string, number> = {};
+    for (const e of people) {
+      const biz = await resolveBusiness(ctx, e.businessId);
+      const code = biz?.code ?? PARENT_CODE;
+      if (dryRun) {
+        if (next[code] === undefined) {
+          const c = await ctx.db.query("counters").withIndex("by_key", (q) => q.eq("key", `eid:${code}`)).first();
+          next[code] = c ? c.value : 0;
+        }
+        next[code] += 1;
+        out.push({ name: e.name, employeeId: `${code}-${String(next[code]).padStart(4, "0")}` });
+      } else {
+        const id = await nextEmployeeId(ctx, code);
+        await ctx.db.patch(e._id, { employeeId: id });
+        out.push({ name: e.name, employeeId: id });
+      }
+    }
+    return out;
+  },
+});
+
 export const insertEmployee = internalMutation({
   args: {
     name: v.string(),
@@ -396,11 +444,13 @@ export const insertEmployee = internalMutation({
       await ctx.db.insert("counters", { key: counterKey, value: seq });
     }
     const empCode = `${bizCode}-${kind}-${year}-${String(seq).padStart(4, "0")}`;
+    const employeeId = await nextEmployeeId(ctx, bizCode);
 
     return await ctx.db.insert("employees", {
       ...args,
       businessId: biz?._id,
       empCode,
+      employeeId,
       status: "active",
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -465,13 +515,15 @@ export const patchEmployee = internalMutation({
     reportingTo: v.optional(v.string()),
     employeeType: v.optional(v.string()),
     status: v.optional(v.string()),
+    cliqAssigned: v.optional(v.boolean()),   // true = mark as set up in Cliq now, false = clear
   },
   handler: async (ctx, args) => {
-    const { id, ...fields } = args;
-    const updates = Object.fromEntries(
+    const { id, cliqAssigned, ...fields } = args;
+    const updates: Record<string, unknown> = Object.fromEntries(
       Object.entries(fields).filter(([, val]) => val !== undefined)
     );
-    await ctx.db.patch(id, { ...updates, updatedAt: Date.now() });
+    if (cliqAssigned !== undefined) updates.cliqAssignedAt = cliqAssigned ? Date.now() : undefined;
+    await ctx.db.patch(id, { ...updates, updatedAt: Date.now() } as any);
   },
 });
 

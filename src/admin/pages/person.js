@@ -71,7 +71,8 @@ export default async function mount(el, ctx) {
         <h2 class="person-name">${esc(emp.name)}</h2>
         <div class="muted">${esc([emp.role, emp.product].filter(Boolean).join(' · ') || 'No role set')}</div>
         <div class="row wrap gap-4 person-contact">
-          ${emp.empCode ? `<span class="mono strong">${icon('id-card', { size: 15 })} ${esc(emp.empCode)}</span>` : `<span class="muted">${icon('id-card', { size: 15 })} ID not assigned</span>`}
+          ${emp.employeeId ? `<span class="eid-chip">Employee ID <b class="mono">${esc(emp.employeeId)}</b><button type="button" data-action="copy-eid" title="Copy Employee ID" aria-label="Copy Employee ID">${icon('copy', { size: 14 })}</button></span>` : ''}
+          ${emp.empCode ? `<span class="mono muted" title="Code printed on letters">${icon('id-card', { size: 15 })} ${esc(emp.empCode)}</span>` : ''}
           ${emp.email ? `<span>${icon('mail', { size: 15 })} ${esc(emp.email)}</span>` : ''}
           ${meta.phone ? `<span>${icon('phone', { size: 15 })} ${esc(meta.phone)}</span>` : ''}
           ${emp.institution ? `<span>${icon('graduation-cap', { size: 15 })} ${esc(emp.institution)}</span>` : ''}
@@ -114,6 +115,7 @@ export default async function mount(el, ctx) {
         ${meta.notes ? `<div class="callout callout--blue" style="margin-top:16px">${icon('message', { size: 18 })}<div>${esc(meta.notes)}</div></div>` : ''}
       </section>
       <div class="col" style="gap:20px;align-content:start">
+        ${cliqCard()}
         ${acceptanceCard()}
         <section class="card card-pad">
           <div class="row between"><div class="card-title">${icon('file-check', { size: 18 })} Documents</div><b class="tnum" style="font-size:20px">${pct}%</b></div>
@@ -127,6 +129,19 @@ export default async function mount(el, ctx) {
         </section>
       </div>
     </div>`;
+  };
+
+  const cliqCard = () => {
+    if (!emp.employeeId) return '';
+    const on = !!emp.cliqAssignedAt;
+    return `<section class="card card-pad">
+      <div class="row between"><div class="card-title">${icon('message', { size: 18 })} Cliq workspace</div>${on ? badge('Set up', { variant: 'green', icon: 'check' }) : badge('Not set up yet', { variant: 'amber', dot: true })}</div>
+      <p class="muted" style="margin:10px 0 12px;font-size:13px">${on ? `Account created on ${esc(fmtDate(emp.cliqAssignedAt))}.` : 'Use this Employee ID when you create their account in Cliq, then mark it done.'}</p>
+      <div class="row wrap gap-2">
+        <span class="mono strong" style="font-size:15px;letter-spacing:.03em">${esc(emp.employeeId)}</span>
+        ${button('Copy', { size: 'sm', icon: 'copy', action: 'copy-eid' })}
+        ${(ctx.role === 'admin' || ctx.role === 'hr') ? button(on ? 'Mark as not set up' : 'Mark as set up in Cliq', { size: 'sm', variant: on ? '' : 'primary', icon: on ? 'restore' : 'check', action: 'toggle-cliq' }) : ''}
+      </div></section>`;
   };
 
   const acceptanceCard = () => {
@@ -299,6 +314,21 @@ export default async function mount(el, ctx) {
       title: 'Delete this document?', confirm: 'Delete', text: 'The file is permanently removed. The person can upload it again.',
       onYes: async () => { await adminDeleteDocument(ctx.token, b.dataset.id); ctx.toast('Document deleted.'); await afterChange(); loadLog(); },
     }),
+    'copy-eid': async () => {
+      try { await navigator.clipboard.writeText(emp.employeeId); ctx.toast(emp.employeeId + ' copied.'); }
+      catch { ctx.toast(emp.employeeId, { title: 'Employee ID' }); }
+    },
+    'toggle-cliq': async (b) => {
+      const on = !emp.cliqAssignedAt;
+      b.classList.add('is-loading');
+      try {
+        await adminUpdateEmployee(ctx.token, emp._id, { cliqAssigned: on });
+        emp.cliqAssignedAt = on ? Date.now() : undefined;
+        invalidate();
+        ctx.toast(on ? 'Marked as set up in Cliq.' : 'Marked as not set up.');
+        paint();
+      } catch (e) { b.classList.remove('is-loading'); ctx.toast(e.message, { type: 'error' }); }
+    },
     'signed-copy': async (b) => {
       const cert = store.certs.find(c => c._id === b.dataset.id);
       const rec = cert && recFor(cert);

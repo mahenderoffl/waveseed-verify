@@ -2,7 +2,7 @@
 import {
   adminGetEmployees, adminAddEmployee, adminDeleteEmployee,
   adminGetDocuments, adminDeleteDocument, adminVerifyDocument,
-  adminGetDocSummary, adminOpenDocument, adminGetDocLog, adminGetAll, adminGetBusinesses,
+  adminGetDocSummary, adminOpenDocument, adminGetDocLog, adminGetAll, adminGetBusinesses, adminUpdateEmployee,
 } from '../api.js';
 import { productDropdownHTML, tableSkeletonHTML } from './shared.js';
 import { loadBusinessList, bizBadge, fillBusinessFilter, matchesBusiness, productsOf } from '../utils/businesses.js';
@@ -13,6 +13,7 @@ import { DOC_TYPES, GROUPS, slotsFor, requirementProgress } from '../utils/docCa
 let employeesList = [];
 let bizList = [];       // businesses, for the Business column / filter
 let docSummary = {};   // employeeId -> [{ docType, verified }]
+let lastFiltered = [];  // rows currently shown (what Export CSV downloads)
 
 // Document completeness for one person: { done, total, missing }
 function docProgress(emp) {
@@ -34,7 +35,8 @@ function buildEmployeesHTML() {
     <div class="admin-page-title">👥 Employee & Intern Directory</div>
     <div class="admin-page-subtitle">Add and manage profiles of interns and employees to quickly issue documents</div>
   </div>
-  <div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+    <button class="btn-secondary" id="btn-export-emp" title="Download the list shown below as a CSV file" style="padding:9px 14px;">⬇ Export CSV</button>
     <button class="btn-add-cert" id="btn-add-employee">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Add Profile
@@ -47,7 +49,7 @@ function buildEmployeesHTML() {
   <div class="table-toolbar">
     <div class="search-input-wrap">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input id="emp-search" class="admin-search" type="text" placeholder="Search by name, ID, role, institution…" />
+      <input id="emp-search" class="admin-search" type="text" placeholder="Search by name, Employee ID, role, institution…" />
     </div>
     <select id="emp-filter-type" class="filter-select">
       <option value="">All Types</option>
@@ -59,6 +61,11 @@ function buildEmployeesHTML() {
       <option value="">Documents: All</option>
       <option value="incomplete">⚠ Incomplete documents</option>
       <option value="complete">✅ Complete documents</option>
+    </select>
+    <select id="emp-filter-cliq" class="filter-select">
+      <option value="">Cliq: All</option>
+      <option value="pending">Not set up in Cliq</option>
+      <option value="done">Set up in Cliq</option>
     </select>
   </div>
 
@@ -75,11 +82,12 @@ function buildEmployeesHTML() {
           <th>Institution / Department</th>
           <th>Tenure</th>
           <th>Documents</th>
+          <th>Cliq</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody id="emp-tbody">
-        <tr><td colspan="9" class="empty-table"><div class="spinner" style="margin:0 auto 10px;"></div><p>Loading directory…</p></td></tr>
+        <tr><td colspan="10" class="empty-table"><div class="spinner" style="margin:0 auto 10px;"></div><p>Loading directory…</p></td></tr>
       </tbody>
     </table>
   </div>
@@ -96,13 +104,15 @@ function attachEmployeesEvents(mainEl, token) {
   document.getElementById('emp-filter-type').addEventListener('change', () => renderEmployeesTable(token));
   document.getElementById('emp-filter-docs').addEventListener('change', () => renderEmployeesTable(token));
   document.getElementById('emp-filter-biz').addEventListener('change', () => renderEmployeesTable(token));
+  document.getElementById('emp-filter-cliq').addEventListener('change', () => renderEmployeesTable(token));
+  document.getElementById('btn-export-emp').addEventListener('click', () => exportEmployeesCsv());
 }
 
 // ─── Load Data ─────────────────────────────────────────────────────────────────
 async function loadEmployees(token) {
   const tbody = document.getElementById('emp-tbody');
   if (tbody) {
-    tbody.innerHTML = tableSkeletonHTML(9, 5);
+    tbody.innerHTML = tableSkeletonHTML(10, 5);
   }
   try {
     employeesList = await adminGetEmployees(token);
@@ -121,7 +131,7 @@ async function loadEmployees(token) {
     if (tbody) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="9">
+          <td colspan="10">
             <div class="error-fallback-box">
               <h3>⚠️ Unable to Load Profiles</h3>
               <p>Could not connect to the employee directory database. Please check your connection and try again.</p>
@@ -140,21 +150,24 @@ function renderEmployeesTable(token) {
   const typeF = document.getElementById('emp-filter-type')?.value || '';
 
   const filtered = employeesList.filter(emp => {
-    const matchQ = !query || [emp.name, emp.empCode, emp.role, emp.institution, emp.department, emp.email]
+    const matchQ = !query || [emp.name, emp.employeeId, emp.empCode, emp.role, emp.institution, emp.department, emp.email]
       .join(' ').toLowerCase().includes(query);
     const matchT = !typeF || emp.employeeType === typeF;
     const docF = document.getElementById('emp-filter-docs')?.value || '';
     const p = docProgress(emp);
     const matchD = !docF || (docF === 'incomplete' ? p.done < p.total : p.done === p.total);
     const matchB = matchesBusiness(bizList, emp.businessId, document.getElementById('emp-filter-biz')?.value || '');
-    return matchQ && matchT && matchD && matchB;
+    const cliqF = document.getElementById('emp-filter-cliq')?.value || '';
+    const matchC = !cliqF || (cliqF === 'done' ? !!emp.cliqAssignedAt : !emp.cliqAssignedAt);
+    return matchQ && matchT && matchD && matchB && matchC;
   });
+  lastFiltered = filtered;
 
   const tbody = document.getElementById('emp-tbody');
   if (!tbody) return;
 
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-table"><div class="empty-icon">👥</div><p>No profiles found</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10"><div class="empty-table"><div class="empty-icon">👥</div><p>No profiles found</p></div></td></tr>`;
     return;
   }
 
@@ -166,9 +179,10 @@ function renderEmployeesTable(token) {
     const dob   = meta.dob   || '';
     return `
 <tr>
-  <td>
+  <td style="min-width:185px;">
     <div class="td-name">${esc(emp.name)}</div>
-    <div style="font-size:0.72rem;font-weight:700;letter-spacing:.03em;color:var(--gold-dark);margin-top:2px;font-family:monospace;">${emp.empCode ? esc(emp.empCode) : '<span style="color:var(--gray-400);font-weight:400;">ID not assigned</span>'}</div>
+    ${emp.employeeId ? `<div style="font-size:0.8rem;font-weight:800;letter-spacing:.04em;color:var(--navy);margin-top:3px;font-family:monospace;white-space:nowrap;">${esc(emp.employeeId)} <button title="Copy Employee ID" onclick="window.wsCopyEid('${emp._id}')" style="border:0;background:#f3f4f8;border-radius:6px;padding:1px 6px;cursor:pointer;font-size:0.7rem;">⧉</button></div>` : ''}
+    <div style="font-size:0.68rem;font-weight:600;letter-spacing:.03em;color:var(--gold-dark);margin-top:2px;font-family:monospace;">${emp.empCode ? esc(emp.empCode) : '<span style="color:var(--gray-400);font-weight:400;">ID not assigned</span>'}</div>
     <div style="font-size:0.7rem;color:var(--gray-400);margin-top:2px;">Work Mode: ${esc(emp.workMode || '—')}</div>
   </td>
   <td>
@@ -191,6 +205,9 @@ function renderEmployeesTable(token) {
   </td>
   <td>${(() => { const p = docProgress(emp); const ok = p.done === p.total;
     return `<button class="btn-action" title="${esc(ok ? 'All required documents received' : 'Missing: ' + p.missing.join(', '))}" onclick="window.wsViewEmpDocs('${emp._id}')" style="font-weight:700;color:${ok ? '#15803d' : '#b45309'};background:${ok ? '#f0fdf4' : '#fffbeb'};border:1px solid ${ok ? '#86efac' : '#fde68a'};">${ok ? '✅' : '⚠'} ${p.done}/${p.total}</button>`; })()}</td>
+  <td>${emp.cliqAssignedAt
+    ? `<button class="btn-action" title="Set up on ${esc(new Date(emp.cliqAssignedAt).toLocaleDateString('en-IN'))}. Click to undo." onclick="window.wsToggleCliq('${emp._id}')" style="font-weight:700;color:#15803d;background:#f0fdf4;border:1px solid #86efac;">✅ Set up</button>`
+    : `<button class="btn-action" title="Click once you have created their Cliq account" onclick="window.wsToggleCliq('${emp._id}')" style="font-weight:700;color:#b45309;background:#fffbeb;border:1px solid #fde68a;">Mark set up</button>`}</td>
   <td>
     <div class="actions-cell">
       <button class="btn-action view" onclick="window.wsViewEmpProfile('${emp._id}')">👁 Profile</button>
@@ -357,6 +374,48 @@ function openAddEmployeeModal(token) {
   });
 }
 
+// ─── Employee ID helpers ───────────────────────────────────────────────────────
+window.wsCopyEid = async (id) => {
+  const emp = employeesList.find(e => e._id === id);
+  if (!emp || !emp.employeeId) return;
+  try { await navigator.clipboard.writeText(emp.employeeId); showToast('📋 ' + emp.employeeId + ' copied', 'success'); }
+  catch { showToast(emp.employeeId, 'success'); }
+};
+
+window.wsToggleCliq = async (id) => {
+  const emp = employeesList.find(e => e._id === id);
+  if (!emp) return;
+  const on = !emp.cliqAssignedAt;
+  const token = sessionStorage.getItem('ws_admin_token');
+  try {
+    await adminUpdateEmployee(token, id, { cliqAssigned: on });
+    emp.cliqAssignedAt = on ? Date.now() : undefined;
+    showToast(on ? '✅ Marked as set up in Cliq' : 'Marked as not set up in Cliq', 'success');
+    renderEmployeesTable(token);
+  } catch (err) { showToast('❌ ' + err.message, 'error'); }
+};
+
+/** Download the rows currently shown (respects search and filters) as a CSV for Cliq setup. */
+function exportEmployeesCsv() {
+  const rows = lastFiltered.length || document.getElementById('emp-search')?.value ? lastFiltered : employeesList;
+  const bizName = (id) => (bizList.find(b => b.id === id)?.displayName) || '';
+  const head = ['Employee ID', 'Code on letters', 'Name', 'Type', 'Status', 'Role', 'Email', 'Phone', 'Business', 'Cliq set up', 'Cliq set up on'];
+  const q = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const lines = [head.map(q).join(',')];
+  for (const e of rows) {
+    let meta = {}; try { meta = e.meta ? JSON.parse(e.meta) : {}; } catch {}
+    lines.push([e.employeeId, e.empCode, e.name, e.employeeType === 'intern' ? 'Intern' : 'Employee', e.status === 'former' ? 'Former' : 'Active', e.role, e.email, meta.phone || '', bizName(e.businessId),
+      e.cliqAssignedAt ? 'Yes' : 'No', e.cliqAssignedAt ? new Date(e.cliqAssignedAt).toISOString().slice(0, 10) : ''].map(q).join(','));
+  }
+  const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'waveseed-employee-ids-' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  showToast('⬇ Exported ' + rows.length + ' people', 'success');
+}
+
 // ─── Actions ───────────────────────────────────────────────────────────────────
 window.wsDeleteEmp = async (id) => {
   const name = employeesList.find(e => e._id === id)?.name || 'this';
@@ -396,7 +455,8 @@ window.wsViewEmpProfile = (id) => {
   <div class="modal-body" style="padding-bottom:8px;">
 
     <div class="prof-section-title">🏷️ Work Info</div>
-    ${row(emp.employeeType === 'intern' ? 'Intern ID' : 'Employee ID', emp.empCode || 'Not assigned (created before IDs were introduced)')}
+    ${row('Employee ID', emp.employeeId || 'Not assigned')}
+    ${row(emp.employeeType === 'intern' ? 'Intern code (on letters)' : 'Employee code (on letters)', emp.empCode || 'Not assigned (created before IDs were introduced)')}
     ${row('Role', emp.role)}
     ${row('Project / Product', emp.product)}
     ${row('Work Mode', emp.workMode)}

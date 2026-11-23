@@ -9,4 +9,4 @@ const ORIGIN = (typeof location !== 'undefined' && location.origin && location.o
 
 export const LOGO_URL  = `${ORIGIN}/brand/logo.png`;
 export const STAMP_URL = `${ORIGIN}/brand/stamp.webp`;
-export const SIG_URL   = `${ORIGIN}/brand/signature.webp`;
+export const SIG_URL   = `${ORIGIN}/brand/signature-v2.webp`;

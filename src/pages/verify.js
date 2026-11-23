@@ -301,7 +301,7 @@ function renderValid(d) {
       <!-- Footer -->
       <div class="cert-footer" style="margin-top:28px; display:flex; justify-content:space-between; align-items:flex-end;">
         <div class="cert-sig-area" style="display:flex; flex-direction:column; align-items:center; position:relative; min-height:85px; min-width:160px; text-align:center;">
-          ${(I.isDefaultSigner && SIG_URL) ? `<img src="${SIG_URL}" alt="Signature" style="height:36px; max-width:110px; object-fit:contain; position:absolute; top:-26px; z-index:2; mix-blend-mode:multiply; filter:contrast(1.2);" />` : ''}
+          ${(I.isDefaultSigner && SIG_URL) ? `<img src="${SIG_URL}" alt="Signature" style="height:36px; max-width:150px; object-fit:contain; position:absolute; top:-26px; z-index:2; mix-blend-mode:multiply; filter:contrast(1.2);" />` : ''}
           ${STAMP_URL ? `<img src="${STAMP_URL}" alt="Company Stamp" style="height:72px; width:72px; object-fit:contain; position:absolute; top:-36px; left:80px; z-index:1; transform:rotate(-8deg); opacity:0.85; pointer-events:none;" />` : ''}
           <div style="width:110px; height:1px; background:#cbd5e1; margin-bottom:4px; position:relative; z-index:2;"></div>
           <div class="cert-sig-name" style="font-size:0.75rem; font-weight:700; color:#0d1b3e; position:relative; z-index:2;">${esc(I.sigName)}</div>

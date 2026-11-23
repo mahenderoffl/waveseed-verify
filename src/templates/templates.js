@@ -377,10 +377,10 @@ export function certificateTemplate(data) {
   .ver .v{ font-size:7.6px; color:#6b7280; line-height:1.5; margin-top:3px; }
   .col-c{ display:flex; justify-content:center; padding:0 30px; margin-bottom:0; }
   .col-r{ display:flex; justify-content:flex-end; }
-  .sig{ position:relative; width:236px; text-align:center; }
-  .sig .img{ height:46px; display:flex; align-items:flex-end; justify-content:center; }
-  .sig .img img{ height:44px; object-fit:contain; }
-  .sig .stamp{ position:absolute; right:-38px; bottom:6px; width:96px; height:96px; object-fit:contain; transform:rotate(-8deg); opacity:.88; mix-blend-mode:multiply; }
+  .sig{ position:relative; width:250px; text-align:center; }
+  .sig .img{ height:52px; display:flex; align-items:flex-end; justify-content:flex-start; padding-left:4px; }
+  .sig .img img{ height:48px; max-width:190px; object-fit:contain; }
+  .sig .stamp{ position:absolute; right:-46px; bottom:10px; width:96px; height:96px; object-fit:contain; transform:rotate(-8deg); opacity:.88; mix-blend-mode:multiply; }
   .sig .ln{ height:1px; background:${NAVY}; margin:4px 0 5px; opacity:.5; }
   .sig .n{ font-size:10.5px; font-weight:700; letter-spacing:.9px; text-transform:uppercase; color:${NAVY}; }
   .sig .r{ font-size:8.4px; color:#555; margin-top:2px; font-weight:500; }
@@ -631,9 +631,9 @@ function letterWrapper({ title, refNum='', date='', body='', confidential=true, 
   .sign{ margin-top:22px; break-inside:avoid; }
   .sign-close{ margin-bottom:2px; }
   .sign-for{ margin-bottom:0; }
-  .sign-area{ position:relative; height:62px; margin:2px 0; }
-  .sign-img{ position:absolute; left:0; top:6px; height:46px; max-width:150px; object-fit:contain; mix-blend-mode:multiply; }
-  .sign-seal{ position:absolute; left:130px; top:-6px; height:74px; width:74px; object-fit:contain; opacity:.92; transform:rotate(-8deg); }
+  .sign-area{ position:relative; height:66px; margin:2px 0; }
+  .sign-img{ position:absolute; left:0; top:2px; height:54px; max-width:210px; object-fit:contain; mix-blend-mode:multiply; }
+  .sign-seal{ position:absolute; left:200px; top:-6px; height:74px; width:74px; object-fit:contain; opacity:.92; transform:rotate(-8deg); }
   .sign-name{ font-weight:700; color:var(--navy); }
   .sign-title{ font-size:9.5pt; color:var(--ink); }
   .sign-auth{ font-size:8.5pt; color:var(--muted); }
